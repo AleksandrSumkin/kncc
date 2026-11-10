@@ -1,0 +1,46 @@
+# Binaries & build artifacts
+/bin/
+/kncc
+/kncc.exe
+*.exe
+*.test
+*.out
+dist-release/
+
+# Go
+vendor/
+go.work
+
+# Node / Frontend
+web/node_modules/
+web/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets & local env
+.env
+.env.local
+*.kubeconfig
+kubeconfig
+
+# Scratch & temporary agent files
+scratch/
+.scratch/
+pr-description.md
+.preview/

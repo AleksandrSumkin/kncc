@@ -1,0 +1,13 @@
+{{- if and .Values.favicon .Values.favicon.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kncc.fullname" . }}-favicon
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: branding
+data:
+  favicon.mime_type: {{ .Values.favicon.mimeType | default "image/svg+xml" | quote }}
+  favicon.data: {{ .Values.favicon.data | default "" | quote }}
+{{- end }}

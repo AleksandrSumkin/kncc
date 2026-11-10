@@ -1,0 +1,69 @@
+{{- if .Values.logo.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kncc.fullname" . }}-logo
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    app.kubernetes.io/component: branding
+data:
+  logo.mime_type: {{ .Values.logo.mimeType | default "image/svg+xml" | quote }}
+  {{- if .Values.logo.data }}
+  logo.data: {{ .Values.logo.data | quote }}
+  {{- else }}
+  logo.data: |
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+      <defs>
+        <linearGradient id="knccBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0b1e3b"/>
+          <stop offset="50%" stop-color="#0f2b54"/>
+          <stop offset="100%" stop-color="#081528"/>
+        </linearGradient>
+        <linearGradient id="hullGrad" x1="0%" y1="0%" x2="100%" y2="50%">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="60%" stop-color="#0284c7"/>
+          <stop offset="100%" stop-color="#1e40af"/>
+        </linearGradient>
+        <linearGradient id="superstructureGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="100%" stop-color="#bae6fd"/>
+        </linearGradient>
+        <linearGradient id="waveFront" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.95"/>
+          <stop offset="50%" stop-color="#38bdf8" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#0284c7" stop-opacity="0.7"/>
+        </linearGradient>
+        <linearGradient id="waveBack" x1="100%" y1="0%" x2="0%" y2="0%">
+          <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.6"/>
+          <stop offset="50%" stop-color="#0369a1" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#0891b2" stop-opacity="0.5"/>
+        </linearGradient>
+      </defs>
+      <rect width="200" height="200" rx="42" fill="url(#knccBg)"/>
+      <rect width="196" height="196" x="2" y="2" rx="40" fill="none" stroke="#38bdf8" stroke-width="2" stroke-opacity="0.25"/>
+      <circle cx="100" cy="70" r="38" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3 3" stroke-opacity="0.3"/>
+      <circle cx="100" cy="70" r="22" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2 3" stroke-opacity="0.4"/>
+      <circle cx="100" cy="70" r="3" fill="#38bdf8"/>
+      <line x1="100" y1="30" x2="100" y2="40" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="100" y1="100" x2="100" y2="110" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="60" y1="70" x2="70" y2="70" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="130" y1="70" x2="140" y2="70" stroke="#38bdf8" stroke-width="1.5" stroke-opacity="0.6"/>
+      <path d="M100 48 L100 75 M93 58 L107 58 M95 66 L105 66" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+      <path d="M78 102 L84 76 L116 76 L122 102 Z" fill="url(#superstructureGrad)"/>
+      <rect x="88" y="80" width="6" height="5" rx="1" fill="#0f2b54"/>
+      <rect x="97" y="80" width="6" height="5" rx="1" fill="#0f2b54"/>
+      <rect x="106" y="80" width="6" height="5" rx="1" fill="#0f2b54"/>
+      <path d="M68 114 L75 102 L125 102 L132 114 Z" fill="#e0f2fe"/>
+      <rect x="74" y="106" width="52" height="3" fill="#0284c7" opacity="0.6"/>
+      <path d="M28 118 L48 114 L152 114 L172 118 L156 148 L100 156 L44 148 Z" fill="url(#hullGrad)"/>
+      <path d="M34 126 C70 123, 130 123, 166 126 L158 136 C124 133, 76 133, 42 136 Z" fill="#ffffff" opacity="0.85"/>
+      <path d="M46 139 C80 137, 120 137, 154 139 L149 146 C118 144, 82 144, 51 146 Z" fill="#06b6d4" opacity="0.75"/>
+      <path d="M15 146 C45 138, 75 152, 105 144 C135 136, 165 150, 185 142 L185 175 C160 178, 130 172, 100 176 C70 180, 40 174, 15 178 Z" fill="url(#waveBack)"/>
+      <path d="M10 156 C38 146, 68 162, 100 152 C132 142, 162 158, 190 148 L190 185 C160 188, 130 182, 100 186 C70 190, 40 184, 10 188 Z" fill="url(#waveFront)"/>
+      <path d="M18 157 C40 151, 62 163, 85 156" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <path d="M115 154 C138 147, 160 159, 182 151" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.8"/>
+      <path d="M40 168 C65 163, 90 172, 115 166" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+    </svg>
+  {{- end }}
+{{- end }}

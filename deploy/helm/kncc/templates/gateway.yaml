@@ -1,0 +1,25 @@
+{{- $gatewayConfig := default .Values.gateway (and .Values.httpRoute .Values.httpRoute) -}}
+{{- if and $gatewayConfig $gatewayConfig.createGateway -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ default (include "kncc.fullname" .) $gatewayConfig.gatewayName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    {{- with $gatewayConfig.gatewayLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $gatewayConfig.gatewayAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ required "A valid gatewayClassName is required when createGateway is true" $gatewayConfig.gatewayClassName | quote }}
+  listeners:
+    {{- toYaml $gatewayConfig.listeners | nindent 4 }}
+  {{- with $gatewayConfig.addresses }}
+  addresses:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

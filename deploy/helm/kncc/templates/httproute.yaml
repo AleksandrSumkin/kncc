@@ -1,0 +1,63 @@
+{{- $gatewayConfig := default .Values.gateway (and .Values.httpRoute .Values.httpRoute) -}}
+{{- if and $gatewayConfig (or $gatewayConfig.enabled (and .Values.httpRoute .Values.httpRoute.enabled)) -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "kncc.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    {{- with $gatewayConfig.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $gatewayConfig.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if $gatewayConfig.parentRefs }}
+  parentRefs:
+    {{- range $gatewayConfig.parentRefs }}
+    - name: {{ .name }}
+      {{- if .namespace }}
+      namespace: {{ .namespace }}
+      {{- end }}
+      {{- if .sectionName }}
+      sectionName: {{ .sectionName }}
+      {{- end }}
+      {{- if .port }}
+      port: {{ .port }}
+      {{- end }}
+      {{- if .group }}
+      group: {{ .group }}
+      {{- end }}
+      {{- if .kind }}
+      kind: {{ .kind }}
+      {{- end }}
+    {{- end }}
+  {{- else if $gatewayConfig.createGateway }}
+  parentRefs:
+    - name: {{ default (include "kncc.fullname" .) $gatewayConfig.gatewayName }}
+      namespace: {{ .Release.Namespace }}
+  {{- end }}
+  {{- if $gatewayConfig.hostnames }}
+  hostnames:
+    {{- range $gatewayConfig.hostnames }}
+    - {{ . | quote }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- if $gatewayConfig.rules }}
+      {{- toYaml $gatewayConfig.rules | nindent 4 }}
+    {{- else }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "kncc.fullname" . }}
+          port: {{ .Values.service.port }}
+          group: ""
+          kind: Service
+    {{- end }}
+{{- end }}

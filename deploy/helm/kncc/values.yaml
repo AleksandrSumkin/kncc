@@ -1,0 +1,386 @@
+﻿# Default values for kncc (Kubernetes Network Connectivity Checker).
+
+replicaCount: 1
+
+image:
+  repository: kncc/kncc
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  tokenTTL: "24h"
+  tls:
+    # Enable dedicated HTTPS server on container port (default: 8443)
+    enabled: false
+    port: 8443
+    # Automatically generate self-signed ECDSA certificate if no custom cert/key is provided
+    autoGenerate: true
+    # Manual certificate/key file paths inside container or inline PEM blocks
+    certFile: ""
+    keyFile: ""
+    certPem: ""
+    keyPem: ""
+    minVersion: "1.2"
+    # Reference an existing Kubernetes Secret containing tls.crt and tls.key
+    existingSecret: ""
+    # Container mount path for server TLS secret
+    mountPath: "/etc/kncc-tls"
+    # cert-manager integration for automatic issuance and rotation of server TLS certificate
+    certManager:
+      enabled: false
+      issuerRef:
+        name: ""              # Name of ClusterIssuer or Issuer (e.g. corporate-ca-issuer, letsencrypt)
+        kind: "ClusterIssuer" # ClusterIssuer or Issuer
+        group: "cert-manager.io"
+      dnsNames: []          # e.g. ["kncc.example.com", "kncc.kncc.svc"]
+      ipAddresses: []
+      duration: "8760h"     # 1 year
+      renewBefore: "720h"   # 30 days
+  openapi:
+    # Enable OpenAPI documentation endpoints (/api/docs, /api/openapi.json, /api/openapi.yaml)
+    enabled: true
+    # When true, OpenAPI documentation is public without authentication (ideal for DAST scans in dev/preview)
+    public: false
+
+# Kubernetes probe settings
+k8s:
+  # Image used for ephemeral probe pods created on cluster nodes.
+  # Supported and verified images:
+  #   - "ghcr.io/homelab-public/kncc-agent:latest" (or "homelab/kncc-agent:latest"):
+  #       RECOMMENDED. Ultra-lightweight native probe image by kncc (~15MB uncompressed).
+  #       Contains ONLY required utilities (curl, openssl, nc, ping, ca-certificates, bind-tools).
+  #       Zero attack surface, sub-second cold start, zero known CVEs. Built from Dockerfile.agent.
+  #   - "wbitt/network-multitool:alpine-extra":
+  #       Public default fallback (~120MB). General-purpose network diagnostic container.
+  #   - "wbitt/network-multitool:minimal":
+  #       Lightweight version of network-multitool (~40MB).
+  #   - "nicolaka/netshoot:latest":
+  #       Comprehensive network troubleshooting Swiss Army knife (~400MB).
+  #   - "curlimages/curl:latest":
+  #       Minimal curl container (~15MB). Supports ONLY HTTP/HTTPS checks.
+  probeImage: "wbitt/network-multitool:alpine-extra"
+  probeTimeoutSeconds: 30
+  probeActiveDeadlineSeconds: 60
+  gcInterval: "2m"
+  gcStaleThreshold: "3m"
+
+  # Namespace Discovery & Dropdown Settings:
+  # When true, the kncc UI displays a dropdown of cluster namespaces, and kncc's ClusterRole
+  # is granted permission to list namespaces (namespaces: [get, list, watch]).
+  # When false (default), users manually type the target namespace. Following the Principle of
+  # Least Privilege (PoLP), kncc receives no namespace read permissions from the cluster.
+  namespaceListEnabled: false
+
+  # Namespaces that are permanently blocked from selection in the dropdown and execution in API.
+  namespaceExcludeList:
+    - "kube-system"
+    - "kube-public"
+    - "kube-node-lease"
+
+  # Standard Kubernetes LabelSelector used to exclude namespaces marked with specific labels.
+  # Example: "kncc.io/exclude=true"
+  namespaceExcludeSelector: "kncc.io/exclude=true"
+
+# RBAC Configuration
+rbac:
+  create: true
+  # If true, kncc can create probe pods across any user-specified namespace to test specific NetworkPolicies.
+  # Requires ClusterRole with Pod create/delete permissions.
+  # If false, kncc creates probe pods strictly inside its own release namespace.
+  multiNamespace: false
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+
+# Security, Anti-SSRF & Rate Limiting
+security:
+  rateLimitPerMinute: 30
+  blacklistCIDRs:
+    - "169.254.169.254/32" # Cloud instance metadata (AWS, GCP, Azure)
+    - "127.0.0.0/8"         # Loopback
+    - "::1/128"            # IPv6 Loopback
+  blacklistDomains:
+    - "metadata.google.internal"
+    - "instance-data"
+  whitelistCIDRs: []
+  whitelistDomains: []
+
+# SQLite Storage & Reports Persistence
+persistence:
+  # When false, uses emptyDir (in-memory/ephemeral volume).
+  # When true, creates a PersistentVolumeClaim.
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 2Gi
+  mountPath: /data
+
+# Authentication providers (Local, LDAP, OIDC)
+auth:
+  adminUsername: "admin"
+  # Initial password for default admin account on first startup (used only when existingSecret is empty)
+  # When left empty (default) and existingSecret is not set, kncc automatically generates a secure random
+  # password at startup and prints it to the application log.
+  adminInitialPassword: ""
+  # Name of an existing Kubernetes Secret containing the admin initial password
+  # When set, adminInitialPassword is ignored and kncc reads the password from this secret
+  existingSecret: ""
+  # Key inside existingSecret containing the admin initial password
+  existingSecretPasswordKey: "ADMIN_INITIAL_PASSWORD"
+  localEnabled: true
+
+  # Admin password delivery mode:
+  # "volume" - delivered via emptyDir volume as a file, avoiding exposure in container environment (default)
+  # "env" - delivered as environment variable ADMIN_INITIAL_PASSWORD into container
+  deliveryMode: "volume"
+
+  # Settings for emptyDir password volume (used when auth.deliveryMode is "volume")
+  volume:
+    # emptyDir medium: "Memory" (RAM/tmpfs) or "" (node disk)
+    medium: "Memory"
+    # Optional size limit for emptyDir volume
+    sizeLimit: "64Mi"
+    # Mount path inside the kncc container
+    mountPath: "/etc/kncc-auth"
+    # File name inside the emptyDir volume
+    fileName: "admin-password"
+    # When true, an initContainer copies the secret to the emptyDir volume before the main container starts
+    populateFromSecret: true
+
+  # LDAP / Active Directory Configuration
+  ldapEnabled: false
+  ldap:
+    url: "ldaps://ldap.corp.example.com:636"
+    bindDN: "cn=kncc-svc,ou=services,dc=example,dc=com"
+    bindPassword: ""
+    # Reference an existing Kubernetes Secret containing bindDN and/or bindPassword
+    # When set, kncc injects credentials from this secret instead of storing them in the release secret
+    existingSecret: ""
+    existingSecretBindDNKey: "LDAP_BIND_DN"
+    existingSecretBindPasswordKey: "LDAP_BIND_PASSWORD"
+    # Direct Bind / User Bind Pattern:
+    # When specified, kncc formats the entered username into this DN template (e.g. "uid=%s,ou=users,dc=example,dc=com")
+    # and binds directly with the user's credentials, eliminating the need for a dedicated service account.
+    userDNTemplate: ""
+    # Anonymous Search Mode:
+    # When true, kncc performs an unauthenticated bind (RFC 4513) to search the directory without service account credentials.
+    anonymousSearch: false
+    baseDN: "ou=users,dc=example,dc=com"
+    userFilter: "(uid=%s)"
+    # Name or CN of LDAP group granting admin role in kncc (e.g. "RBAC_KNCC_ADMIN")
+    adminGroup: ""
+    # Search filter to restrict retrieved user groups (e.g. "(cn=RBAC_KNCC_*)")
+    groupFilter: ""
+    # Base DN for group queries (defaults to baseDN if empty)
+    groupBaseDN: ""
+    insecureSkipVerify: false
+
+  # SSO / OIDC Configuration (Keycloak, Dex, Okta)
+  oidcEnabled: false
+  oidc:
+    issuerURL: "https://auth.corp.example.com/realms/corp"
+    # Client ID for OIDC provider (used when not provided in existingSecret)
+    clientID: "kncc"
+    # Plain-text client secret (used only when existingSecret is empty)
+    clientSecret: ""
+    redirectURL: "https://kncc.corp.example.com/api/auth/oidc/callback"
+    # Name of an existing Kubernetes Secret containing OIDC credentials (clientID and/or clientSecret)
+    existingSecret: ""
+    # Key inside existingSecret containing clientID (optional; if empty, auth.oidc.clientID is used)
+    existingSecretClientIDKey: ""
+    # Key inside existingSecret containing clientSecret (defaults to OIDC_CLIENT_SECRET)
+    existingSecretClientSecretKey: "OIDC_CLIENT_SECRET"
+
+# Trusted Corporate CA Certificates (Root + Intermediate)
+# Provides support for internal/corporate CAs (Private PKI) in both kncc server (for secure LDAP/OIDC)
+# and probe pods (for verifying internal HTTPS endpoints without disabling TLS verification).
+caCerts:
+  # Enable mounting and loading additional trusted CA certificates
+  enabled: false
+
+  # 1. Manual Mode: Inline PEM format (Root CA and/or Intermediate CA chain)
+  # When set and existingSecret/existingConfigMap is empty, Helm automatically creates a dedicated ConfigMap.
+  # Example:
+  # pem: |
+  #   -----BEGIN CERTIFICATE-----
+  #   ... (Root CA) ...
+  #   -----END CERTIFICATE-----
+  #   -----BEGIN CERTIFICATE-----
+  #   ... (Intermediate CA) ...
+  #   -----END CERTIFICATE-----
+  pem: ""
+
+  # 2. Manual Mode: Reference an existing ConfigMap (e.g. distributed by cert-manager trust-manager)
+  existingConfigMap: ""
+
+  # 3. Manual Mode: Reference an existing Secret (e.g. created manually or by cert-manager CA Issuer)
+  existingSecret: ""
+
+  # Key inside the ConfigMap or Secret that contains the certificate(s)
+  # Defaults to "ca.crt". Can also be "ca-bundle.crt", "tls.crt", etc.
+  certKey: "ca.crt"
+
+  # Container mount path inside kncc server pod
+  mountPath: "/etc/ssl/kncc-ca"
+
+  # 4. cert-manager Integration:
+  # When enabled, Helm renders a cert-manager.io/v1 Certificate resource pointing to your cluster/namespace Issuer.
+  # cert-manager issues the certificate and stores ca.crt and the chain in a managed Secret mounted into kncc.
+  certManager:
+    enabled: false
+    issuerRef:
+      name: ""              # Name of ClusterIssuer or Issuer (e.g. corporate-ca-issuer)
+      kind: "ClusterIssuer" # ClusterIssuer or Issuer
+      group: "cert-manager.io"
+    duration: "8760h"       # 1 year
+    renewBefore: "720h"     # 30 days
+    commonName: ""          # Defaults to {{ include "kncc.fullname" . }}-ca
+
+# Web UI Theming (Customizable 2-color palette)
+theme:
+  appName: "Kubernetes Network Connectivity Checker"
+  primaryColor: "#ffffff" # Base background / card color
+  accentColor: "#dc2626"  # Accent brand color (Red-600 by default)
+  defaultTheme: "light"   # Default system theme ("light" or "dark")
+
+# Corporate Branding & Logo Configuration
+logo:
+  enabled: true
+  # Base64-encoded image (SVG, PNG, JPEG, WebP) or raw SVG string.
+  # If empty, the default shipbuilding vector logo in blue/cyan palette is used.
+  data: ""
+  # MIME type of the logo data (image/svg+xml, image/png, image/jpeg, image/webp)
+  mimeType: "image/svg+xml"
+
+# Custom Favicon Configuration
+favicon:
+  enabled: true
+  # Base64-encoded image (SVG, PNG, ICO, WebP, JPEG) or raw SVG string.
+  # If empty, kncc automatically defaults to the thumbnail of the corporate logo.
+  data: ""
+  # MIME type of the favicon (image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/webp)
+  mimeType: "image/svg+xml"
+
+# Quick Add target suggestions configuration (between 1 and 3 default services)
+quickAdd:
+  presets:
+    - name: "K8s API"
+      protocol: "tcp"
+      host: "10.96.0.1"
+      port: 443
+    - name: "Google DNS"
+      protocol: "icmp"
+      host: "8.8.8.8"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  tlsPort: 443
+
+ingress:
+  enabled: false
+  className: "traefik"
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: kncc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: kncc-tls
+  #    hosts:
+  #      - kncc.example.com
+# Gateway API Configuration (gateway.networking.k8s.io/v1)
+# Modern declarative routing replacing or supplementing traditional Ingress.
+gateway:
+  # Enable creation of Gateway API HTTPRoute for publishing kncc
+  enabled: false
+  annotations: {}
+  labels: {}
+
+  # References to parent Gateway resource(s) that should accept this route
+  parentRefs:
+    - name: default-gateway
+      # namespace: gateway-system
+      # sectionName: http
+      # port: 80
+      # group: gateway.networking.k8s.io
+      # kind: Gateway
+
+  # Hostnames matched by this HTTPRoute
+  hostnames:
+    - kncc.example.com
+
+  # Custom routing rules (filters, request headers, rewrites, timeouts).
+  # If empty, a default rule routing PathPrefix "/" to kncc Service is automatically generated.
+  rules: []
+    # - matches:
+    #     - path:
+    #         type: PathPrefix
+    #         value: /
+    #   backendRefs:
+    #     - name: kncc
+    #       port: 80
+    #       weight: 1
+
+  # Optional: Provision a dedicated Gateway resource alongside the HTTPRoute
+  createGateway: false
+  gatewayName: "" # Defaults to {{ include "kncc.fullname" . }}
+  gatewayClassName: "traefik"
+  gatewayAnnotations: {}
+  gatewayLabels: {}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+
+# Kubernetes Pod Probes Configuration
+probes:
+  startup:
+    enabled: true
+    path: /api/startupz
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 12
+  liveness:
+    enabled: true
+    path: /api/livez
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /api/readyz
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+resources:
+  limits:
+    cpu: 250m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

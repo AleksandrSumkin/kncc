@@ -1,0 +1,12 @@
+{{- if and .Values.caCerts .Values.caCerts.enabled .Values.caCerts.pem (not .Values.caCerts.existingSecret) (not .Values.caCerts.existingConfigMap) (not (and .Values.caCerts.certManager .Values.caCerts.certManager.enabled)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kncc.fullname" . }}-custom-ca
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+data:
+  {{ .Values.caCerts.certKey | default "ca.crt" }}: |
+{{ .Values.caCerts.pem | indent 4 }}
+{{- end }}

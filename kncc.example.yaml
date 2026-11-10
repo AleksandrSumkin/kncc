@@ -1,0 +1,143 @@
+﻿# kncc - Kubernetes Network Connectivity Checker Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  jwt_secret: "" # auto-generated random secret if empty
+  token_ttl: "24h"
+  tls:
+    enabled: false # Enable dedicated HTTPS server
+    port: 8443     # Dedicated TLS port
+    auto_generate: true # Auto-generate self-signed ECDSA certificate if no cert is provided
+    cert_file: ""  # Path to server certificate file (.crt or .pem)
+    key_file: ""   # Path to server private key file (.key)
+    cert_pem: ""   # Optional inline PEM certificate block
+    key_pem: ""    # Optional inline PEM private key block
+    min_version: "1.2" # Minimum TLS version ("1.2" or "1.3")
+  openapi:
+    enabled: true # Enable OpenAPI 3.x and Swagger UI documentation endpoints (/api/docs, /api/openapi.json, /api/openapi.yaml)
+    public: false # When true, documentation endpoints are public without authentication (ideal for DAST scans in dev/preview)
+
+k8s:
+  kubeconfig: "" # Leave empty for in-cluster ServiceAccount authentication
+  namespace: "kncc" # Default namespace for kncc server and probe pods
+  # Ephemeral probe pod container image for network diagnostics (TCP, UDP, HTTP, HTTPS, ICMP).
+  # Supported and verified images:
+  #   - "ghcr.io/homelab-public/kncc-agent:latest" (or "homelab/kncc-agent:latest"):
+  #       RECOMMENDED. Ultra-lightweight native probe image by kncc (~15MB uncompressed).
+  #       Contains ONLY required utilities (curl, openssl, nc, ping, ca-certificates, bind-tools).
+  #       Zero attack surface, sub-second cold start, zero known CVEs. Built from Dockerfile.agent.
+  #   - "wbitt/network-multitool:alpine-extra":
+  #       Public default fallback (~120MB). General-purpose network diagnostic container with
+  #       curl, nc, ping, nginx, tcpdump, nmap. Does not require pre-building into a private registry.
+  #   - "wbitt/network-multitool:minimal":
+  #       Lightweight version of network-multitool (~40MB).
+  #   - "nicolaka/netshoot:latest":
+  #       Comprehensive network troubleshooting Swiss Army knife (~400MB). Recommended for
+  #       interactive node network debugging and packet inspection via kubectl exec.
+  #   - "curlimages/curl:latest":
+  #       Minimal curl container (~15MB). Supports ONLY HTTP/HTTPS checks; TCP, UDP, ICMP checks will fail.
+  probe_image: "wbitt/network-multitool:alpine-extra"
+  multi_namespace_allowed: false # If true, users can run pod-network checks from arbitrary namespaces (requires ClusterRole)
+
+  # Namespace Discovery & Selection Settings:
+  # Controls whether users see a dropdown of cluster namespaces or enter their namespace manually.
+  # When false (default), users type target namespace manually (safer for multi-tenant clusters).
+  # When true, the kncc backend queries Kubernetes for accessible namespaces and provides them via API.
+  namespace_list_enabled: false
+
+  # Namespaces that are permanently blocked from selection and probe execution.
+  # Any check submitted targeting these namespaces will be rejected with HTTP 400.
+  namespace_exclude_list:
+    - "kube-system"
+    - "kube-public"
+    - "kube-node-lease"
+
+  # Standard Kubernetes LabelSelector used to exclude namespaces marked with specific labels.
+  # When namespace listing is enabled, namespaces matching this selector will be hidden and blocked.
+  # Example: "kncc.io/exclude=true" or "security.tier in (restricted, infra)"
+  namespace_exclude_selector: "kncc.io/exclude=true"
+
+  probe_timeout_seconds: 30
+  probe_active_deadline_seconds: 60
+  gc_interval: "2m"
+  # Minimum age before an orphaned or zombie probe pod is deleted by GC.
+  # Prevents race conditions with actively running or just completed checks.
+  gc_stale_threshold: "3m"
+  logo_configmap_name: "kncc-logo" # Name of Kubernetes ConfigMap containing corporate branding logo
+  favicon_configmap_name: "kncc-favicon" # Name of Kubernetes ConfigMap containing custom favicon
+
+security:
+  # Block checks targeting sensitive metadata and internal infrastructure
+  blacklist_cidrs:
+    - "169.254.169.254/32" # Cloud instance metadata service (AWS/GCP/Azure)
+    - "127.0.0.0/8"         # Loopback
+    - "::1/128"            # IPv6 Loopback
+  blacklist_domains:
+    - "metadata.google.internal"
+    - "instance-data"
+  whitelist_cidrs: []    # If non-empty, only targets within these CIDRs are allowed
+  whitelist_domains: []  # If non-empty, only these domain patterns are allowed
+  rate_limit_per_minute: 30 # Maximum check submissions per minute per user
+
+storage:
+  db_path: "kncc.db" # In Kubernetes: /data/kncc.db on emptyDir or PVC
+  report_ttl: "72h"  # Expired reports are automatically purged by background cleaner
+
+auth:
+  admin_username: "admin"
+  admin_initial_password: "" # When empty, a secure password is auto-generated and printed to application logs upon first startup
+  admin_initial_password_file: "" # Path to file containing password (overrides admin_initial_password)
+  local_enabled: true
+  ldap_enabled: false
+  ldap:
+    url: "ldaps://ldap.example.com:636"
+    bind_dn: "cn=admin,dc=example,dc=com"
+    bind_password: "secretpassword"
+    # Optional file paths containing credentials (overrides bind_dn / bind_password, e.g. from mounted Secret)
+    bind_dn_file: ""
+    bind_password_file: ""
+    # Direct Bind / User Bind Pattern:
+    # If specified, user credentials are bound directly using this DN template (e.g. "uid=%s,ou=users,dc=example,dc=com")
+    # without requiring a dedicated service account.
+    user_dn_template: ""
+    # Anonymous Search Mode:
+    # If true, performs unauthenticated bind (RFC 4513) to query directory without service account credentials.
+    anonymous_search: false
+    base_dn: "ou=users,dc=example,dc=com"
+    user_filter: "(uid=%s)"
+    # Name or CN of LDAP group whose members are automatically granted the 'admin' role in kncc.
+    # User roles are dynamically recalculated upon each login (present in group -> admin, absent -> user).
+    admin_group: "RBAC_KNCC_ADMIN"
+    # Optional search filter to restrict retrieved user groups to those related to this application.
+    # Example: "(cn=RBAC_KNCC_*)" or "(&(objectClass=groupOfNames)(cn=RBAC_KNCC_*))"
+    group_filter: "(cn=RBAC_KNCC_*)"
+    # Optional base DN for group searches. If empty, base_dn is used.
+    group_base_dn: ""
+    insecure_skip_verify: false
+  oidc_enabled: false
+  oidc:
+    issuer_url: "https://keycloak.example.com/realms/master"
+    client_id: "kncc"
+    # Optional path to a file containing client_id (e.g. from a mounted secret volume)
+    client_id_file: ""
+    client_secret: "secret"
+    # Optional path to a file containing client_secret (e.g. from a mounted secret volume)
+    client_secret_file: ""
+    redirect_url: "https://kncc.example.com/api/auth/oidc/callback"
+
+# Trusted Corporate CA Certificates (Root + Intermediate)
+# Provides support for internal/corporate CAs (Private PKI) in both kncc server (for secure LDAP/OIDC)
+# and probe pods (for verifying internal HTTPS endpoints without disabling TLS verification).
+ca_certs:
+  # Path to a file or directory containing trusted CA certificates in PEM format (.crt, .pem).
+  # If empty and /etc/ssl/kncc-ca exists, kncc will automatically load certificates from it.
+  path: "" # e.g. "/etc/ssl/kncc-ca" or "/etc/ssl/kncc-ca/ca.crt"
+  # Optional inline PEM string (can be a chain of root and intermediate certificates)
+  pem: ""
+
+theme:
+  default_theme: "light"   # Default theme for new users and unconfigured browsers ("light" or "dark")
+  primary_color: "#ffffff" # Primary background / card color
+  accent_color: "#dc2626"  # Accent button / highlight color (default: red-600)
+  app_name: "Kubernetes Network Connectivity Checker"

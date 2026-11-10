@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kncc.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      host: "{{ .Values.server.host }}"
+      port: {{ .Values.server.port }}
+      token_ttl: "{{ .Values.server.tokenTTL }}"
+      {{- if and .Values.server.tls .Values.server.tls.enabled }}
+      tls:
+        enabled: true
+        port: {{ .Values.server.tls.port | default 8443 }}
+        auto_generate: {{ default true .Values.server.tls.autoGenerate }}
+        {{- if .Values.server.tls.certFile }}
+        cert_file: "{{ .Values.server.tls.certFile }}"
+        {{- end }}
+        {{- if .Values.server.tls.keyFile }}
+        key_file: "{{ .Values.server.tls.keyFile }}"
+        {{- end }}
+        {{- if .Values.server.tls.certPem }}
+        cert_pem: |
+          {{- .Values.server.tls.certPem | nindent 10 }}
+        {{- end }}
+        {{- if .Values.server.tls.keyPem }}
+        key_pem: |
+          {{- .Values.server.tls.keyPem | nindent 10 }}
+        {{- end }}
+        {{- if .Values.server.tls.minVersion }}
+        min_version: "{{ .Values.server.tls.minVersion }}"
+        {{- end }}
+      {{- end }}
+      {{- if .Values.server.openapi }}
+      openapi:
+        enabled: {{ default false .Values.server.openapi.enabled }}
+        public: {{ default false .Values.server.openapi.public }}
+      {{- end }}
+
+    k8s:
+      namespace: "{{ .Release.Namespace }}"
+      probe_image: "{{ .Values.k8s.probeImage }}"
+      multi_namespace_allowed: {{ .Values.rbac.multiNamespace }}
+      namespace_list_enabled: {{ default false .Values.k8s.namespaceListEnabled }}
+      {{- if .Values.k8s.namespaceExcludeList }}
+      namespace_exclude_list:
+        {{- toYaml .Values.k8s.namespaceExcludeList | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.namespaceExcludeSelector }}
+      namespace_exclude_selector: "{{ .Values.k8s.namespaceExcludeSelector }}"
+      {{- end }}
+      probe_timeout_seconds: {{ .Values.k8s.probeTimeoutSeconds }}
+      probe_active_deadline_seconds: {{ .Values.k8s.probeActiveDeadlineSeconds }}
+      gc_interval: "{{ .Values.k8s.gcInterval }}"
+      gc_stale_threshold: "{{ default "3m" .Values.k8s.gcStaleThreshold }}"
+
+    security:
+      rate_limit_per_minute: {{ .Values.security.rateLimitPerMinute }}
+      blacklist_cidrs:
+        {{- toYaml .Values.security.blacklistCIDRs | nindent 8 }}
+      blacklist_domains:
+        {{- toYaml .Values.security.blacklistDomains | nindent 8 }}
+      whitelist_cidrs:
+        {{- toYaml .Values.security.whitelistCIDRs | nindent 8 }}
+      whitelist_domains:
+        {{- toYaml .Values.security.whitelistDomains | nindent 8 }}
+
+    storage:
+      db_path: "{{ .Values.persistence.mountPath }}/kncc.db"
+      report_ttl: "72h"
+
+    auth:
+      admin_username: "{{ .Values.auth.adminUsername }}"
+      local_enabled: {{ .Values.auth.localEnabled }}
+      ldap_enabled: {{ .Values.auth.ldapEnabled }}
+      {{- if .Values.auth.ldapEnabled }}
+      ldap:
+        url: "{{ .Values.auth.ldap.url }}"
+        bind_dn: "{{ .Values.auth.ldap.bindDN }}"
+        base_dn: "{{ .Values.auth.ldap.baseDN }}"
+        user_filter: "{{ .Values.auth.ldap.userFilter }}"
+        admin_group: "{{ .Values.auth.ldap.adminGroup }}"
+        group_filter: "{{ .Values.auth.ldap.groupFilter }}"
+        group_base_dn: "{{ .Values.auth.ldap.groupBaseDN }}"
+        insecure_skip_verify: {{ .Values.auth.ldap.insecureSkipVerify }}
+        {{- if .Values.auth.ldap.userDNTemplate }}
+        user_dn_template: "{{ .Values.auth.ldap.userDNTemplate }}"
+        {{- end }}
+        {{- if .Values.auth.ldap.anonymousSearch }}
+        anonymous_search: true
+        {{- end }}
+      {{- end }}
+      oidc_enabled: {{ .Values.auth.oidcEnabled }}
+      {{- if .Values.auth.oidcEnabled }}
+      oidc:
+        issuer_url: "{{ .Values.auth.oidc.issuerURL }}"
+        {{- if .Values.auth.oidc.clientID }}
+        client_id: "{{ .Values.auth.oidc.clientID }}"
+        {{- end }}
+        redirect_url: "{{ .Values.auth.oidc.redirectURL }}"
+      {{- end }}
+
+    theme:
+      app_name: "{{ .Values.theme.appName }}"
+      primary_color: "{{ .Values.theme.primaryColor }}"
+      accent_color: "{{ .Values.theme.accentColor }}"
+      default_theme: "{{ default "light" .Values.theme.defaultTheme }}"
+
+    {{- if and .Values.quickAdd .Values.quickAdd.presets }}
+    quick_add:
+      presets:
+        {{- toYaml .Values.quickAdd.presets | nindent 8 }}
+    {{- end }}

@@ -1,0 +1,39 @@
+# ==============================================================================
+# kncc-agent: Minimal, ultra-lightweight probe container image for kncc
+# Zero-attack-surface container image containing ONLY tools required for
+# network diagnostics (TCP, UDP, HTTP, HTTPS, ICMP) and TLS cert inspection.
+# ==============================================================================
+FROM alpine:3.21
+
+# Install strictly the required diagnostic utilities:
+# - ca-certificates: system trusted root certificates for HTTPS & custom CA merging
+# - curl: HTTP and HTTPS requests, latency and status code extraction
+# - openssl: TLS handshake inspection, x509 certificate expiry & issuer extraction
+# - netcat-openbsd: reliable TCP and UDP port reachability testing (-z, -w, -u)
+# - iputils-ping: ICMP ping with standard timing metrics and millisecond latency calculation
+# - bind-tools: DNS utilities (dig, nslookup) for robust hostname resolution
+# - musl-utils: getent utility for getent hosts resolution
+RUN apk add --no-cache \
+    ca-certificates \
+    curl \
+    openssl \
+    netcat-openbsd \
+    iputils-ping \
+    bind-tools \
+    musl-utils \
+    && rm -rf /var/cache/apk/* /tmp/*
+
+# Create dedicated non-root kncc-agent user and group
+RUN addgroup -g 10001 -S kncc-agent \
+    && adduser -u 10001 -S kncc-agent -G kncc-agent -h /tmp -s /bin/sh
+
+# Ensure /tmp is writable for temporary termination logs and custom CA bundles
+RUN chmod 1777 /tmp
+
+# Switch to non-root user (Linux capabilities: NET_RAW granted via PodSpec SecurityContext)
+USER 10001:10001
+
+WORKDIR /tmp
+
+# Default command: shell runner
+CMD ["/bin/sh"]

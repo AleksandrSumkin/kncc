@@ -1,0 +1,1926 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "REST API сервера kncc для диагностики сетевой связности в кластере Kubernetes.",
+        "title": "Kubernetes Network Connectivity Checker (kncc) API",
+        "contact": {
+            "name": "kncc Maintainers"
+        },
+        "license": {
+            "name": "Apache 2.0"
+        },
+        "version": "1.12.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/admin/rbac": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to inspect current ServiceAccount RBAC rules and node access",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Inspect cluster RBAC permissions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rbac.RBACReport"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/settings/favicon": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to upload custom favicon (ICO, SVG, PNG)",
+                "consumes": [
+                    "multipart/form-data",
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Upload custom favicon",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Favicon image file (ICO, SVG, PNG, max 512KB)",
+                        "name": "favicon",
+                        "in": "formData"
+                    },
+                    {
+                        "description": "JSON payload with raw SVG or base64 favicon data",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.UploadFaviconRequestJSON"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to reset favicon back to corporate logo thumbnail default",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Reset favicon to default",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/settings/logo": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to upload custom corporate SVG/PNG/JPEG logo",
+                "consumes": [
+                    "multipart/form-data",
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Upload corporate logo",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Logo image file (SVG, PNG, JPEG, WebP, max 1MB)",
+                        "name": "logo",
+                        "in": "formData"
+                    },
+                    {
+                        "description": "JSON payload with raw SVG or base64 image data",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.UploadLogoRequestJSON"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to reset logo back to default shipbuilding vector",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Reset corporate logo to default",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/settings/theme": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to update default theme (light/dark)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update system theme setting",
+                "parameters": [
+                    {
+                        "description": "Theme setting payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateThemeSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StatusOKResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/stats/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint returning aggregate check counts per user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get user diagnostic request statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.UserStatsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/admin/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to list all registered users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List all users",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UsersResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Admin endpoint to create a new local user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a new user",
+                "parameters": [
+                    {
+                        "description": "User creation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.User"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "description": "Authenticates a user via local credentials or LDAP, returning a JWT token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "User login",
+                "parameters": [
+                    {
+                        "description": "Login credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "description": "Clears the authentication session and cookie",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "User logout",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.MessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the profile of the currently authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get current user profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateUserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/oidc/callback": {
+            "get": {
+                "description": "Exchanges authorization code with OIDC provider and issues JWT token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "OIDC callback handler",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization code",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Error code from IdP",
+                        "name": "error",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Exchanges authorization code with OIDC provider and issues JWT token",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "OIDC callback handler",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization code",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Error code from IdP",
+                        "name": "error",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/oidc/login": {
+            "get": {
+                "description": "Redirects client to configured OIDC / Dex identity provider",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Initiate OIDC Single Sign-On",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Optional state parameter",
+                        "name": "state",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect to IdP authorization endpoint",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/providers": {
+            "get": {
+                "description": "Returns list of active login methods (local, ldap, oidc)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get active authentication providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AuthProvidersResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/checks": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new network probe check job between Kubernetes pods/targets",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checks"
+                ],
+                "summary": "Submit network connectivity check",
+                "parameters": [
+                    {
+                        "description": "Connectivity check specification",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.CheckRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Report"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/checks/quick-add": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns personalized or default quick-add diagnostic targets",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checks"
+                ],
+                "summary": "Get quick-add diagnostic targets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.QuickAddResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/healthz": {
+            "get": {
+                "description": "Legacy endpoint delegating to readiness check",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "General health check probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StatusOKResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/k8s/namespaces": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns list of accessible namespaces if namespace listing is enabled",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "k8s"
+                ],
+                "summary": "List allowed Kubernetes namespaces",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.NamespacesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/livez": {
+            "get": {
+                "description": "Returns 200 OK if the HTTP server process is running and alive",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Kubernetes liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StatusOKResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/readyz": {
+            "get": {
+                "description": "Verifies critical service dependencies such as the SQLite storage",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Kubernetes readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StatusOKResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reports": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated connectivity check reports for current user (or all if admin)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checks"
+                ],
+                "summary": "List connectivity reports",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Pagination limit (default: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset (default: 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ReportsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reports/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns full diagnostic results for a specific check report",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checks"
+                ],
+                "summary": "Get connectivity report by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Report UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.Report"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reports/{id}/rerun": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Re-executes targets from an existing report under current user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "checks"
+                ],
+                "summary": "Rerun existing connectivity check",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Report UUID to rerun",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Report"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/startupz": {
+            "get": {
+                "description": "Validates that bootstrapping (database migrations, admin setup, auth initialization) is complete",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Kubernetes startup probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.StatusOKResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/config": {
+            "get": {
+                "description": "Returns public theme, features, branding, and auth provider configuration",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SystemConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/favicon": {
+            "get": {
+                "description": "Serves active favicon (custom favicon or fallback to corporate logo thumbnail)",
+                "produces": [
+                    "image/x-icon",
+                    "image/svg+xml",
+                    "image/png"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system favicon",
+                "responses": {
+                    "200": {
+                        "description": "Binary favicon content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "304": {
+                        "description": "Not modified",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/logo": {
+            "get": {
+                "description": "Serves active logo (custom or default shipbuilding logo) with HTTP caching",
+                "produces": [
+                    "image/svg+xml",
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system logo",
+                "responses": {
+                    "200": {
+                        "description": "Binary image content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "304": {
+                        "description": "Not modified",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/favicon.ico": {
+            "get": {
+                "description": "Serves active favicon (custom favicon or fallback to corporate logo thumbnail)",
+                "produces": [
+                    "image/x-icon",
+                    "image/svg+xml",
+                    "image/png"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system favicon",
+                "responses": {
+                    "200": {
+                        "description": "Binary favicon content",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "304": {
+                        "description": "Not modified",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.AuthProvidersResponse": {
+            "type": "object",
+            "properties": {
+                "oidc_auth_url": {
+                    "type": "string",
+                    "example": "http://dex:5556/auth"
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.CreateUserRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.Role"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateUserResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "$ref": "#/definitions/model.User"
+                }
+            }
+        },
+        "api.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "invalid request parameter"
+                }
+            }
+        },
+        "api.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "\"local\", \"ldap\"",
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "user": {
+                    "$ref": "#/definitions/model.User"
+                }
+            }
+        },
+        "api.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "operation completed successfully"
+                }
+            }
+        },
+        "api.NamespacesResponse": {
+            "type": "object",
+            "properties": {
+                "namespaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "source": {
+                    "type": "string",
+                    "example": "cluster"
+                }
+            }
+        },
+        "api.QuickAddResponse": {
+            "type": "object",
+            "properties": {
+                "quick_add": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.TargetService"
+                    }
+                }
+            }
+        },
+        "api.ReportsResponse": {
+            "type": "object",
+            "properties": {
+                "reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.Report"
+                    }
+                }
+            }
+        },
+        "api.StatusOKResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        },
+        "api.SystemConfigResponse": {
+            "type": "object",
+            "properties": {
+                "accent_color": {
+                    "type": "string",
+                    "example": "#dc2626"
+                },
+                "app_name": {
+                    "type": "string",
+                    "example": "Kubernetes Network Connectivity Checker"
+                },
+                "auth_providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "default_namespace": {
+                    "type": "string",
+                    "example": "kncc"
+                },
+                "default_theme": {
+                    "type": "string",
+                    "example": "light"
+                },
+                "favicon_url": {
+                    "type": "string",
+                    "example": "/api/system/favicon?v=123"
+                },
+                "has_custom_favicon": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "has_custom_logo": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "logo_url": {
+                    "type": "string",
+                    "example": "/api/system/logo?v=123"
+                },
+                "multi_namespace_allowed": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "namespace_list_enabled": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "primary_color": {
+                    "type": "string",
+                    "example": "#ffffff"
+                },
+                "quick_add_presets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/config.QuickAddPreset"
+                    }
+                },
+                "rate_limit_per_minute": {
+                    "type": "integer",
+                    "example": 30
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.11.0"
+                }
+            }
+        },
+        "api.UpdateThemeSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "default_theme": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UploadFaviconRequestJSON": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "raw SVG or base64 data URL / raw base64",
+                    "type": "string"
+                },
+                "mime_type": {
+                    "description": "optional MIME type hint",
+                    "type": "string"
+                }
+            }
+        },
+        "api.UploadLogoRequestJSON": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "raw SVG or base64 data URL",
+                    "type": "string"
+                },
+                "mime_type": {
+                    "description": "optional MIME type hint",
+                    "type": "string"
+                }
+            }
+        },
+        "api.UsersResponse": {
+            "type": "object",
+            "properties": {
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.User"
+                    }
+                }
+            }
+        },
+        "config.QuickAddPreset": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "insecure_tls": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "$ref": "#/definitions/model.Protocol"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.CertStatus": {
+            "type": "string",
+            "enum": [
+                "valid",
+                "expiring_soon",
+                "expired"
+            ],
+            "x-enum-varnames": [
+                "CertStatusValid",
+                "CertStatusExpiringSoon",
+                "CertStatusExpired"
+            ]
+        },
+        "model.CheckMode": {
+            "type": "string",
+            "enum": [
+                "host",
+                "pod"
+            ],
+            "x-enum-varnames": [
+                "ModeHostNetwork",
+                "ModePodNetwork"
+            ]
+        },
+        "model.CheckRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "$ref": "#/definitions/model.CheckMode"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.TargetService"
+                    }
+                }
+            }
+        },
+        "model.NodeResult": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "node_ip": {
+                    "type": "string"
+                },
+                "node_name": {
+                    "type": "string"
+                },
+                "service_results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ProbeOutput"
+                    }
+                },
+                "status": {
+                    "description": "\"completed\", \"failed\", \"timeout\", \"running\"",
+                    "type": "string"
+                }
+            }
+        },
+        "model.ProbeOutput": {
+            "type": "object",
+            "properties": {
+                "cert_days_left": {
+                    "type": "integer"
+                },
+                "cert_expiry": {
+                    "type": "string"
+                },
+                "cert_issuer": {
+                    "type": "string"
+                },
+                "cert_status": {
+                    "$ref": "#/definitions/model.CertStatus"
+                },
+                "cert_subject": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "http_status_code": {
+                    "type": "integer"
+                },
+                "latency_ms": {
+                    "type": "integer"
+                },
+                "resolved_ip": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "target": {
+                    "$ref": "#/definitions/model.TargetService"
+                }
+            }
+        },
+        "model.Protocol": {
+            "type": "string",
+            "enum": [
+                "tcp",
+                "udp",
+                "http",
+                "https",
+                "icmp"
+            ],
+            "x-enum-varnames": [
+                "ProtocolTCP",
+                "ProtocolUDP",
+                "ProtocolHTTP",
+                "ProtocolHTTPS",
+                "ProtocolICMP"
+            ]
+        },
+        "model.Report": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "completed_nodes": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "$ref": "#/definitions/model.CheckMode"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "node_results": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/model.NodeResult"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/model.ReportStatus"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.TargetService"
+                    }
+                },
+                "total_nodes": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ReportStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusRunning",
+                "StatusCompleted",
+                "StatusFailed"
+            ]
+        },
+        "model.Role": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "RoleAdmin",
+                "RoleUser"
+            ]
+        },
+        "model.TargetService": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "insecure_tls": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "$ref": "#/definitions/model.Protocol"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "\"local\", \"ldap\", \"oidc\"",
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.Role"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.UserStats": {
+            "type": "object",
+            "properties": {
+                "day_count": {
+                    "type": "integer"
+                },
+                "last_active": {
+                    "type": "string"
+                },
+                "month_count": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.Role"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "week_count": {
+                    "type": "integer"
+                },
+                "year_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.UserStatsResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "$ref": "#/definitions/model.UserStatsSummary"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.UserStats"
+                    }
+                }
+            }
+        },
+        "model.UserStatsSummary": {
+            "type": "object",
+            "properties": {
+                "day_count": {
+                    "type": "integer"
+                },
+                "month_count": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "week_count": {
+                    "type": "integer"
+                },
+                "year_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "rbac.PolicyRule": {
+            "type": "object",
+            "properties": {
+                "api_group": {
+                    "description": "\"core\" or named group",
+                    "type": "string"
+                },
+                "namespace": {
+                    "description": "\"*\" or namespace name",
+                    "type": "string"
+                },
+                "non_resource_urls": {
+                    "description": "[\"/healthz\", ...]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "originated_from": {
+                    "description": "\"ClusterRole/kncc-node-viewer\", etc.",
+                    "type": "string"
+                },
+                "resource": {
+                    "description": "\"pods\", \"nodes\", \"namespaces\", etc.",
+                    "type": "string"
+                },
+                "resource_names": {
+                    "description": "[\"*\"] or specific names",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "subject": {
+                    "description": "\"namespace/name\" or \"name\"",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"ServiceAccount\" or \"User\"",
+                    "type": "string"
+                },
+                "verbs": {
+                    "description": "[\"get\", \"list\", \"watch\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "rbac.RBACReport": {
+            "type": "object",
+            "properties": {
+                "evaluation_error": {
+                    "type": "string"
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rbac.PolicyRule"
+                    }
+                },
+                "source": {
+                    "description": "\"cluster-rbac\", \"self-subject-rules-review\", \"mock\"",
+                    "type": "string"
+                },
+                "subject": {
+                    "$ref": "#/definitions/rbac.SubjectInfo"
+                }
+            }
+        },
+        "rbac.SubjectInfo": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "description": "\"ServiceAccount\" or \"User\"",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "e.g. \"kncc\"",
+                    "type": "string"
+                },
+                "namespace": {
+                    "description": "e.g. \"kncc\" (empty for cluster users)",
+                    "type": "string"
+                },
+                "raw_username": {
+                    "description": "e.g. \"system:serviceaccount:kncc:kncc\"",
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Введите 'Bearer \u003cJWT_TOKEN\u003e' для авторизации защищенных запросов.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

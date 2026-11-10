@@ -1,0 +1,286 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kncc.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kncc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kncc.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.logo.enabled }}
+        checksum/logo: {{ include (print $.Template.BasePath "/configmap-logo.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if include "kncc.createSecret" . }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if and .Values.caCerts .Values.caCerts.enabled .Values.caCerts.pem }}
+        checksum/ca-pem: {{ .Values.caCerts.pem | sha256sum }}
+        {{- end }}
+        {{- if and .Values.server.tls .Values.server.tls.enabled .Values.server.tls.certPem }}
+        checksum/server-tls-pem: {{ .Values.server.tls.certPem | sha256sum }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "kncc.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) .Values.auth.volume.populateFromSecret }}
+      initContainers:
+        - name: init-admin-password
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              cp "/secret-source/{{ include "kncc.adminSecretKey" . }}" "/secret-target/{{ .Values.auth.volume.fileName | default "admin-password" }}"
+              chmod 0400 "/secret-target/{{ .Values.auth.volume.fileName | default "admin-password" }}"
+          volumeMounts:
+            - name: admin-secret-source
+              mountPath: /secret-source
+              readOnly: true
+            - name: admin-password-volume
+              mountPath: /secret-target
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "-config"
+            - "/etc/kncc/config.yaml"
+          ports:
+            - name: http
+              containerPort: {{ .Values.server.port }}
+              protocol: TCP
+            {{- if and .Values.server.tls .Values.server.tls.enabled }}
+            - name: https
+              containerPort: {{ .Values.server.tls.port | default 8443 }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            {{- if eq (include "kncc.hasAdminPassword" .) "true" }}
+            {{- if or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file") }}
+            - name: ADMIN_INITIAL_PASSWORD_FILE
+              value: {{ printf "%s/%s" (.Values.auth.volume.mountPath | default "/etc/kncc-auth" | trimSuffix "/") (.Values.auth.volume.fileName | default "admin-password") | quote }}
+            {{- else }}
+            - name: ADMIN_INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.adminSecretName" . }}
+                  key: {{ include "kncc.adminSecretKey" . }}
+            {{- end }}
+            {{- end }}
+            {{- if and .Values.auth.ldapEnabled .Values.auth.ldap.existingSecret }}
+            {{- if .Values.auth.ldap.existingSecretBindDNKey }}
+            - name: LDAP_BIND_DN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.ldap.existingSecret }}
+                  key: {{ .Values.auth.ldap.existingSecretBindDNKey }}
+            {{- end }}
+            {{- if .Values.auth.ldap.existingSecretBindPasswordKey }}
+            - name: LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.ldap.existingSecret }}
+                  key: {{ .Values.auth.ldap.existingSecretBindPasswordKey }}
+            {{- end }}
+            {{- else if and .Values.auth.ldapEnabled .Values.auth.ldap.bindPassword }}
+            - name: LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.fullname" . }}-secrets
+                  key: LDAP_BIND_PASSWORD
+            {{- end }}
+            {{- if and .Values.auth.ldapEnabled .Values.auth.ldap.userDNTemplate }}
+            - name: LDAP_USER_DN_TEMPLATE
+              value: {{ .Values.auth.ldap.userDNTemplate | quote }}
+            {{- end }}
+            {{- if and .Values.auth.ldapEnabled .Values.auth.ldap.anonymousSearch }}
+            - name: LDAP_ANONYMOUS_SEARCH
+              value: "true"
+            {{- end }}
+            {{- if .Values.auth.oidcEnabled }}
+            {{- if and .Values.auth.oidc.existingSecret .Values.auth.oidc.existingSecretClientIDKey }}
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.oidcSecretName" . }}
+                  key: {{ include "kncc.oidcClientIDKey" . }}
+            {{- else if .Values.auth.oidc.clientID }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.auth.oidc.clientID | quote }}
+            {{- end }}
+            {{- if or .Values.auth.oidc.existingSecret .Values.auth.oidc.clientSecret }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.oidcSecretName" . }}
+                  key: {{ include "kncc.oidcClientSecretKey" . }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.logo.enabled }}
+            - name: K8S_LOGO_CONFIGMAP_NAME
+              value: {{ include "kncc.fullname" . }}-logo
+            {{- end }}
+            {{- if and .Values.favicon .Values.favicon.enabled }}
+            - name: K8S_FAVICON_CONFIGMAP_NAME
+              value: {{ include "kncc.fullname" . }}-favicon
+            {{- end }}
+            {{- if and .Values.caCerts .Values.caCerts.enabled (ne (include "kncc.caVolumeType" .) "none") }}
+            - name: CA_CERTS_PATH
+              value: {{ .Values.caCerts.mountPath | default "/etc/ssl/kncc-ca" | quote }}
+            {{- end }}
+            {{- if and .Values.server.tls .Values.server.tls.enabled }}
+            - name: SERVER_TLS_ENABLED
+              value: "true"
+            - name: SERVER_TLS_PORT
+              value: {{ .Values.server.tls.port | default 8443 | quote }}
+            {{- if .Values.server.tls.minVersion }}
+            - name: SERVER_TLS_MIN_VERSION
+              value: {{ .Values.server.tls.minVersion | quote }}
+            {{- end }}
+            {{- if .Values.server.tls.certFile }}
+            - name: SERVER_TLS_CERT_FILE
+              value: {{ .Values.server.tls.certFile | quote }}
+            {{- end }}
+            {{- if .Values.server.tls.keyFile }}
+            - name: SERVER_TLS_KEY_FILE
+              value: {{ .Values.server.tls.keyFile | quote }}
+            {{- end }}
+            {{- end }}
+          {{- if and .Values.probes .Values.probes.startup .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.probes .Values.probes.liveness .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if and .Values.probes .Values.probes.readiness .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/kncc
+              readOnly: true
+            - name: data-volume
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- if and .Values.caCerts .Values.caCerts.enabled (ne (include "kncc.caVolumeType" .) "none") }}
+            - name: custom-ca-volume
+              mountPath: {{ .Values.caCerts.mountPath | default "/etc/ssl/kncc-ca" }}
+              readOnly: true
+            {{- end }}
+            {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) }}
+            - name: admin-password-volume
+              mountPath: {{ .Values.auth.volume.mountPath | default "/etc/kncc-auth" }}
+              readOnly: true
+            {{- end }}
+            {{- if eq (include "kncc.hasServerTlsSecret" .) "true" }}
+            - name: server-tls-volume
+              mountPath: {{ .Values.server.tls.mountPath | default "/etc/kncc-tls" }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: {{ include "kncc.fullname" . }}-config
+        - name: data-volume
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "kncc.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) .Values.auth.volume.populateFromSecret }}
+        - name: admin-secret-source
+          secret:
+            secretName: {{ include "kncc.adminSecretName" . }}
+        {{- end }}
+        {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) }}
+        - name: admin-password-volume
+          emptyDir:
+            {{- if .Values.auth.volume.medium }}
+            medium: {{ .Values.auth.volume.medium | quote }}
+            {{- end }}
+            {{- if .Values.auth.volume.sizeLimit }}
+            sizeLimit: {{ .Values.auth.volume.sizeLimit | quote }}
+            {{- end }}
+        {{- end }}
+        {{- if and .Values.caCerts .Values.caCerts.enabled (ne (include "kncc.caVolumeType" .) "none") }}
+        - name: custom-ca-volume
+          {{- if eq (include "kncc.caVolumeType" .) "secret" }}
+          secret:
+            secretName: {{ include "kncc.caResourceName" . }}
+          {{- else if eq (include "kncc.caVolumeType" .) "configMap" }}
+          configMap:
+            name: {{ include "kncc.caResourceName" . }}
+          {{- end }}
+        {{- end }}
+        {{- if eq (include "kncc.hasServerTlsSecret" .) "true" }}
+        - name: server-tls-volume
+          secret:
+            secretName: {{ include "kncc.serverTlsSecretName" . }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
