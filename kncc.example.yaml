@@ -23,7 +23,7 @@ k8s:
   namespace: "kncc" # Default namespace for kncc server and probe pods
   # Ephemeral probe pod container image for network diagnostics (TCP, UDP, HTTP, HTTPS, ICMP).
   # Supported and verified images:
-  #   - "ghcr.io/homelab-public/kncc-agent:latest" (or "homelab/kncc-agent:latest"):
+  #   - "ghcr.io/AleksandrSumkin/kncc-agent:latest" (or "homelab/kncc-agent:latest"):
   #       RECOMMENDED. Ultra-lightweight native probe image by kncc (~15MB uncompressed).
   #       Contains ONLY required utilities (curl, openssl, nc, ping, ca-certificates, bind-tools).
   #       Zero attack surface, sub-second cold start, zero known CVEs. Built from Dockerfile.agent.

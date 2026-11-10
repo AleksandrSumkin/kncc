@@ -109,7 +109,7 @@ func TestBuildProbePod_WithCustomCA(t *testing.T) {
 
 func TestBuildProbePod_WithKnccAgentImage(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.K8s.ProbeImage = "ghcr.io/homelab-public/kncc-agent:latest"
+	cfg.K8s.ProbeImage = "ghcr.io/AleksandrSumkin/kncc-agent:latest"
 
 	report := &model.Report{
 		ID:        "rep-agent-test",
@@ -127,8 +127,8 @@ func TestBuildProbePod_WithKnccAgentImage(t *testing.T) {
 		t.Fatalf("BuildProbePod failed: %v", err)
 	}
 
-	if pod.Spec.Containers[0].Image != "ghcr.io/homelab-public/kncc-agent:latest" {
-		t.Errorf("expected image ghcr.io/homelab-public/kncc-agent:latest, got %s", pod.Spec.Containers[0].Image)
+	if pod.Spec.Containers[0].Image != "ghcr.io/AleksandrSumkin/kncc-agent:latest" {
+		t.Errorf("expected image ghcr.io/AleksandrSumkin/kncc-agent:latest, got %s", pod.Spec.Containers[0].Image)
 	}
 	if !pod.Spec.HostNetwork {
 		t.Errorf("expected HostNetwork to be true")

@@ -25,7 +25,7 @@ replicaCount: 1
 image:
   # Репозиторий и имя Docker-образа backend-сервера kncc.
   # Измените при использовании корпоративного или закрытого (air-gapped) реестра:
-  # например, "harbor.corp.example.com/kncc/kncc" или "ghcr.io/homelab-public/kncc".
+  # например, "harbor.corp.example.com/kncc/kncc" или "ghcr.io/AleksandrSumkin/kncc".
   repository: kncc/kncc
 
   # Политика загрузки образа Kubernetes (IfNotPresent, Always, Never).
@@ -152,7 +152,7 @@ k8s:
   # Образ контейнера для эфемерных диагностических подов kncc-probe, создаваемых на узлах кластера.
   #
   # Поддерживаемые и протестированные образы:
-  #   - "ghcr.io/homelab-public/kncc-agent:latest" (или "homelab/kncc-agent:latest"):
+  #   - "ghcr.io/AleksandrSumkin/kncc-agent:latest" (или "homelab/kncc-agent:latest"):
   #       НАИБОЛЕЕ РЕКОМЕНДУЕМЫЙ. Нативный сверхлегкий образ kncc (~15 МБ).
   #       Содержит строго необходимый набор утилит: curl, openssl, netcat, ping, ca-certificates, bind-tools.
   #       Нулевая поверхность атаки (Zero Attack Surface), моментальный холодный старт, 0 известных CVE.

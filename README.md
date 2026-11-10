@@ -169,8 +169,8 @@
 **Сборка собственного образа `kncc-agent`:**
 ```bash
 # Локальная сборка через Docker
-docker build -f Dockerfile.agent -t ghcr.io/homelab-public/kncc-agent:latest .
-docker push ghcr.io/homelab-public/kncc-agent:latest
+docker build -f Dockerfile.agent -t ghcr.io/AleksandrSumkin/kncc-agent:latest .
+docker push ghcr.io/AleksandrSumkin/kncc-agent:latest
 ```
 
 #### 2. Поддерживаемые публичные и альтернативные образы
@@ -223,7 +223,7 @@ docker push ghcr.io/homelab-public/kncc-agent:latest
 
 ```bash
 # Клонировать репозиторий
-git clone https://github.com/homelab-public/kncc.git
+git clone https://github.com/AleksandrSumkin/kncc.git
 cd kncc
 
 # Собрать и запустить сервер с моками

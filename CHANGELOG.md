@@ -12,22 +12,22 @@
 ## [1.13.0] - 2026-11-10
 
 ### Добавлено
-- **Инфраструктура синхронизации релизов в публичный репозиторий GitHub и GHCR ([#73](https://github.com/homelab-public/kncc/issues/73)):**
+- **Инфраструктура синхронизации релизов в публичный репозиторий GitHub и GHCR ([#73](https://github.com/AleksandrSumkin/kncc/issues/73)):**
   - Двуступенчатый конвейер переноса локальных релизов через промежуточный staging-репозиторий `kncc-public`.
   - Модуль глубокого санитайзинга `Sanitize-Release.ps1` (маскирование внутренних IP 10.0.0.*, портов, доменов .example.com и ссылок Forgejo).
   - Поддержка multi-arch образов контейнеров под единым OCI Image Index (linux/amd64, linux/arm64) для сервера и `kncc-agent` в `ghcr.io`.
   - Автоматическая двусторонняя синхронизация входящих тикетов из GitHub Issues в локальный Forgejo (`Sync-GitHubIssues.ps1`).
-- **Поддержка мультиязычности пользовательского интерфейса (Multi language UI) ([#80](https://github.com/homelab-public/kncc/issues/80)):**
+- **Поддержка мультиязычности пользовательского интерфейса (Multi language UI) ([#80](https://github.com/AleksandrSumkin/kncc/issues/80)):**
   - Реализована модульная типобезопасная архитектура интернационализации (`web/src/i18n`) с первичной поддержкой английского (`en`) и русского (`ru`) языков интерфейса.
   - Добавлен компактный переключатель языка (`LanguageSwitcher`) в верхнюю панель навигации `Navbar` и на экран авторизации `LoginPage` рядом с переключателем темы.
   - Реализована серверная параметризация языка по умолчанию через `theme.default_language` в `kncc.yaml`, переменные окружения `THEME_DEFAULT_LANGUAGE`, `KNCC_DEFAULT_LANGUAGE`, параметр Helm-чарта `theme.defaultLanguage` и эндпоинт `/api/system/config`.
   - Обеспечено сохранение выбора пользователя в `localStorage` с автоматическим fallback на настройку сервера и язык браузера.
   - Полная локализация всех страниц: формы новой проверки (`NewCheckPage`), страницы отчета (`ReportPage`), истории тестов (`HistoryPage`), экрана входа (`LoginPage`) и административных настроек темы (`AdminPage`).
   - Оптимизированы и лаконично адаптированы табличные представления и заголовки для исключения сдвигов верстки и переносов строк в узких колонках (журнал проверок, статистика и список пользователей, бейджи статусов отчётов).
-- **Исчерпывающее документирование параметров Helm-чарта в values.yaml ([#79](https://github.com/homelab-public/kncc/issues/79)):**
+- **Исчерпывающее документирование параметров Helm-чарта в values.yaml ([#79](https://github.com/AleksandrSumkin/kncc/issues/79)):**
   - Добавлены подробные структурированные описания для всех параметров в `deploy/helm/kncc/values.yaml` для быстрого старта (Zero-Docs Onboarding) без необходимости обращения к внешней документации.
   - Для каждого параметра явно описаны: функциональное назначение, рекомендации для администратора (нужно ли менять значение или оставить дефолт), влияние изменений на поведение сервиса в рантайме, а также требования безопасности и отказоустойчивости (ограничение Single-Writer SQLite в `replicaCount: 1`, риск потери данных при `persistence.enabled: false`, преимущества RAM-тома `auth.deliveryMode: volume`, режим Strict Allowlist в `security.whitelist*`).
-- **Комплексный аудит безопасности релиза и верификация SSDLC ([#86](https://github.com/homelab-public/kncc/issues/86)):**
+- **Комплексный аудит безопасности релиза и верификация SSDLC ([#86](https://github.com/AleksandrSumkin/kncc/issues/86)):**
   - Проведен полный сквозной цикл статического и динамического аудита безопасности: Secrets Scanning (Gitleaks), SAST (Semgrep), SCA (Trivy fs), Container Image Scan (Trivy image), DAST (Nuclei и OWASP ZAP API Scan).
   - Сформированы спецификации компонентов CycloneDX (`sbom.cdx.json`, `image-sbom.cdx.json`) и SPDX (`sbom.spdx.json`) для релизного дистрибутива.
   - Подтверждено отсутствие уязвимостей (0 CVE, 109 PASS в OWASP ZAP, 0 уязвимостей в Nuclei) на предрелизном стенде.
@@ -35,7 +35,7 @@
 ## [1.12.0] - 2026-11-09
 
 ### Добавлено
-- **Публикация спецификации OpenAPI 3.x / Swagger и встроенный Swagger UI ([#74](https://github.com/homelab-public/kncc/issues/74)):**
+- **Публикация спецификации OpenAPI 3.x / Swagger и встроенный Swagger UI ([#74](https://github.com/AleksandrSumkin/kncc/issues/74)):**
   - Автоматическая кодогенерация OpenAPI спецификации по декларативным аннотациям Go-хендлеров (`swaggo/swag`).
   - Доступ к машиночитаемым спецификациям по адресам `/api/openapi.json` и `/api/openapi.yaml`.
   - Встроенный автономный интерактивный интерфейс Swagger UI по адресу `/api/docs` (и редирект с `/api/docs/`) без внешних CDN-зависимостей, пригодный для закрытых/air-gapped контуров Kubernetes.
@@ -45,19 +45,19 @@
   - Спецификация документирует 100% эндпоинтов сервера: системные пробы Kubernetes (`/api/livez`, `/api/readyz`, `/api/startupz`, `/api/healthz`), публичные системные маршруты (`/api/system/*`), аутентификацию (`/api/auth/*`), проверки связности и отчеты (`/api/checks`, `/api/reports`), и административные API (`/api/admin/*`).
 
 ### Исправлено
-- **Адаптация Content Security Policy (CSP) для инлайн-скриптов Swagger UI ([#74](https://github.com/homelab-public/kncc/issues/74)):**
+- **Адаптация Content Security Policy (CSP) для инлайн-скриптов Swagger UI ([#74](https://github.com/AleksandrSumkin/kncc/issues/74)):**
   - В `SecurityHeadersMiddleware` скорректирована политика `Content-Security-Policy` для маршрутов документации `/api/docs`: разрешено выполнение инлайн-скрипта инициализации (`'unsafe-inline'` и `'unsafe-eval'` для `script-src`, а также `'unsafe-inline'` для `style-src` и `font-src 'self' data:`), устраняющее ошибку блокировки Swagger UI браузером.
   - Сохранена строгая политика безопасности без `'unsafe-inline'` для всех остальных API-маршрутов сервиса.
 
 ## [1.11.0] - 2026-11-09
 
 ### Добавлено
-- **Поддержка существующего Kubernetes Secret для OIDC / Dex ([#67](https://github.com/homelab-public/kncc/issues/67)):**
+- **Поддержка существующего Kubernetes Secret для OIDC / Dex ([#67](https://github.com/AleksandrSumkin/kncc/issues/67)):**
   - Добавлена возможность получения `clientID` и `clientSecret` для OIDC из предварительно созданного Kubernetes Secret (`auth.oidc.existingSecret`).
   - Поддержана гибкая настройка ключей секрета через `auth.oidc.existingSecretClientIDKey` и `auth.oidc.existingSecretClientSecretKey`.
   - В ядро конфигурации `kncc` добавлена поддержка переменных `OIDC_CLIENT_ID_FILE` и `OIDC_CLIENT_SECRET_FILE`, а также чтение идентификатора и секрета из файлов секретов (`client_id_file`, `client_secret_file`).
   - Обновлены Helm-манифесты (`deployment.yaml`, `secret.yaml`, `configmap.yaml`, `_helpers.tpl`): исключено дублирование секрета релиза при использовании `existingSecret` и обеспечена корректная передача параметров через `secretKeyRef`.
-- **Дополнительные методы доступа к LDAP (Additional LDAP access methods) ([#66](https://github.com/homelab-public/kncc/issues/66)):**
+- **Дополнительные методы доступа к LDAP (Additional LDAP access methods) ([#66](https://github.com/AleksandrSumkin/kncc/issues/66)):**
   - **Получение учетных данных из существующего Kubernetes Secret (`existingSecret`):**
     - Поддержка параметров Helm `auth.ldap.existingSecret`, `existingSecretBindDNKey` и `existingSecretBindPasswordKey` с инъекцией через `secretKeyRef` в Deployment и пропуском генерации учетных данных в `kncc-secrets`.
     - Поддержка чтения учетных данных из монтируемых файлов через переменные окружения `LDAP_BIND_DN_FILE` и `LDAP_BIND_PASSWORD_FILE` (по аналогии с `ADMIN_INITIAL_PASSWORD_FILE`).
@@ -66,14 +66,14 @@
     - Точечное извлечение профиля пользователя (`mail`, `cn`, `memberOf`) через запрос `ScopeBaseObject` по DN пользователя.
   - **Режим доступа к LDAP без аутентификации (Anonymous Bind / Unauthenticated Access):**
     - Поддержка открытых каталогов и анонимного поиска пользователей через флаг `auth.ldap.anonymousSearch` (`anonymous_search`, `LDAP_ANONYMOUS_SEARCH`) с явным вызовом `l.UnauthenticatedBind("")` (RFC 4513).
-- **Автоматическая генерация пароля администратора при первом запуске ([#65](https://github.com/homelab-public/kncc/issues/65)):**
+- **Автоматическая генерация пароля администратора при первом запуске ([#65](https://github.com/AleksandrSumkin/kncc/issues/65)):**
   - Реализована автоматическая генерация криптостойкого пароля администратора при первом старте приложения, если пароль не был передан пользователем через Helm-чарт (`auth.adminInitialPassword`) или существующий секрет (`auth.existingSecret`).
   - Сгенерированный пароль печатается в журнал работы приложения (stdout/log) в виде заметного баннера первичных учетных данных.
   - Дефолтное значение `auth.adminInitialPassword` в Helm-чарте (`deploy/helm/kncc/values.yaml`) и `DefaultConfig()` переведено на пустое значение (`""`), делая автогенерацию пароля поведением по умолчанию.
   - В Helm-шаблонах (`deployment.yaml`, `secret.yaml`, `_helpers.tpl`) исключено создание лишних секретов, томов `admin-password-volume` и init-контейнера `init-admin-password`, если пароль не задан явно в чарте.
 
 ### Изменено
-- **Метод аутентификации по умолчанию на форме входа ([#64](https://github.com/homelab-public/kncc/issues/64)):**
+- **Метод аутентификации по умолчанию на форме входа ([#64](https://github.com/AleksandrSumkin/kncc/issues/64)):**
   - В веб-интерфейсе (`web/src/pages/LoginPage.tsx`) метод аутентификации по умолчанию изменен на «LDAP / Active Directory» при доступности LDAP-провайдера в конфигурации сервиса.
   - Оптимизирован интерфейс переключателя: «LDAP / Active Directory» отображается первым в списке провайдеров.
   - Реализован адаптивный fallback на «Local Account», если провайдер LDAP отключен на сервере, а также сохранение пользовательского выбора при ручном переключении.
@@ -81,7 +81,7 @@
 ## [1.10.0] - 2026-11-09
 
 ### Добавлено
-- **Собственный минималистичный образ пода-зонда (`kncc-agent`) ([#60](https://github.com/homelab-public/kncc/issues/60)):**
+- **Собственный минималистичный образ пода-зонда (`kncc-agent`) ([#60](https://github.com/AleksandrSumkin/kncc/issues/60)):**
   - Разработан собственный ультра-легковесный образ зонда `kncc-agent` (`Dockerfile.agent`) на базе Alpine Linux 3.21 размером всего ~15 МБ (uncompressed) / ~5–6 МБ (compressed), что в 8–10 раз меньше публичного multitool.
   - Образ содержит строго необходимый набор диагностических утилит для kncc: `curl`, `openssl`, `netcat-openbsd`, `iputils-ping`, `bind-tools`, `musl-utils`, `ca-certificates`.
   - Нулевая поверхность атаки (Zero-Attack-Surface): исключены фоновые демоны (Nginx/Apache), анализаторы пакетов (`tcpdump`/`wireshark`), сканеры портов (`nmap`) и языковые интерпретаторы; 0 уязвимостей CVE по результатам аудита безопасности.
@@ -93,7 +93,7 @@
 ## [1.9.0] - 2026-11-08
 
 ### Добавлено
-- **Сопоставление групп LDAP с ролями пользователей и поддержка `groupFilter` ([#54](https://github.com/homelab-public/kncc/issues/54)):**
+- **Сопоставление групп LDAP с ролями пользователей и поддержка `groupFilter` ([#54](https://github.com/AleksandrSumkin/kncc/issues/54)):**
   - Поддержка конфигурационного параметра `auth.ldap.admin_group` (переменная окружения `LDAP_ADMIN_GROUP`) для назначения роли администратора `admin` членам указанной группы LDAP.
   - Динамическое получение групп пользователя при каждом входе в систему (`AuthenticateLDAP`) и пересчет роли: наличие группы назначает роль `admin`, отсутствие группы назначает роль `user`.
   - Динамическая актуализация ролей пользователей в базе данных SQLite через новый метод `UpdateUserRole` в `Store` при каждом входе с выпуском актуального JWT-токена.
@@ -102,7 +102,7 @@
   - Поддержка атрибута `memberOf` на объектах пользователей (Active Directory, OpenLDAP `slapo-memberof`), а также составных LDAP-запросов членства (`member`, `uniqueMember`, `memberUid`).
   - Параметры интегрированы в `kncc.example.yaml`, Helm-чарт `deploy/helm/kncc` (`values.yaml`, `configmap.yaml`) и документацию `README.md`.
   - Полное покрытие unit-тестами в `internal/auth/auth_test.go`, `internal/store/store_test.go` и `internal/config/config_test.go`.
-- **Поддержка защищенного входящего соединения (HTTPS/TLS) на выделенном порту ([#55](https://github.com/homelab-public/kncc/issues/55)):**
+- **Поддержка защищенного входящего соединения (HTTPS/TLS) на выделенном порту ([#55](https://github.com/AleksandrSumkin/kncc/issues/55)):**
   - Реализован параллельный HTTPS/TLS сервер на выделенном порту (по умолчанию `8443`, настраивается через `server.tls.port` / `SERVER_TLS_PORT`), позволяющий защищать трафик между Ingress-контроллером и контейнером (End-to-End TLS / Re-encryption) или выполнять прямую терминацию TLS на уровне приложения.
   - Двойной режим работы (Dual-listener): стандартный HTTP-сервер (`8080`) продолжает обслуживать легковесные пробы жизнеспособности Kubernetes (`startupProbe`, `livenessProbe`, `readinessProbe`), а выделенный порт `8443` принимает защищенный TLS-трафик.
   - Автоматическая генерация самоподписанного X.509 сертификата (ECDSA P-256) с автоматическим формированием Subject Alternative Names (SANs: DNS-имена сервиса, localhost, системный hostname, IP-адреса локальных сетевых интерфейсов) при включении TLS без передачи внешних сертификатов (Zero-Configuration mode).
@@ -114,14 +114,14 @@
 ## [1.8.0] - 2026-11-08
 
 ### Добавлено
-- **Поддержка доставки пароля администратора через volume `emptyDir` с режимом `medium` ([#47](https://github.com/homelab-public/kncc/issues/47)):**
+- **Поддержка доставки пароля администратора через volume `emptyDir` с режимом `medium` ([#47](https://github.com/AleksandrSumkin/kncc/issues/47)):**
   - Добавлена возможность безопасной передачи пароля администратора в контейнер через файл на изолированном томе `emptyDir` вместо переменной окружения `ADMIN_INITIAL_PASSWORD`.
   - Поддержка конфигурации `medium` для тома `emptyDir` (`Memory` для tmpfs в оперативной памяти или `""` для файловой системы узла), исключающая сохранение пароля на диск и утечку через `/proc/$PID/environ`, crash dumps и `docker/crictl inspect`.
   - В приложении `kncc` добавлена поддержка параметра `auth.admin_initial_password_file` и переменной окружения `ADMIN_INITIAL_PASSWORD_FILE` с автоматической обрезкой концевых пробелов и переводов строк.
   - В Helm-чарте добавлены параметры `auth.deliveryMode` (`env` / `volume`), `auth.volume.medium`, `auth.volume.sizeLimit`, `auth.volume.mountPath`, `auth.volume.fileName` и `auth.volume.populateFromSecret`.
   - Автоматическое безопасное копирование пароля из секрета чарта или `auth.existingSecret` во временный том `emptyDir` с помощью легковесного `initContainers` с правами доступа `0400`.
   - Полная обратная совместимость со стандартным режимом переменных окружения (`auth.deliveryMode: "env"`).
-- **Поддержка кастомного Favicon (Custom Favicon) ([#48](https://github.com/homelab-public/kncc/issues/48)):**
+- **Поддержка кастомного Favicon (Custom Favicon) ([#48](https://github.com/AleksandrSumkin/kncc/issues/48)):**
   - Автоматический fallback: по умолчанию фавикон наследуется и формируется как миниатюра активного корпоративного логотипа (либо кастомного логотипа компании, либо встроенного векторного логотипа `DefaultShipbuildingLogoSVG`).
   - Передача фавикона через Helm-чарт в формате Base64 или raw SVG (`favicon.data`, `favicon.mimeType`) с сохранением в ConfigMap `<release>-favicon`.
   - Публичные эндпоинты `GET /api/system/favicon` и `GET /favicon.ico` с поддержкой ETag / 304 Not Modified и кэширования.
@@ -129,7 +129,7 @@
   - Секция управления фавиконом в панели администратора (`AdminPage`) с интерактивным макетом вкладки браузера (16×16), увеличенным превью (32×32, 48×48), Drag-and-Drop зоной и светлой/тёмной темой.
   - Динамическое реактивное обновление иконки во вкладке браузера без перезагрузки страницы через `ThemeContext.tsx`.
   - Полное покрытие unit-тестами в `internal/api/favicon_test.go` и `internal/config/config_test.go`.
-- **Поддержка доверенных корпоративных CA-сертификатов (Root + Intermediate) в сервере и зондах ([#49](https://github.com/homelab-public/kncc/issues/49)):**
+- **Поддержка доверенных корпоративных CA-сертификатов (Root + Intermediate) в сервере и зондах ([#49](https://github.com/AleksandrSumkin/kncc/issues/49)):**
   - Возможность загрузки цепочек сертификатов внутреннего корпоративного центра сертификации (корневой Root CA и промежуточные Intermediate CA) в формате PEM.
   - Безопасное TLS-подключение контейнера сервера `kncc` к корпоративным каталогам **LDAP/LDAPS** (`ldaps://...`) и провайдерам **OIDC** (Keycloak, Dex, Active Directory FS) с полноценной валидацией цепочки без необходимости использования опасного флага `insecure_skip_verify: true`.
   - Автоматическая инъекция доверенного бандла CA в контейнеры зондов `kncc-probe` с объединением с системным хранилищем Alpine (`/tmp/kncc-certs/ca-bundle.crt`), настройкой `SSL_CERT_FILE` / `CURL_CA_BUNDLE` и передачей `--cacert` в `curl` и `-CAfile` в `openssl s_client`. Позволяет проводить защищенную диагностику узлов с корпоративными TLS-сертификатами без флага `insecure_tls`.
@@ -142,7 +142,7 @@
 ## [1.7.0] - 2026-11-07
 
 ### Добавлено
-- **Поддержка корпоративного логотипа и брендинга ([#41](https://github.com/homelab-public/kncc/issues/41)):**
+- **Поддержка корпоративного логотипа и брендинга ([#41](https://github.com/AleksandrSumkin/kncc/issues/41)):**
   - Возможность установки корпоративного логотипа компании на постоянной панели навигации (`Navbar`), экране авторизации (`LoginPage`) и в настройках.
   - Первичное векторное SVG-лого по умолчанию на тему судостроения и морской инженерии в сине-голубых тонах (`internal/assets/default_logo.svg`).
   - Передача логотипа через Helm-чарт в формате Base64 (`logo.data`, `logo.mimeType`) с подробной документацией по кодированию через Linux CLI и Windows PowerShell.
@@ -152,7 +152,7 @@
   - Защищенные административные API эндпоинты `POST /api/admin/settings/logo` (загрузка через multipart/form-data или JSON с проверкой размера до 1 МБ и санитизацией SVG от XSS) и `DELETE /api/admin/settings/logo` (сброс к первичному судостроительному лого).
   - Секция управления логотипом в панели администратора (`AdminPage`) с интерактивным предпросмотром на светлом/тёмном фоне, Drag-and-Drop зоной загрузки и кнопками применения/сброса.
   - Настройка RBAC прав ServiceAccount в Helm для управления ConfigMap в пространстве имён релиза.
-- **Поддержка startup, liveness и readiness проб Kubernetes ([#39](https://github.com/homelab-public/kncc/issues/39)):**
+- **Поддержка startup, liveness и readiness проб Kubernetes ([#39](https://github.com/AleksandrSumkin/kncc/issues/39)):**
   - Реализованы специализированные API эндпоинты проверки жизненного цикла сервиса в соответствии с лучшими практиками Kubernetes:
     - `GET /api/livez`: быстрая проверка доступности процесса HTTP-сервера и рантайма Go без блокировок.
     - `GET /api/readyz`: валидация готовности пода принимать трафик с активной проверкой доступности базы данных SQLite (`store.Ping`). При деградации БД возвращает статус `503 Service Unavailable`, временно исключая под из маршрутизации трафика (Endpoints/Ingress) без принудительного перезапуска контейнера.
@@ -164,7 +164,7 @@
   - Написаны unit-тесты в `internal/api/api_test.go` для всех эндпоинтов проб, включая тестирование сценария изоляции отказа БД (возврат HTTP 503 на `readyz` при сохранении HTTP 200 на `livez`).
 
 ### Исправлено
-- **Отображение версии приложения в интерфейсе и сборочном пайплайне ([#40](https://github.com/homelab-public/kncc/issues/40)):**
+- **Отображение версии приложения в интерфейсе и сборочном пайплайне ([#40](https://github.com/AleksandrSumkin/kncc/issues/40)):**
   - Устранено принудительное переопределение версии значением `dev` в `Dockerfile` при сборке образов в кластере без аргументов `--build-arg`.
   - Добавлена поддержка переменной окружения `APP_VERSION` в `cmd/kncc/main.go` и её передача из `.Chart.AppVersion` в Helm `Deployment`.
   - Нормализовано отображение версии в подвале веб-интерфейса (`App.tsx`), предотвращающее появление дублирующего префикса `v`.
@@ -172,16 +172,16 @@
 ## [1.6.0] - 2026-11-06
 
 ### Добавлено
-- **Динамический блок подсказок "Quick add" на странице создания проверки ([#32](https://github.com/homelab-public/kncc/issues/32)):**
+- **Динамический блок подсказок "Quick add" на странице создания проверки ([#32](https://github.com/AleksandrSumkin/kncc/issues/32)):**
   - Возможность конфигурирования от 1 до 3 сервисов-подсказок по умолчанию через параметры приложения (`quick_add.presets`), переменные окружения (`QUICK_ADD_PRESETS`) и Helm-чарт (`quickAdd.presets`).
   - Персистентное хранение истории и частоты запросов пользователя в SQLite таблице `user_target_history`, независимое от срока хранения отчетов (`ReportTTL`). Автоматический backfill данных при первой миграции.
   - Новый защищенный API эндпоинт `GET /api/checks/quick-add`, динамически возвращающий подсказки: первые запросы пользователя по мере их накопления, а впоследствии — 3 самых часто запрашиваемых пользователем сервиса (с заполнением недостающих слотов системными подсказками).
   - Интерактивный рендеринг кнопок подсказок в веб-интерфейсе `NewCheckPage` с автозаполнением полей формы при клике.
-- **Улучшенный механизм копирования ссылок на отчёт и отображение версии приложения ([#36](https://github.com/homelab-public/kncc/pulls/36)):**
+- **Улучшенный механизм копирования ссылок на отчёт и отображение версии приложения ([#36](https://github.com/AleksandrSumkin/kncc/pulls/36)):**
   - Реализован надежный кроссбраузерный модуль копирования `clipboard.ts` с приоритетом Navigator Clipboard API, автоматическим fallback на `document.execCommand('copy')` и диалоговым окном для небезопасных (HTTP) контекстов.
   - Добавлены всплывающие Toast-уведомления об успешном или ошибочном копировании URL отчёта на странице `ReportPage.tsx`.
   - Отображение текущей версии приложения в подвале интерфейса (`Footer`), получаемой из системной конфигурации через API `GET /api/system/config`.
-- **Поддержка внешнего секрета для пароля администратора ([#29](https://github.com/homelab-public/kncc/issues/29)):**
+- **Поддержка внешнего секрета для пароля администратора ([#29](https://github.com/AleksandrSumkin/kncc/issues/29)):**
   - Добавлена поддержка указания существующего секрета Kubernetes через параметры Helm `auth.existingSecret` и `auth.existingSecretPasswordKey`.
   - Позволяет безопасно интегрироваться с внешними операторами секретов (HashiCorp Vault, External Secrets Operator, Sealed Secrets, SOPS) без передачи пароля в открытом виде через `values.yaml`.
   - Автоматическое отключение генерации ресурса `kncc-secrets` при использовании внешнего секрета (при отсутствии LDAP/OIDC паролей), предотвращающее создание пустых секретов в кластере.
@@ -191,7 +191,7 @@
 ## [1.5.0] - 2026-11-06
 
 ### Добавлено
-- **Статистика пользования сервисом по пользователям в панели администратора ([#28](https://github.com/homelab-public/kncc/issues/28)):**
+- **Статистика пользования сервисом по пользователям в панели администратора ([#28](https://github.com/AleksandrSumkin/kncc/issues/28)):**
   - Добавлена новая вкладка «Статистика запросов» в панель администратора (`AdminPage`) с отображением количества выполненных сетевых проверок по каждому пользователю сервиса.
   - Таблица со столбцами: пользователь (аватар, логин, роль, провайдер авторизации), запросов за день (24 ч), за неделю (7 дней), за месяц (30 дней), за год (365 дней), всего запросов за всё время и время последней активности.
   - Итоговая строка таблицы (`<tfoot>`) со сводными суммами запросов по всем временным диапазонам от всех пользователей.
@@ -203,20 +203,20 @@
 ## [1.4.0] - 2026-11-06
 
 ### Добавлено
-- **Поддержка Kubernetes Gateway API ([#19](https://github.com/homelab-public/kncc/issues/19)):**
+- **Поддержка Kubernetes Gateway API ([#19](https://github.com/AleksandrSumkin/kncc/issues/19)):**
   - Реализован шаблон `HTTPRoute` (`templates/httproute.yaml`) стандарта `gateway.networking.k8s.io/v1` для декларативной публикации веб-интерфейса и REST API `kncc`.
   - Поддержка привязки к внешним/системным шлюзам кластера через `gateway.parentRefs` (Traefik, Cilium, Envoy Gateway, Istio).
   - Опциональное создание выделенного ресурса `Gateway` (`templates/gateway.yaml`, параметр `gateway.createGateway: true`) с настраиваемыми слушателями (`listeners`) и `gatewayClassName`.
   - В `values.yaml` добавлена секция `gateway` с подробными комментариями и алиасом `httpRoute.enabled`.
   - Сохранена полная обратная совместимость с классическим `Ingress`.
   - Документация в `README.md` расширена примерами развертывания через Gateway API.
-- **Отображение маркера сетевого режима на странице отчёта ([#20](https://github.com/homelab-public/kncc/issues/20)):**
+- **Отображение маркера сетевого режима на странице отчёта ([#20](https://github.com/AleksandrSumkin/kncc/issues/20)):**
   - Добавлен контрастный визуальный маркер сетевого режима запуска проверки (`Host Network` vs `Pod Network`) в панели управления результатами рядом с переключателем вида `By Target` / `By Node`.
   - Маркер режима также интегрирован в шапку страницы отчёта рядом с общим бейджем статуса выполнения (`Report #...`).
   - Для режима `Pod Network` отображается чип пространства имён (`ns: <namespace>`).
   - Добавлены всплывающие подсказки (тултипы) с пояснением специфики сетевого контекста (хостовые интерфейсы `hostNetwork: true` или оверлейная CNI-сеть).
   - Полная поддержка светлой и тёмной темы оформления.
-- **Тёмная тема оформления интерфейса ([#15](https://github.com/homelab-public/kncc/issues/15)):**
+- **Тёмная тема оформления интерфейса ([#15](https://github.com/AleksandrSumkin/kncc/issues/15)):**
   - Поддержка мгновенного переключения темы (Светлая / Тёмная) в шапке приложения (`Navbar`) и на странице входа без перезагрузки страницы с сохранением выбора в `localStorage`.
   - Полноценная адаптация под тёмную тему всех экранов: страница создания проверок (`NewCheckPage`), страница подробного отчёта (`ReportPage` в режимах By Target и By Node), история проверок (`HistoryPage`), панель администратора (`AdminPage`), страница входа (`LoginPage`).
   - Общесистемная настройка темы по умолчанию для новых пользователей и ненастроенных браузеров:
@@ -226,13 +226,13 @@
     - Автоматическая передача темы по умолчанию гостям и авторизованным пользователям через `GET /api/config`.
 
 ### Изменено
-- **Актуализация документации и сидирования демо-данных ([#21](https://github.com/homelab-public/kncc/issues/21)):**
+- **Актуализация документации и сидирования демо-данных ([#21](https://github.com/AleksandrSumkin/kncc/issues/21)):**
   - Удалено упоминание неиспользуемой учетной записи `developer` / `developer123` из `README.md` (секция «5. Быстрый запуск»).
   - Удалено неконсистентное сидирование учетной записи `developer` в `internal/k8s/mock.go` (`SeedDemoData`).
   - Демонстрационный отчет `demo-report-02-blocked` перепривязан к пользователю `admin` для обеспечения целостности данных.
 
 ### Безопасность
-- **Внедрение HTTP Security Headers на основе аудита OWASP ZAP DAST ([#16](https://github.com/homelab-public/kncc/issues/16)):**
+- **Внедрение HTTP Security Headers на основе аудита OWASP ZAP DAST ([#16](https://github.com/AleksandrSumkin/kncc/issues/16)):**
   - Реализован централизованный `SecurityHeadersMiddleware`, проставляющий защитные заголовки для всех HTTP-ответов сервера (API, статический SPA-фронтенд, страницы ошибок):
     - `X-Content-Type-Options: nosniff` (защита от MIME-type sniffing, Alert 10021);
     - `X-Frame-Options: DENY` и CSP директива `frame-ancestors 'none'` (защита от Clickjacking, Alert 10020);
@@ -246,7 +246,7 @@
 ## [1.3.0] - 2026-11-05
 
 ### Добавлено
-- **Аудит и отображение результирующих прав ServiceAccount на Kubernetes API ([#13](https://github.com/homelab-public/kncc/issues/13)):**
+- **Аудит и отображение результирующих прав ServiceAccount на Kubernetes API ([#13](https://github.com/AleksandrSumkin/kncc/issues/13)):**
   - **Вывод в журнал при старте**: при запуске сервиса вычисляются и выводятся в stdout/лог результирующие права текущего ServiceAccount в виде ASCII-таблицы по стандарту `rbac-tool policy-rules` (`TYPE | SUBJECT | VERBS | NAMESPACE | API GROUP | KIND | NAMES | NONRESOURCEURI | ORIGINATED FROM`).
   - **Двухуровневый движок анализа прав (`internal/k8s/rbac`)**: поддержка `SelfSubjectRulesReview` (работает даже для непривилегированного SA) и обхода RBAC-связок (`ClusterRoleBindings`, `RoleBindings`) для выявления ролей-источников (`ClusterRole/kncc-node-viewer`, `Role/kncc-probe-executor`), а также автономный Mock-режим.
   - **Защищенный API эндпоинт**: добавлен эндпоинт `GET /api/admin/rbac` (доступен только администраторам).
@@ -255,7 +255,7 @@
     - Интерактивная таблица с цветовыми бейджами действий (`VERBS`), разметкой пространств имен и групп API.
     - Фильтры по ресурсам, типам действий (get/list/watch, create, delete, wildcard) и области действия (Cluster-wide vs Namespaced).
     - Кнопки быстрого копирования отчета в буфер обмена (текстовая ASCII-таблица или JSON) и принудительного обновления (`Refresh`).
-- **Проверка срока действия SSL/TLS-сертификатов для HTTPS ([#9](https://github.com/homelab-public/kncc/issues/9)):**
+- **Проверка срока действия SSL/TLS-сертификатов для HTTPS ([#9](https://github.com/AleksandrSumkin/kncc/issues/9)):**
   - Добавлен автоматический сбор метаданных сертификата (дата окончания действия, количество оставшихся дней, субъект, издатель) через неблокирующий вызов OpenSSL в легковесном зонде.
   - В отчётах проверок (`ReportPage`) рядом со временем ответа отображается дата окончания действия сертификата (`SSL exp: YYYY-MM-DD`).
   - Трёхуровневая цветовая индикация статуса сертификата:
@@ -263,29 +263,29 @@
     - Скоро истекает (`expiring_soon`, <=30 дней) — янтарно-жёлтый предупреждающий бейдж с указанием дней до окончания;
     - Просрочен (`expired`, <=0 дней) — акцентный красный аварийный бейдж с явным предупреждением в отчёте и подсветкой карточки цели.
   - Поддержка обнаружения просроченных сертификатов даже при включённом режиме обхода проверки (`Insecure TLS`).
-- **Настройка порога очистки зондов Garbage Collector ([#5](https://github.com/homelab-public/kncc/issues/5)):**
+- **Настройка порога очистки зондов Garbage Collector ([#5](https://github.com/AleksandrSumkin/kncc/issues/5)):**
   - Новый параметр конфигурации `k8s.gc_stale_threshold` (переменная окружения `K8S_GC_STALE_THRESHOLD`, Helm value `k8s.gcStaleThreshold`, по умолчанию `3m`) для гибкой настройки времени жизни подов перед принудительной утилизацией.
-- **Кнопка "Home" на экране ошибки отчёта ([#3](https://github.com/homelab-public/kncc/issues/3)):**
+- **Кнопка "Home" на экране ошибки отчёта ([#3](https://github.com/AleksandrSumkin/kncc/issues/3)):**
   - Добавлена кнопка быстрого перехода на главную форму создания проверки (Home) рядом с кнопкой Retry на экране ошибки несуществующего или истёкшего отчёта (Report Error / Report not found).
   - Улучшена навигация и UX при переходе по устаревшим или некорректным ссылкам на отчёты.
 
 ### Безопасность
 - **Устранение уязвимости CVE-2026-116587 (go-jose/go-jose):**
   - Обновлена библиотека `github.com/go-jose/go-jose/v4` до версии `v4.1.6` для устранения риска отказа в обслуживании (DoS) при разборе некорректных параметров RSA в JWK.
-- **Ограничение доступа к админским панелям для пользователей с ролью User ([#11](https://github.com/homelab-public/kncc/issues/11)):**
+- **Ограничение доступа к админским панелям для пользователей с ролью User ([#11](https://github.com/AleksandrSumkin/kncc/issues/11)):**
   - Реализован строгий Route Guard в `App.tsx` и `AdminPage.tsx`: блокировка перехода на `/#/admin` и автоматический редирект непривилегированных пользователей на главную форму создания проверок (`/`).
   - Добавлен автоматический сброс URL-хэша на корень (`window.location.hash = '/'`) при завершении сессии (`logout`) и при истечении срока токена, что предотвращает сохранение админского хэша в браузере при смене пользователя.
   - Компонент `AdminPage` получил внутреннюю проверку роли `user.role === 'admin'`: не-администраторам блокируется монтирование интерфейса и отправка запросов на получение списка пользователей.
   - Расширено покрытие тестов API (`internal/api/api_test.go`) для сценариев разграничения прав доступа непривилегированных пользователей к ресурсам администратора.
 
 ### Изменено
-- **Сокращение названия кнопки запуска проверок ([#6](https://github.com/homelab-public/kncc/issues/6)):**
+- **Сокращение названия кнопки запуска проверок ([#6](https://github.com/AleksandrSumkin/kncc/issues/6)):**
   - Кнопка отправки формы на странице создания проверки (`NewCheckPage`) переименована с `Launch Check On All Nodes` в лаконичное `Run Check` (со статусом `Running...` при выполнении).
   - Устранена перегруженность интерфейса избыточным указанием узлов кластера.
   - Иконка кнопки заменена на акцентную `Play` из библиотеки `lucide-react`.
 
 ### Исправлено
-- **Устранение race condition и утечки подов в сборщике мусора ([#5](https://github.com/homelab-public/kncc/issues/5)):**
+- **Устранение race condition и утечки подов в сборщике мусора ([#5](https://github.com/AleksandrSumkin/kncc/issues/5)):**
   - Добавлена обязательная проверка возраста подов-зондов (`CreationTimestamp`) перед удалением фоновым Garbage Collector'ом: поды моложе порога `staleThreshold` (по умолчанию `3m`) не удаляются, предотвращая их преждевременное удаление во время сбора логов и результатов проверки (`Runner.probeNode`).
   - Снято ограничение GC на фиксированный namespace сервиса при включённом режиме Multi-Namespace (`multi_namespace_allowed = true`): сборщик мусора теперь сканирует весь кластер (`metav1.NamespaceAll`) и гарантированно утилизирует осиротевшие зонды kncc во всех пространствах имён.
 

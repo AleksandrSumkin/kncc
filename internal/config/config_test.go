@@ -347,15 +347,15 @@ func TestLoad_ProbeImage_EnvVars(t *testing.T) {
 	}
 
 	os.Unsetenv("K8S_PROBE_IMAGE")
-	os.Setenv("KNCC_K8S_PROBE_IMAGE", "ghcr.io/homelab-public/kncc-agent:latest")
+	os.Setenv("KNCC_K8S_PROBE_IMAGE", "ghcr.io/AleksandrSumkin/kncc-agent:latest")
 	defer os.Unsetenv("KNCC_K8S_PROBE_IMAGE")
 
 	loaded2, err := Load("")
 	if err != nil {
 		t.Fatalf("Load error: %v", err)
 	}
-	if loaded2.K8s.ProbeImage != "ghcr.io/homelab-public/kncc-agent:latest" {
-		t.Errorf("expected ProbeImage ghcr.io/homelab-public/kncc-agent:latest, got %s", loaded2.K8s.ProbeImage)
+	if loaded2.K8s.ProbeImage != "ghcr.io/AleksandrSumkin/kncc-agent:latest" {
+		t.Errorf("expected ProbeImage ghcr.io/AleksandrSumkin/kncc-agent:latest, got %s", loaded2.K8s.ProbeImage)
 	}
 }
 
