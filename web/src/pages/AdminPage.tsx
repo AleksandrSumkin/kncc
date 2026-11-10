@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../api';
 import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../context/LanguageContext';
 import { User, RBACReport, UserStats, UserStatsResponse } from '../types';
 import {
   Shield,
@@ -28,6 +29,7 @@ import {
   ArrowDown,
   Calendar,
   Clock,
+  Languages,
   TrendingUp,
   FileSpreadsheet,
   Upload,
@@ -38,6 +40,7 @@ import {
 
 export const AdminPage: React.FC = () => {
   const { config, reloadConfig } = useTheme();
+  const { t } = useTranslation();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'users' | 'stats' | 'rbac' | 'settings'>('users');
@@ -76,6 +79,7 @@ export const AdminPage: React.FC = () => {
 
   // Settings state
   const [defaultThemeSetting, setDefaultThemeSetting] = useState<'light' | 'dark'>('light');
+  const [defaultLanguageSetting, setDefaultLanguageSetting] = useState<'en' | 'ru'>('en');
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -98,14 +102,14 @@ export const AdminPage: React.FC = () => {
 
     // Validate size: max 1MB
     if (file.size > 1024 * 1024) {
-      setLogoError('Размер файла превышает 1 МБ. Пожалуйста, оптимизируйте изображение.');
+      setLogoError(t('admin.errLogoSize'));
       return;
     }
 
     const isSvg = file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml';
     const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'];
     if (!validTypes.includes(file.type) && !isSvg) {
-      setLogoError('Неподдерживаемый формат. Разрешены только SVG, PNG, JPEG или WebP.');
+      setLogoError(t('admin.errLogoFormat'));
       return;
     }
 
@@ -126,7 +130,7 @@ export const AdminPage: React.FC = () => {
     };
     reader.onerror = () => {
       setPreviewError(true);
-      setLogoError('Не удалось прочитать выбранный файл.');
+      setLogoError(t('admin.errLogoRead'));
     };
     reader.readAsDataURL(file);
   };
@@ -141,17 +145,17 @@ export const AdminPage: React.FC = () => {
       await reloadConfig();
       setSelectedLogoFile(null);
       setLogoPreviewUrl(null);
-      setLogoSuccess(res.message || 'Корпоративный логотип успешно сохранен в ConfigMap kncc-logo и базе данных!');
+      setLogoSuccess(res.message || t('admin.successLogoSaved'));
       setTimeout(() => setLogoSuccess(null), 5000);
     } catch (err: any) {
-      setLogoError(err.message || 'Не удалось загрузить логотип');
+      setLogoError(err.message || t('admin.errLogoUpload'));
     } finally {
       setLogoUploading(false);
     }
   };
 
   const handleResetLogo = async () => {
-    if (!window.confirm('Сбросить текущий логотип на первичное судостроительное лого по умолчанию?')) {
+    if (!window.confirm(t('admin.confirmResetLogo'))) {
       return;
     }
     setLogoResetting(true);
@@ -162,10 +166,10 @@ export const AdminPage: React.FC = () => {
       await reloadConfig();
       setSelectedLogoFile(null);
       setLogoPreviewUrl(null);
-      setLogoSuccess(res.message || 'Логотип успешно сброшен на первичное судостроительное лого!');
+      setLogoSuccess(res.message || t('admin.successLogoReset'));
       setTimeout(() => setLogoSuccess(null), 5000);
     } catch (err: any) {
-      setLogoError(err.message || 'Не удалось сбросить логотип');
+      setLogoError(err.message || t('admin.errLogoReset'));
     } finally {
       setLogoResetting(false);
     }
@@ -187,7 +191,7 @@ export const AdminPage: React.FC = () => {
 
     // Validate size: max 512 KB
     if (file.size > 512 * 1024) {
-      setFaviconError('Размер файла превышает 512 КБ. Пожалуйста, оптимизируйте фавикон.');
+      setFaviconError(t('admin.errFaviconSize'));
       return;
     }
 
@@ -197,7 +201,7 @@ export const AdminPage: React.FC = () => {
     const validTypes = ['image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/jpeg', 'image/webp'];
 
     if (!validTypes.includes(file.type) && !isSvg && !isIco) {
-      setFaviconError('Неподдерживаемый формат. Разрешены только ICO, SVG, PNG, JPEG или WebP.');
+      setFaviconError(t('admin.errFaviconFormat'));
       return;
     }
 
@@ -215,7 +219,7 @@ export const AdminPage: React.FC = () => {
       setFaviconPreviewUrl(result);
     };
     reader.onerror = () => {
-      setFaviconError('Не удалось прочитать выбранный файл фавикона.');
+      setFaviconError(t('admin.errFaviconRead'));
     };
     reader.readAsDataURL(file);
   };
@@ -230,17 +234,17 @@ export const AdminPage: React.FC = () => {
       await reloadConfig();
       setSelectedFaviconFile(null);
       setFaviconPreviewUrl(null);
-      setFaviconSuccess(res.message || 'Фавикон успешно сохранен в ConfigMap kncc-favicon и базе данных!');
+      setFaviconSuccess(res.message || t('admin.successFaviconSaved'));
       setTimeout(() => setFaviconSuccess(null), 5000);
     } catch (err: any) {
-      setFaviconError(err.message || 'Не удалось загрузить фавикон');
+      setFaviconError(err.message || t('admin.errFaviconUpload'));
     } finally {
       setFaviconUploading(false);
     }
   };
 
   const handleResetFavicon = async () => {
-    if (!window.confirm('Сбросить кастомный фавикон и вернуть автоматическую миниатюру корпоративного логотипа?')) {
+    if (!window.confirm(t('admin.confirmResetFavicon'))) {
       return;
     }
     setFaviconResetting(true);
@@ -251,10 +255,10 @@ export const AdminPage: React.FC = () => {
       await reloadConfig();
       setSelectedFaviconFile(null);
       setFaviconPreviewUrl(null);
-      setFaviconSuccess(res.message || 'Фавикон сброшен на миниатюру корпоративного логотипа!');
+      setFaviconSuccess(res.message || t('admin.successFaviconReset'));
       setTimeout(() => setFaviconSuccess(null), 5000);
     } catch (err: any) {
-      setFaviconError(err.message || 'Не удалось сбросить фавикон');
+      setFaviconError(err.message || t('admin.errFaviconReset'));
     } finally {
       setFaviconResetting(false);
     }
@@ -264,7 +268,10 @@ export const AdminPage: React.FC = () => {
     if (config?.default_theme) {
       setDefaultThemeSetting(config.default_theme);
     }
-  }, [config?.default_theme]);
+    if (config?.default_language === 'ru' || config?.default_language === 'en') {
+      setDefaultLanguageSetting(config.default_language);
+    }
+  }, [config?.default_theme, config?.default_language]);
 
   const fetchUsers = async () => {
     try {
@@ -285,7 +292,7 @@ export const AdminPage: React.FC = () => {
       setRbacReport(rep);
     } catch (e: any) {
       console.error(e);
-      setRbacError(e.message || 'Failed to retrieve RBAC permissions report');
+      setRbacError(e.message || t('admin.rbacLoadError'));
     } finally {
       setRbacLoading(false);
     }
@@ -299,7 +306,7 @@ export const AdminPage: React.FC = () => {
       setStatsData(res);
     } catch (e: any) {
       console.error(e);
-      setStatsError(e.message || 'Не удалось загрузить статистику использования');
+      setStatsError(e.message || t('admin.statsLoadError'));
     } finally {
       setStatsLoading(false);
     }
@@ -349,7 +356,17 @@ export const AdminPage: React.FC = () => {
 
   const handleCopyStats = () => {
     if (!statsData) return;
-    const headerRow = ['Пользователь', 'Роль', 'Провайдер', 'За 24 часа', 'За 7 дней', 'За 30 дней', 'За год', 'Всего запросов', 'Последняя активность'];
+    const headerRow = [
+      t('admin.tsvHeaderUser'),
+      t('admin.tsvHeaderRole'),
+      t('admin.tsvHeaderProvider'),
+      t('admin.tsvHeader24h'),
+      t('admin.tsvHeader7d'),
+      t('admin.tsvHeader30d'),
+      t('admin.tsvHeaderYear'),
+      t('admin.tsvHeaderTotal'),
+      t('admin.tsvHeaderLastActive'),
+    ];
     const dataRows = filteredAndSortedStats.map(u => [
       u.username,
       u.role,
@@ -359,10 +376,10 @@ export const AdminPage: React.FC = () => {
       u.month_count,
       u.year_count,
       u.total_count,
-      u.last_active ? new Date(u.last_active).toLocaleString() : 'Никогда'
+      u.last_active ? new Date(u.last_active).toLocaleString() : t('admin.timeNever'),
     ]);
     const summaryRow = [
-      'ИТОГО (все пользователи)',
+      t('admin.tsvTotalLabel'),
       '-',
       '-',
       statsData.total.day_count,
@@ -370,7 +387,7 @@ export const AdminPage: React.FC = () => {
       statsData.total.month_count,
       statsData.total.year_count,
       statsData.total.total_count,
-      '-'
+      '-',
     ];
     const tsv = [headerRow.join('\t'), ...dataRows.map(r => r.join('\t')), summaryRow.join('\t')].join('\n');
     navigator.clipboard.writeText(tsv);
@@ -380,16 +397,16 @@ export const AdminPage: React.FC = () => {
 
   const formatLastActive = (dateStr?: string) => {
     if (!dateStr) {
-      return <span className="text-gray-400 dark:text-slate-500 text-xs italic">Никогда</span>;
+      return <span className="text-gray-400 dark:text-slate-500 text-xs italic">{t('admin.timeNever')}</span>;
     }
     const d = new Date(dateStr);
     const now = new Date();
     const diffSec = Math.max(0, Math.floor((now.getTime() - d.getTime()) / 1000));
     let relative = '';
-    if (diffSec < 60) relative = 'Только что';
-    else if (diffSec < 3600) relative = `${Math.floor(diffSec / 60)} мин. назад`;
-    else if (diffSec < 86400) relative = `${Math.floor(diffSec / 3600)} ч. назад`;
-    else if (diffSec < 2592000) relative = `${Math.floor(diffSec / 86400)} дн. назад`;
+    if (diffSec < 60) relative = t('admin.timeJustNow');
+    else if (diffSec < 3600) relative = `${Math.floor(diffSec / 60)} ${t('admin.timeMinAgo')}`;
+    else if (diffSec < 86400) relative = `${Math.floor(diffSec / 3600)} ${t('admin.timeHoursAgo')}`;
+    else if (diffSec < 2592000) relative = `${Math.floor(diffSec / 86400)} ${t('admin.timeDaysAgo')}`;
     else relative = d.toLocaleDateString();
 
     return (
@@ -438,12 +455,15 @@ export const AdminPage: React.FC = () => {
     setSettingsSuccess(null);
     setSettingsError(null);
     try {
-      await api.updateThemeSettings(defaultThemeSetting);
+      await api.updateThemeSettings({
+        default_theme: defaultThemeSetting,
+        default_language: defaultLanguageSetting,
+      });
       await reloadConfig();
-      setSettingsSuccess('Тема по умолчанию успешно сохранена в настройках приложения!');
+      setSettingsSuccess(t('admin.themeSaved'));
       setTimeout(() => setSettingsSuccess(null), 4000);
     } catch (err: any) {
-      setSettingsError(err.message || 'Не удалось сохранить настройки темы');
+      setSettingsError(err.message || 'Failed to save settings');
     } finally {
       setSettingsSaving(false);
     }
@@ -489,7 +509,7 @@ export const AdminPage: React.FC = () => {
   const handleCopyJSON = () => {
     if (!rbacReport) return;
     navigator.clipboard.writeText(JSON.stringify(rbacReport, null, 2));
-    setCopiedNotice('Copied JSON report to clipboard!');
+    setCopiedNotice(t('admin.copiedJsonNotice'));
     setTimeout(() => setCopiedNotice(null), 3000);
   };
 
@@ -501,7 +521,7 @@ export const AdminPage: React.FC = () => {
         `${r.type}\t${r.subject}\t${r.verbs.join(',')}\t${r.namespace}\t${r.api_group}\t${r.resource}\t${(r.resource_names || []).join(',') || '*'}\t${(r.non_resource_urls || []).join(',')}\t${r.originated_from || ''}`
     );
     navigator.clipboard.writeText([header, ...rows].join('\n'));
-    setCopiedNotice('Copied policy rules table (TSV) to clipboard!');
+    setCopiedNotice(t('admin.copiedTableNotice'));
     setTimeout(() => setCopiedNotice(null), 3000);
   };
 
@@ -533,10 +553,10 @@ export const AdminPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center">
             <Shield className="w-6 h-6 mr-2 text-red-600" />
-            Administration & Cluster RBAC
+            {t('admin.title')}
           </h1>
           <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-            Manage users, inspect Kubernetes ServiceAccount permissions, and configure application settings.
+            {t('admin.subtitle')}
           </p>
         </div>
 
@@ -547,7 +567,7 @@ export const AdminPage: React.FC = () => {
             style={{ backgroundColor: 'var(--color-accent, #dc2626)' }}
           >
             <UserPlus className="w-3.5 h-3.5 mr-1.5" />
-            Add Local User
+            {t('admin.addLocalUser')}
           </button>
         )}
       </div>
@@ -560,9 +580,9 @@ export const AdminPage: React.FC = () => {
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Namespace Dropdown</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.nsDropdown')}</p>
               <p className="text-sm font-bold text-gray-900 dark:text-white">
-                {config?.namespace_list_enabled ? 'Enabled' : 'Disabled'}
+                {config?.namespace_list_enabled ? t('admin.nsDropdownEnabled') : t('admin.nsDropdownDisabled')}
               </p>
             </div>
           </div>
@@ -573,7 +593,7 @@ export const AdminPage: React.FC = () => {
                 : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400'
             }`}
           >
-            {config?.namespace_list_enabled ? 'Active' : 'Manual only'}
+            {config?.namespace_list_enabled ? t('admin.nsActive') : t('admin.nsManualOnly')}
           </span>
         </div>
 
@@ -583,9 +603,9 @@ export const AdminPage: React.FC = () => {
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Multi-Namespace RBAC</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.multiNsRbac')}</p>
               <p className="text-sm font-bold text-gray-900 dark:text-white">
-                {config?.multi_namespace_allowed ? 'Allowed' : 'Restricted'}
+                {config?.multi_namespace_allowed ? t('admin.multiNsAllowed') : t('admin.multiNsRestricted')}
               </p>
             </div>
           </div>
@@ -596,7 +616,7 @@ export const AdminPage: React.FC = () => {
                 : 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300'
             }`}
           >
-            {config?.multi_namespace_allowed ? 'Cluster-wide' : 'Single NS'}
+            {config?.multi_namespace_allowed ? t('admin.multiNsClusterWide') : t('admin.multiNsSingleNs')}
           </span>
         </div>
 
@@ -606,14 +626,14 @@ export const AdminPage: React.FC = () => {
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Default Namespace</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.defaultNs')}</p>
               <p className="text-sm font-bold text-gray-900 dark:text-white font-mono">
                 {config?.default_namespace || 'kncc'}
               </p>
             </div>
           </div>
           <span className="text-xs text-gray-400 dark:text-slate-500">
-            {config?.rate_limit_per_minute || 30} req/m
+            {config?.rate_limit_per_minute || 30} {t('admin.reqPerMinShort')}
           </span>
         </div>
       </div>
@@ -629,7 +649,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <Users className="w-4 h-4 mr-2" />
-          User Accounts
+          {t('admin.usersTab')}
           <span className="ml-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono">
             {users.length}
           </span>
@@ -647,7 +667,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <BarChart3 className="w-4 h-4 mr-2" />
-          Статистика запросов
+          {t('admin.statsTab')}
           {statsData && (
             <span className="ml-2 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-xs px-2 py-0.5 rounded-full font-mono">
               {statsData.total.total_count}
@@ -667,7 +687,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <KeyRound className="w-4 h-4 mr-2" />
-          Kubernetes SA Permissions (RBAC)
+          {t('admin.rbacTab')}
           {rbacReport && (
             <span className="ml-2 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-xs px-2 py-0.5 rounded-full font-mono">
               {rbacReport.rules.length}
@@ -684,7 +704,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <Sliders className="w-4 h-4 mr-2" />
-          Настройки приложения
+          {t('admin.settingsTab')}
           <span className="ml-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 text-xs px-2 py-0.5 rounded-full capitalize font-mono">
             {config?.default_theme || 'light'}
           </span>
@@ -702,7 +722,7 @@ export const AdminPage: React.FC = () => {
       {statsCopiedNotice && (
         <div className="mb-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 rounded-lg text-xs text-emerald-800 dark:text-emerald-300 flex items-center">
           <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" />
-          <span>Таблица статистики скопирована в буфер обмена (TSV/Excel формат)!</span>
+          <span>{t('admin.statsCopiedNotice')}</span>
         </div>
       )}
 
@@ -713,11 +733,11 @@ export const AdminPage: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-left text-xs">
               <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-3">Username</th>
-                  <th className="px-6 py-3">Role</th>
-                  <th className="px-6 py-3">Provider</th>
-                  <th className="px-6 py-3">Email</th>
-                  <th className="px-6 py-3">Created At</th>
+                  <th className="px-6 py-3">{t('admin.username')}</th>
+                  <th className="px-6 py-3">{t('admin.role')}</th>
+                  <th className="px-6 py-3">{t('admin.provider')}</th>
+                  <th className="px-6 py-3">{t('admin.email')}</th>
+                  <th className="px-6 py-3">{t('admin.created')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-slate-800 text-gray-900 dark:text-slate-200">
@@ -729,10 +749,10 @@ export const AdminPage: React.FC = () => {
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
                         u.role === 'admin'
-                          ? 'bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300'
+                          ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300'
                           : 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-300'
                       }`}>
-                        {u.role}
+                        {u.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}
                       </span>
                     </td>
                     <td className="px-6 py-4 uppercase font-mono text-gray-500 dark:text-slate-400">
@@ -749,7 +769,7 @@ export const AdminPage: React.FC = () => {
                 {users.length === 0 && !loading && (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
-                      No users loaded.
+                      {t('admin.noUsersLoaded')}
                     </td>
                   </tr>
                 )}
@@ -766,57 +786,57 @@ export const AdminPage: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">За 24 часа</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.last24Hours')}</span>
                 <Clock className="w-4 h-4 text-blue-500" />
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">
                 {statsLoading ? '...' : (statsData?.total.day_count ?? 0)}
               </p>
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">последние сутки</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{t('admin.last24HoursDesc')}</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">За 7 дней</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.last7Days')}</span>
                 <Calendar className="w-4 h-4 text-emerald-500" />
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">
                 {statsLoading ? '...' : (statsData?.total.week_count ?? 0)}
               </p>
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">последняя неделя</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{t('admin.last7DaysDesc')}</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">За 30 дней</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.last30Days')}</span>
                 <Calendar className="w-4 h-4 text-indigo-500" />
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">
                 {statsLoading ? '...' : (statsData?.total.month_count ?? 0)}
               </p>
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">последний месяц</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{t('admin.last30DaysDesc')}</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">За год</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.lastYear')}</span>
                 <TrendingUp className="w-4 h-4 text-amber-500" />
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white font-mono">
                 {statsLoading ? '...' : (statsData?.total.year_count ?? 0)}
               </p>
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">365 дней</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{t('admin.lastYearDesc')}</span>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors col-span-2 sm:col-span-1">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">Всего запросов</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">{t('admin.totalRequests')}</span>
                 <BarChart3 className="w-4 h-4 text-red-500" />
               </div>
               <p className="text-xl font-bold text-red-600 dark:text-red-400 font-mono">
                 {statsLoading ? '...' : (statsData?.total.total_count ?? 0)}
               </p>
-              <span className="text-[10px] text-gray-400 dark:text-slate-500">за всё время</span>
+              <span className="text-[10px] text-gray-400 dark:text-slate-500">{t('admin.allTime')}</span>
             </div>
           </div>
 
@@ -826,7 +846,7 @@ export const AdminPage: React.FC = () => {
               <Search className="w-4 h-4 text-gray-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Поиск по имени пользователя или провайдеру..."
+                placeholder={t('admin.statsSearchPlaceholder')}
                 value={statsSearch}
                 onChange={(e) => setStatsSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-1.5 text-xs bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500"
@@ -838,10 +858,10 @@ export const AdminPage: React.FC = () => {
                 onClick={handleCopyStats}
                 disabled={!statsData || statsLoading}
                 className="inline-flex items-center px-3 py-1.5 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/80 shadow-sm transition-all disabled:opacity-50"
-                title="Копировать таблицу в буфер обмена для Excel / Google Sheets"
+                title={t('admin.copyTsvTitle')}
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
-                Копировать TSV
+                {t('admin.copyTsv')}
               </button>
 
               <button
@@ -850,7 +870,7 @@ export const AdminPage: React.FC = () => {
                 className="inline-flex items-center px-3 py-1.5 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700/80 shadow-sm transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${statsLoading ? 'animate-spin text-red-600' : 'text-gray-500 dark:text-slate-400'}`} />
-                Обновить
+                {t('admin.refresh')}
               </button>
             </div>
           </div>
@@ -874,7 +894,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('username')}
                     >
                       <div className="flex items-center space-x-1">
-                        <span>Пользователь</span>
+                        <span>{t('admin.colUser')}</span>
                         {sortField === 'username' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -887,7 +907,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('day_count')}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        <span>За день</span>
+                        <span>{t('admin.colDay')}</span>
                         {sortField === 'day_count' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -900,7 +920,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('week_count')}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        <span>За неделю</span>
+                        <span>{t('admin.colWeek')}</span>
                         {sortField === 'week_count' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -913,7 +933,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('month_count')}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        <span>За месяц</span>
+                        <span>{t('admin.colMonth')}</span>
                         {sortField === 'month_count' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -926,7 +946,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('year_count')}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        <span>За год</span>
+                        <span>{t('admin.colYear')}</span>
                         {sortField === 'year_count' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -939,7 +959,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('total_count')}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        <span>Всего</span>
+                        <span>{t('admin.colTotal')}</span>
                         {sortField === 'total_count' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -952,7 +972,7 @@ export const AdminPage: React.FC = () => {
                       onClick={() => handleSort('last_active')}
                     >
                       <div className="flex items-center justify-end space-x-1">
-                        <span>Активность</span>
+                        <span>{t('admin.colActivity')}</span>
                         {sortField === 'last_active' ? (
                           sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-red-600" /> : <ArrowDown className="w-3.5 h-3.5 text-red-600" />
                         ) : (
@@ -967,7 +987,7 @@ export const AdminPage: React.FC = () => {
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-gray-500 dark:text-slate-400">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-red-600" />
-                        Загрузка статистики использования...
+                        {t('admin.statsLoading')}
                       </td>
                     </tr>
                   ) : filteredAndSortedStats.length > 0 ? (
@@ -986,7 +1006,7 @@ export const AdminPage: React.FC = () => {
                                     ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300'
                                     : 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300'
                                 }`}>
-                                  {item.role}
+                                  {item.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')}
                                 </span>
                                 <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
                                   {item.provider}
@@ -1040,7 +1060,7 @@ export const AdminPage: React.FC = () => {
                   ) : (
                     <tr>
                       <td colSpan={7} className="px-6 py-8 text-center text-gray-400 dark:text-slate-500">
-                        {statsSearch ? 'Пользователи не найдены по критерию поиска.' : 'Статистика пока отсутствует.'}
+                        {statsSearch ? t('admin.noStatsSearchMatch') : t('admin.noStatsAvailable')}
                       </td>
                     </tr>
                   )}
@@ -1052,9 +1072,9 @@ export const AdminPage: React.FC = () => {
                     <tr>
                       <td className="px-6 py-4 text-xs uppercase tracking-wider text-gray-900 dark:text-white">
                         <div className="flex items-center space-x-2">
-                          <span className="font-extrabold">ИТОГО (все пользователи)</span>
+                          <span className="font-extrabold">{t('admin.statsTotalRow')}</span>
                           <span className="text-[10px] font-normal text-gray-500 dark:text-slate-400 lowercase">
-                            ({statsData.users.length} учётных записей)
+                            ({statsData.users.length} {t('admin.userAccountsCount')})
                           </span>
                         </div>
                       </td>
@@ -1074,7 +1094,7 @@ export const AdminPage: React.FC = () => {
                         {statsData.total.total_count}
                       </td>
                       <td className="px-6 py-4 text-right text-xs text-gray-500 dark:text-slate-400 font-normal">
-                        Все диапазоны
+                        {t('admin.allRanges')}
                       </td>
                     </tr>
                   </tfoot>
@@ -1092,7 +1112,7 @@ export const AdminPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Target Subject</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">{t('admin.targetSubject')}</span>
                 <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
                   {rbacReport?.subject.kind || 'ServiceAccount'}
                 </span>
@@ -1107,7 +1127,7 @@ export const AdminPage: React.FC = () => {
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Evaluation Source</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">{t('admin.evaluationSource')}</span>
                 <span className={`px-1.5 py-0.5 text-[10px] font-bold uppercase rounded ${
                   rbacReport?.source === 'cluster-rbac'
                     ? 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300'
@@ -1115,45 +1135,45 @@ export const AdminPage: React.FC = () => {
                     ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                     : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
                 }`}>
-                  {rbacReport?.source || 'Detecting'}
+                  {rbacReport?.source || t('admin.srcDetecting')}
                 </span>
               </div>
               <p className="text-sm font-bold text-gray-900 dark:text-white">
-                {rbacReport?.source === 'cluster-rbac' ? 'Cluster RBAC Graph' : rbacReport?.source === 'self-subject-rules-review' ? 'SelfSubjectRulesReview' : 'Simulated / Mock'}
+                {rbacReport?.source === 'cluster-rbac' ? t('admin.srcClusterRbac') : rbacReport?.source === 'self-subject-rules-review' ? t('admin.srcSelfSubjectRulesReview') : t('admin.srcSimulated')}
               </p>
               <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                {rbacReport?.evaluation_error ? 'Partial fallback applied' : 'Resolved without errors'}
+                {rbacReport?.evaluation_error ? t('admin.fallbackApplied') : t('admin.resolvedWithoutErrors')}
               </p>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Active Rules</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">{t('admin.activeRules')}</span>
                 <Activity className="w-4 h-4 text-gray-400" />
               </div>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {filteredRules.length}
                 {filteredRules.length !== (rbacReport?.rules.length || 0) && (
                   <span className="text-xs font-normal text-gray-500 dark:text-slate-400 ml-1">
-                    of {rbacReport?.rules.length || 0}
+                    {t('admin.ofRules')} {rbacReport?.rules.length || 0}
                   </span>
                 )}
               </p>
               <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                Flat policy rules available
+                {t('admin.flatRulesAvailable')}
               </p>
             </div>
 
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Last Evaluated</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">{t('admin.lastEvaluated')}</span>
                 <RefreshCw className={`w-3.5 h-3.5 text-gray-400 ${rbacLoading ? 'animate-spin' : ''}`} />
               </div>
               <p className="text-sm font-bold text-gray-900 dark:text-white">
                 {rbacReport ? new Date(rbacReport.generated_at).toLocaleTimeString() : '—'}
               </p>
               <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                {rbacReport ? new Date(rbacReport.generated_at).toLocaleDateString() : 'Pending'}
+                {rbacReport ? new Date(rbacReport.generated_at).toLocaleDateString() : t('admin.pendingEvaluation')}
               </p>
             </div>
           </div>
@@ -1163,7 +1183,7 @@ export const AdminPage: React.FC = () => {
             <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 p-4 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-start">
               <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold">Unable to load RBAC permissions</p>
+                <p className="font-semibold">{t('admin.rbacLoadError')}</p>
                 <p className="mt-1">{rbacError}</p>
               </div>
             </div>
@@ -1176,7 +1196,7 @@ export const AdminPage: React.FC = () => {
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Filter by resource, verb, group, ns..."
+                  placeholder={t('admin.rbacSearchPlaceholder')}
                   value={rbacSearch}
                   onChange={(e) => setRbacSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
@@ -1188,13 +1208,13 @@ export const AdminPage: React.FC = () => {
                 onChange={(e) => setRbacVerbFilter(e.target.value)}
                 className="px-2.5 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 focus:ring-red-500 focus:border-red-500"
               >
-                <option value="all">All Verbs</option>
+                <option value="all">{t('admin.filterAllVerbs')}</option>
                 <option value="get">get</option>
                 <option value="list">list</option>
                 <option value="watch">watch</option>
                 <option value="create">create</option>
                 <option value="delete">delete</option>
-                <option value="*">* (Wildcard)</option>
+                <option value="*">{t('admin.filterWildcard')}</option>
               </select>
 
               <select
@@ -1202,9 +1222,9 @@ export const AdminPage: React.FC = () => {
                 onChange={(e) => setRbacScopeFilter(e.target.value)}
                 className="px-2.5 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 focus:ring-red-500 focus:border-red-500"
               >
-                <option value="all">All Scopes</option>
-                <option value="cluster">Cluster-wide (*)</option>
-                <option value="namespaced">Namespaced</option>
+                <option value="all">{t('admin.filterAllScopes')}</option>
+                <option value="cluster">{t('admin.filterClusterScope')}</option>
+                <option value="namespaced">{t('admin.filterNamespacedScope')}</option>
               </select>
             </div>
 
@@ -1212,19 +1232,19 @@ export const AdminPage: React.FC = () => {
               <button
                 onClick={handleCopyTable}
                 className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 shadow-sm transition-all"
-                title="Copy formatted table matching rbac-tool policy-rules"
+                title={t('admin.copyTableTitle')}
               >
                 <Terminal className="w-3.5 h-3.5 mr-1.5 text-gray-500 dark:text-slate-400" />
-                Copy Table
+                {t('admin.copyTable')}
               </button>
 
               <button
                 onClick={handleCopyJSON}
                 className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 shadow-sm transition-all"
-                title="Copy raw JSON representation"
+                title={t('admin.copyJsonTitle')}
               >
                 <Copy className="w-3.5 h-3.5 mr-1.5 text-gray-500 dark:text-slate-400" />
-                Copy JSON
+                {t('admin.copyJson')}
               </button>
 
               <button
@@ -1233,7 +1253,7 @@ export const AdminPage: React.FC = () => {
                 className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 shadow-sm disabled:opacity-50 transition-all"
               >
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 text-gray-500 dark:text-slate-400 ${rbacLoading ? 'animate-spin' : ''}`} />
-                Refresh
+                {t('admin.refresh')}
               </button>
             </div>
           </div>
@@ -1244,15 +1264,15 @@ export const AdminPage: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-left text-xs">
                 <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wider font-mono">
                   <tr>
-                    <th className="px-4 py-3">TYPE</th>
-                    <th className="px-4 py-3">SUBJECT</th>
-                    <th className="px-4 py-3">VERBS</th>
-                    <th className="px-4 py-3">NAMESPACE</th>
-                    <th className="px-4 py-3">API GROUP</th>
-                    <th className="px-4 py-3">KIND / RESOURCE</th>
-                    <th className="px-4 py-3">NAMES</th>
-                    <th className="px-4 py-3">NONRESOURCEURI</th>
-                    <th className="px-4 py-3">ORIGINATED FROM</th>
+                    <th className="px-4 py-3">{t('admin.colType')}</th>
+                    <th className="px-4 py-3">{t('admin.colSubject')}</th>
+                    <th className="px-4 py-3">{t('admin.colVerbs')}</th>
+                    <th className="px-4 py-3">{t('admin.colNamespace')}</th>
+                    <th className="px-4 py-3">{t('admin.colApiGroup')}</th>
+                    <th className="px-4 py-3">{t('admin.colResource')}</th>
+                    <th className="px-4 py-3">{t('admin.colNames')}</th>
+                    <th className="px-4 py-3">{t('admin.colNonResourceUri')}</th>
+                    <th className="px-4 py-3">{t('admin.colOriginatedFrom')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-slate-800 font-mono text-[11px] text-gray-900 dark:text-slate-200">
@@ -1274,7 +1294,7 @@ export const AdminPage: React.FC = () => {
                       <td className="px-4 py-3">
                         {rule.namespace === '*' ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-sans font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300">
-                            * (cluster)
+                            {t('admin.clusterScopeBadge')}
                           </span>
                         ) : (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-sans bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">
@@ -1320,8 +1340,8 @@ export const AdminPage: React.FC = () => {
                     <tr>
                       <td colSpan={9} className="px-6 py-10 text-center text-gray-400 dark:text-slate-500 font-sans">
                         <KeyRound className="w-8 h-8 mx-auto text-gray-300 dark:text-slate-600 mb-2" />
-                        <p className="text-sm font-medium">No matching policy rules found.</p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Try broadening your search or filter terms.</p>
+                        <p className="text-sm font-medium">{t('admin.noMatchingRules')}</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{t('admin.broadenSearchHint')}</p>
                       </td>
                     </tr>
                   )}
@@ -1330,7 +1350,7 @@ export const AdminPage: React.FC = () => {
                     <tr>
                       <td colSpan={9} className="px-6 py-10 text-center text-gray-400 dark:text-slate-500 font-sans">
                         <RefreshCw className="w-6 h-6 mx-auto text-red-500 animate-spin mb-2" />
-                        <p className="text-xs">Evaluating Kubernetes RBAC policy rules...</p>
+                        <p className="text-xs">{t('admin.evaluatingRules')}</p>
                       </td>
                     </tr>
                   )}
@@ -1352,10 +1372,10 @@ export const AdminPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Тема оформления по умолчанию
+                  {t('admin.themeSettings')}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                  Определяет тему интерфейса, которая автоматически применяется для новых пользователей, гостей на экране авторизации и браузеров без сохранённых настроек.
+                  {t('admin.themeSettingsSubtitle')}
                 </p>
               </div>
             </div>
@@ -1394,7 +1414,7 @@ export const AdminPage: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm text-gray-900 dark:text-white">
-                      Светлая тема (Light)
+                      {t('admin.themeLight')}
                     </span>
                     <input
                       type="radio"
@@ -1405,7 +1425,7 @@ export const AdminPage: React.FC = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Классическое светлое оформление со светлым фоном и карточками. Рекомендуется для светлых помещений и дневной работы.
+                    {t('admin.themeLightDesc')}
                   </p>
                 </div>
               </div>
@@ -1429,7 +1449,7 @@ export const AdminPage: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm text-gray-900 dark:text-white">
-                      Тёмная тема (Dark)
+                      {t('admin.themeDark')}
                     </span>
                     <input
                       type="radio"
@@ -1440,15 +1460,97 @@ export const AdminPage: React.FC = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-                    Высококонтрастное графитовое оформление (Slate-950). Снижает утомляемость глаз при круглосуточном мониторинге NOC и ночных сменах.
+                    {t('admin.themeDarkDesc')}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-slate-800">
+            {/* Default Language Selector */}
+            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-slate-800">
+              <label className="block text-sm font-bold text-gray-900 dark:text-white mb-1">
+                {t('admin.defaultLanguage')}
+              </label>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">
+                {t('admin.defaultLanguageSubtitle')}
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* English Option */}
+                <div
+                  onClick={() => setDefaultLanguageSetting('en')}
+                  className={`cursor-pointer rounded-xl p-4 border-2 transition-all flex items-start space-x-3.5 ${
+                    defaultLanguageSetting === 'en'
+                      ? 'border-red-600 bg-red-50/30 dark:bg-red-950/20 shadow-sm'
+                      : 'border-gray-200 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${
+                    defaultLanguageSetting === 'en'
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'
+                  }`}>
+                    <Languages className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-gray-900 dark:text-white">
+                        {t('admin.langEn')}
+                      </span>
+                      <input
+                        type="radio"
+                        name="default_language"
+                        checked={defaultLanguageSetting === 'en'}
+                        onChange={() => setDefaultLanguageSetting('en')}
+                        className="text-red-600 focus:ring-red-500 h-4 w-4"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      {t('admin.langEnDesc')}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Russian Option */}
+                <div
+                  onClick={() => setDefaultLanguageSetting('ru')}
+                  className={`cursor-pointer rounded-xl p-4 border-2 transition-all flex items-start space-x-3.5 ${
+                    defaultLanguageSetting === 'ru'
+                      ? 'border-red-600 bg-red-50/30 dark:bg-red-950/20 shadow-sm'
+                      : 'border-gray-200 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${
+                    defaultLanguageSetting === 'ru'
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'
+                  }`}>
+                    <Languages className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-gray-900 dark:text-white">
+                        {t('admin.langRu')}
+                      </span>
+                      <input
+                        type="radio"
+                        name="default_language"
+                        checked={defaultLanguageSetting === 'ru'}
+                        onChange={() => setDefaultLanguageSetting('ru')}
+                        className="text-red-600 focus:ring-red-500 h-4 w-4"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      {t('admin.langRuDesc')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-slate-800 mt-6">
               <span className="text-xs text-gray-500 dark:text-slate-400">
-                Текущее значение на сервере: <strong className="capitalize text-gray-800 dark:text-slate-200 font-mono">{config?.default_theme || 'light'}</strong>
+                {t('admin.themeSettings')}: <strong className="capitalize text-gray-800 dark:text-slate-200 font-mono">{config?.default_theme || 'light'}</strong> / <strong className="uppercase text-gray-800 dark:text-slate-200 font-mono">{config?.default_language || 'en'}</strong>
               </span>
 
               <button
@@ -1460,12 +1562,12 @@ export const AdminPage: React.FC = () => {
                 {settingsSaving ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    Сохранение...
+                    {t('admin.savingTheme')}
                   </>
                 ) : (
                   <>
                     <Check className="w-3.5 h-3.5 mr-1.5" />
-                    Сохранить тему по умолчанию
+                    {t('admin.saveTheme')}
                   </>
                 )}
               </button>
@@ -1481,10 +1583,10 @@ export const AdminPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                    Корпоративный брендинг и логотип компании
+                    {t('admin.brandingSettings')}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                    Логотип отображается на постоянной панели навигации (Navbar), на экране авторизации и в отчетах. Поддерживаются форматы SVG, PNG, JPEG, WebP (до 1 МБ).
+                    {t('admin.brandingSubtitle')}
                   </p>
                 </div>
               </div>
@@ -1494,7 +1596,7 @@ export const AdminPage: React.FC = () => {
                   ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                   : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
               }`}>
-                {config?.has_custom_logo ? 'Пользовательский логотип' : 'Дефолтное судостроительное лого'}
+                {config?.has_custom_logo ? t('admin.customLogoBadge') : t('admin.defaultLogoBadge')}
               </span>
             </div>
 
@@ -1517,7 +1619,7 @@ export const AdminPage: React.FC = () => {
               <div className="lg:col-span-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl p-4 border border-gray-200 dark:border-slate-700 flex flex-col items-center">
                 <div className="flex items-center justify-between w-full mb-3">
                   <span className="text-xs font-bold text-gray-700 dark:text-slate-300">
-                    {selectedLogoFile ? 'Предпросмотр нового файла:' : 'Текущий активный логотип:'}
+                    {selectedLogoFile ? t('admin.previewNewFile') : t('admin.currentActiveLogo')}
                   </span>
                   
                   {/* Background Toggle for Preview */}
@@ -1530,7 +1632,7 @@ export const AdminPage: React.FC = () => {
                           ? 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white font-bold'
                           : 'text-gray-400 hover:text-gray-700'
                       }`}
-                      title="Предпросмотр на светлом фоне"
+                      title={t('admin.previewLightBg')}
                     >
                       <Sun className="w-3.5 h-3.5" />
                     </button>
@@ -1542,7 +1644,7 @@ export const AdminPage: React.FC = () => {
                           ? 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white font-bold'
                           : 'text-gray-400 hover:text-gray-700'
                       }`}
-                      title="Предпросмотр на тёмном фоне"
+                      title={t('admin.previewDarkBg')}
                     >
                       <Moon className="w-3.5 h-3.5" />
                     </button>
@@ -1558,7 +1660,7 @@ export const AdminPage: React.FC = () => {
                   {previewError ? (
                     <div className="text-center text-xs text-red-500 dark:text-red-400 flex flex-col items-center">
                       <AlertCircle className="w-5 h-5 mb-1 text-red-500" />
-                      <span>Не удалось отобразить превью</span>
+                      <span>{t('admin.previewFailed')}</span>
                     </div>
                   ) : (
                     <img
@@ -1576,12 +1678,12 @@ export const AdminPage: React.FC = () => {
                   <p className="text-[11px] text-gray-500 dark:text-slate-400">
                     {selectedLogoFile ? (
                       <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        {selectedLogoFile.name} ({(selectedLogoFile.size / 1024).toFixed(1)} КБ)
+                        {selectedLogoFile.name} ({(selectedLogoFile.size / 1024).toFixed(1)} KB)
                       </span>
                     ) : config?.has_custom_logo ? (
-                      <span>Загружен пользовательский логотип компании</span>
+                      <span>{t('admin.customLogoActiveHint')}</span>
                     ) : (
-                      <span>Используется первичное судостроительное векторное лого</span>
+                      <span>{t('admin.defaultLogoActiveHint')}</span>
                     )}
                   </p>
                 </div>
@@ -1628,10 +1730,10 @@ export const AdminPage: React.FC = () => {
                       <Upload className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                      Перетащите файл логотипа сюда или <span className="text-blue-600 dark:text-blue-400 underline">выберите с диска</span>
+                      {t('admin.dropLogoHint')} <span className="text-blue-600 dark:text-blue-400 underline">{t('admin.selectFromDisk')}</span>
                     </p>
                     <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                      SVG (рекомендуется), PNG, JPEG или WebP до 1 МБ
+                      {t('admin.logoFormatsAllowed')}
                     </p>
                   </div>
                 </div>
@@ -1640,7 +1742,7 @@ export const AdminPage: React.FC = () => {
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/80 rounded-lg text-xs text-gray-600 dark:text-slate-400 flex items-start space-x-2">
                   <Layers className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                   <div className="text-[11px] leading-relaxed">
-                    Логотип сохраняется в выделенном <strong>Kubernetes ConfigMap (<code className="font-mono text-blue-600 dark:text-blue-400">kncc-logo</code>)</strong> и дублируется в SQLite. Изменения применяются мгновенно без перезапуска подов.
+                    {t('admin.logoConfigMapNotice')}
                   </div>
                 </div>
 
@@ -1651,10 +1753,10 @@ export const AdminPage: React.FC = () => {
                     onClick={handleResetLogo}
                     disabled={logoResetting || logoUploading || !config?.has_custom_logo}
                     className="inline-flex items-center px-3.5 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    title="Сбросить логотип на первичное судостроительное лого"
+                    title={t('admin.resetLogoTitle')}
                   >
                     <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${logoResetting ? 'animate-spin' : ''}`} />
-                    {logoResetting ? 'Сброс...' : 'Сбросить к дефолтному'}
+                    {logoResetting ? t('admin.resettingLogo') : t('admin.resetLogo')}
                   </button>
 
                   <div className="flex items-center space-x-2">
@@ -1667,7 +1769,7 @@ export const AdminPage: React.FC = () => {
                         }}
                         className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                       >
-                        Отмена
+                        {t('common.cancel')}
                       </button>
                     )}
 
@@ -1681,12 +1783,12 @@ export const AdminPage: React.FC = () => {
                       {logoUploading ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                          Сохранение в ConfigMap...
+                          {t('admin.uploadingLogo')}
                         </>
                       ) : (
                         <>
                           <Upload className="w-3.5 h-3.5 mr-1.5" />
-                          Загрузить и применить логотип
+                          {t('admin.uploadLogo')}
                         </>
                       )}
                     </button>
@@ -1705,10 +1807,10 @@ export const AdminPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                    Фавикон сайта (Favicon)
+                    {t('admin.faviconSettings')}
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                    Иконка во вкладках браузера и закладках. По умолчанию фавикон автоматически формируется как миниатюра корпоративного логотипа. Поддерживаются форматы ICO, SVG, PNG, WebP (до 512 КБ).
+                    {t('admin.faviconSubtitle')}
                   </p>
                 </div>
               </div>
@@ -1718,7 +1820,7 @@ export const AdminPage: React.FC = () => {
                   ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                   : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
               }`}>
-                {config?.has_custom_favicon ? 'Пользовательский фавикон' : 'Миниатюра корпоративного логотипа'}
+                {config?.has_custom_favicon ? t('admin.customFaviconBadge') : t('admin.logoThumbnailBadge')}
               </span>
             </div>
 
@@ -1741,7 +1843,7 @@ export const AdminPage: React.FC = () => {
               <div className="lg:col-span-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl p-4 border border-gray-200 dark:border-slate-700 flex flex-col items-center">
                 <div className="flex items-center justify-between w-full mb-3">
                   <span className="text-xs font-bold text-gray-700 dark:text-slate-300">
-                    {selectedFaviconFile ? 'Предпросмотр нового фавикона:' : 'Текущий активный фавикон:'}
+                    {selectedFaviconFile ? t('admin.previewNewFavicon') : t('admin.currentActiveFavicon')}
                   </span>
                   
                   {/* Background Toggle for Preview */}
@@ -1754,7 +1856,7 @@ export const AdminPage: React.FC = () => {
                           ? 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white font-bold'
                           : 'text-gray-400 hover:text-gray-700'
                       }`}
-                      title="Предпросмотр на светлом фоне"
+                      title={t('admin.previewLightBg')}
                     >
                       <Sun className="w-3.5 h-3.5" />
                     </button>
@@ -1766,7 +1868,7 @@ export const AdminPage: React.FC = () => {
                           ? 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white font-bold'
                           : 'text-gray-400 hover:text-gray-700'
                       }`}
-                      title="Предпросмотр на тёмном фоне"
+                      title={t('admin.previewDarkBg')}
                     >
                       <Moon className="w-3.5 h-3.5" />
                     </button>
@@ -1778,7 +1880,7 @@ export const AdminPage: React.FC = () => {
                   faviconPreviewTheme === 'light' ? 'bg-slate-200 text-slate-800' : 'bg-slate-950 text-slate-200'
                 }`}>
                   <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider block mb-2">
-                    Вкладка браузера (16x16)
+                    {t('admin.browserTab16x16')}
                   </span>
                   <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-t-md text-xs font-medium max-w-full shadow-sm border-t border-x ${
                     faviconPreviewTheme === 'light'
@@ -1827,8 +1929,8 @@ export const AdminPage: React.FC = () => {
                 </div>
 
                 <div className="w-full mt-2.5 flex items-center justify-between text-[11px] text-gray-500 dark:text-slate-400">
-                  <span>Режим: {config?.has_custom_favicon ? 'Пользовательский' : 'Миниатюра логотипа'}</span>
-                  <span>Лимит: 512 КБ</span>
+                  <span>{t('admin.faviconModeLabel')} {config?.has_custom_favicon ? t('admin.customFaviconBadge') : t('admin.logoThumbnailBadge')}</span>
+                  <span>{t('admin.faviconLimitLabel')}</span>
                 </div>
               </div>
 
@@ -1870,10 +1972,10 @@ export const AdminPage: React.FC = () => {
                       <Upload className="w-5 h-5" />
                     </div>
                     <p className="text-xs font-semibold text-gray-700 dark:text-slate-200">
-                      Перетащите файл фавикона сюда или <span className="text-indigo-600 dark:text-indigo-400 underline">выберите на диске</span>
+                      {t('admin.dropFaviconHint')} <span className="text-indigo-600 dark:text-indigo-400 underline">{t('admin.selectFromDisk')}</span>
                     </p>
                     <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">
-                      Поддерживаются ICO, SVG, PNG, WebP (рекомендуется 32×32 или векторный SVG)
+                      {t('admin.faviconFormatsAllowed')}
                     </p>
                   </div>
                 </div>
@@ -1886,7 +1988,7 @@ export const AdminPage: React.FC = () => {
                         {selectedFaviconFile.name}
                       </span>
                       <span className="text-indigo-600/75 dark:text-indigo-400/75 text-[11px]">
-                        ({Math.round(selectedFaviconFile.size / 1024)} КБ)
+                        ({Math.round(selectedFaviconFile.size / 1024)} KB)
                       </span>
                     </div>
                     <button
@@ -1898,7 +2000,7 @@ export const AdminPage: React.FC = () => {
                       }}
                       className="text-gray-400 hover:text-red-500 font-bold ml-2 text-xs"
                     >
-                      Отмена
+                      {t('common.cancel')}
                     </button>
                   </div>
                 )}
@@ -1906,7 +2008,7 @@ export const AdminPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-slate-800">
                   <div className="text-[11px] text-gray-500 dark:text-slate-400 flex items-center">
                     <Shield className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                    Синхронизируется с ConfigMap kncc-favicon
+                    {t('admin.faviconConfigMapNotice')}
                   </div>
 
                   <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
@@ -1918,7 +2020,7 @@ export const AdminPage: React.FC = () => {
                         className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
                       >
                         <RotateCcw className={`w-3.5 h-3.5 mr-1.5 ${faviconResetting ? 'animate-spin' : ''}`} />
-                        Сбросить на логотип компании
+                        {t('admin.resetFavicon')}
                       </button>
                     )}
 
@@ -1932,12 +2034,12 @@ export const AdminPage: React.FC = () => {
                       {faviconUploading ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                          Сохранение в ConfigMap...
+                          {t('admin.uploadingFavicon')}
                         </>
                       ) : (
                         <>
                           <Upload className="w-3.5 h-3.5 mr-1.5" />
-                          Загрузить и применить фавикон
+                          {t('admin.uploadFavicon')}
                         </>
                       )}
                     </button>
@@ -1951,31 +2053,31 @@ export const AdminPage: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-800 transition-colors">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center">
               <Settings className="w-4 h-4 mr-2 text-gray-500" />
-              Конфигурация параметров кластера и безопасности
+              {t('admin.clusterConfigTitle')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-200 dark:border-slate-700">
-                <span className="text-gray-500 dark:text-slate-400 block mb-1">Namespace Discovery</span>
+                <span className="text-gray-500 dark:text-slate-400 block mb-1">{t('admin.discoveryLabel')}</span>
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {config?.namespace_list_enabled ? 'Включено (чтение K8s Namespaces)' : 'Отключено (ручной ввод)'}
+                  {config?.namespace_list_enabled ? t('admin.discoveryEnabled') : t('admin.discoveryDisabled')}
                 </span>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-200 dark:border-slate-700">
-                <span className="text-gray-500 dark:text-slate-400 block mb-1">Пространство имён по умолчанию</span>
+                <span className="text-gray-500 dark:text-slate-400 block mb-1">{t('admin.defaultNamespaceLabel')}</span>
                 <span className="font-mono font-semibold text-gray-900 dark:text-white">
                   {config?.default_namespace || 'kncc'}
                 </span>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-200 dark:border-slate-700">
-                <span className="text-gray-500 dark:text-slate-400 block mb-1">Multi-Namespace Probing</span>
+                <span className="text-gray-500 dark:text-slate-400 block mb-1">{t('admin.multiNamespaceLabel')}</span>
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {config?.multi_namespace_allowed ? 'Разрешено кластерной ролью' : 'Ограничено собственным namespace'}
+                  {config?.multi_namespace_allowed ? t('admin.multiNamespaceAllowed') : t('admin.multiNamespaceRestricted')}
                 </span>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-200 dark:border-slate-700">
-                <span className="text-gray-500 dark:text-slate-400 block mb-1">Лимит запросов в минуту</span>
+                <span className="text-gray-500 dark:text-slate-400 block mb-1">{t('admin.rateLimitLabel')}</span>
                 <span className="font-semibold text-gray-900 dark:text-white">
-                  {config?.rate_limit_per_minute || 30} запросов / мин на пользователя
+                  {config?.rate_limit_per_minute || 30} {t('admin.rateLimitValue')}
                 </span>
               </div>
             </div>
@@ -1989,7 +2091,7 @@ export const AdminPage: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6 shadow-xl border border-gray-100 dark:border-slate-800 transition-colors">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
               <UserPlus className="w-5 h-5 mr-2 text-red-600" />
-              Create Local Account
+              {t('admin.createModalTitle')}
             </h3>
 
             {createError && (
@@ -2001,28 +2103,28 @@ export const AdminPage: React.FC = () => {
             {createSuccess && (
               <div className="mb-4 bg-green-50 dark:bg-green-950/40 p-3 rounded-md text-xs text-green-700 dark:text-green-300 flex items-center">
                 <Check className="w-4 h-4 mr-1.5" />
-                <span>User created successfully!</span>
+                <span>{t('admin.userCreatedSuccess')}</span>
               </div>
             )}
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 mb-1">
-                  Username *
+                  {t('admin.username')} *
                 </label>
                 <input
                   type="text"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. dev_engineer"
+                  placeholder={t('admin.usernamePlaceholder')}
                   className="w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 mb-1">
-                  Password *
+                  {t('admin.password')} *
                 </label>
                 <input
                   type="password"
@@ -2036,28 +2138,28 @@ export const AdminPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 mb-1">
-                  Email (optional)
+                  {t('admin.email')} ({t('common.optional')})
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="dev@corp.local"
+                  placeholder={t('admin.emailPlaceholder')}
                   className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300 mb-1">
-                  Role
+                  {t('admin.role')}
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
                   className="w-full px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-red-500 focus:border-red-500"
                 >
-                  <option value="user">User (can create and view checks)</option>
-                  <option value="admin">Admin (full access & user management)</option>
+                  <option value="user">{t('admin.roleUserDesc')}</option>
+                  <option value="admin">{t('admin.roleAdminDesc')}</option>
                 </select>
               </div>
 
@@ -2067,7 +2169,7 @@ export const AdminPage: React.FC = () => {
                   onClick={() => setShowAddModal(false)}
                   className="px-3.5 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -2075,7 +2177,7 @@ export const AdminPage: React.FC = () => {
                   className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm disabled:opacity-50"
                   style={{ backgroundColor: 'var(--color-accent, #dc2626)' }}
                 >
-                  {createLoading ? 'Saving...' : 'Create User'}
+                  {createLoading ? t('admin.savingUser') : t('admin.createUser')}
                 </button>
               </div>
             </form>

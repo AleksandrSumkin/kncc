@@ -108,6 +108,7 @@ data:
       primary_color: "{{ .Values.theme.primaryColor }}"
       accent_color: "{{ .Values.theme.accentColor }}"
       default_theme: "{{ default "light" .Values.theme.defaultTheme }}"
+      default_language: "{{ default "en" .Values.theme.defaultLanguage }}"
 
     {{- if and .Values.quickAdd .Values.quickAdd.presets }}
     quick_add:

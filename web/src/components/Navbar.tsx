@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../context/LanguageContext';
+import { LanguageSwitcher } from './LanguageSwitcher';
 import { Activity, PlusCircle, History, Shield, LogOut, User as UserIcon, Sun, Moon } from 'lucide-react';
 
 interface NavbarProps {
@@ -11,6 +13,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
   const { user, logout } = useAuth();
   const { config, theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   const [logoError, setLogoError] = React.useState(false);
 
   React.useEffect(() => {
@@ -46,7 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                   kncc
                 </span>
                 <span className="text-xs text-gray-500 dark:text-slate-400 font-medium hidden sm:inline">
-                  {config?.app_name || 'Kubernetes Network Connectivity Checker'}
+                  {config?.app_name || t('navbar.appNameFallback')}
                 </span>
               </div>
             </button>
@@ -62,7 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                   }`}
                 >
                   <PlusCircle className="w-4 h-4 mr-1.5" />
-                  New Check
+                  {t('navbar.newCheck')}
                 </button>
                 <button
                   onClick={() => onNavigate('history')}
@@ -73,7 +76,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                   }`}
                 >
                   <History className="w-4 h-4 mr-1.5" />
-                  History
+                  {t('navbar.history')}
                 </button>
                 {user.role === 'admin' && (
                   <button
@@ -85,19 +88,22 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                     }`}
                   >
                     <Shield className="w-4 h-4 mr-1.5" />
-                    Admin
+                    {t('navbar.admin')}
                   </button>
                 )}
               </nav>
             )}
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Language switcher */}
+            <LanguageSwitcher />
+
             {/* Quick theme toggle on-the-fly */}
             <button
               onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              aria-label="Toggle theme"
+              title={theme === 'dark' ? t('navbar.lightMode') : t('navbar.darkMode')}
+              aria-label={theme === 'dark' ? t('navbar.lightMode') : t('navbar.darkMode')}
               className="p-2 text-gray-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none"
             >
               {theme === 'dark' ? (
@@ -108,7 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
             </button>
 
             {user ? (
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 px-3 py-1.5 rounded-full border border-gray-200 dark:border-slate-700">
                   <UserIcon className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />
                   <span className="font-medium text-gray-900 dark:text-white">{user.username}</span>
@@ -117,14 +123,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                       className="px-1.5 py-0.5 text-xs font-bold rounded text-white"
                       style={{ backgroundColor: 'var(--color-accent, #dc2626)' }}
                     >
-                      ADMIN
+                      {t('navbar.adminBadge')}
                     </span>
                   )}
                 </div>
 
                 <button
                   onClick={logout}
-                  title="Sign out"
+                  title={t('navbar.signOut')}
                   className="p-2 text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md transition-colors"
                 >
                   <LogOut className="w-4 h-4" />

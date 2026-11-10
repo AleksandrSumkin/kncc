@@ -88,11 +88,13 @@ export const api = {
 
   getRBACReport: () => request<RBACReport>('/admin/rbac'),
 
-  updateThemeSettings: (defaultTheme: 'light' | 'dark') =>
-    request<{ success: boolean; default_theme: 'light' | 'dark' }>('/admin/settings/theme', {
+  updateThemeSettings: (settings: { default_theme?: 'light' | 'dark'; default_language?: 'en' | 'ru' } | 'light' | 'dark') => {
+    const payload = typeof settings === 'string' ? { default_theme: settings } : settings;
+    return request<{ success: boolean; default_theme?: string; default_language?: string }>('/admin/settings/theme', {
       method: 'PUT',
-      body: JSON.stringify({ default_theme: defaultTheme }),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
 
   uploadLogo: (file: File) => {
     const formData = new FormData();

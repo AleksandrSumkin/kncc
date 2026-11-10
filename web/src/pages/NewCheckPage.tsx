@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../context/LanguageContext';
 import { CheckMode, Protocol, TargetService } from '../types';
 import { Plus, Trash2, ArrowRight, ShieldAlert, Globe, Network, ListFilter, Edit3, Loader2, RotateCcw, Play } from 'lucide-react';
 
@@ -19,6 +20,7 @@ interface NewCheckPageProps {
 
 export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, initialData, onClearPrefill }) => {
   const { config } = useTheme();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState<CheckMode>(initialData?.mode || 'host');
   const [namespace, setNamespace] = useState<string>(
@@ -164,19 +166,19 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
 
     // Validation
     if (targets.length === 0) {
-      setError('At least one target service is required');
+      setError(t('newCheck.atLeastOneTarget'));
       return;
     }
 
     for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
-      if (!t.host.trim()) {
-        setError(`Target #${i + 1}: Hostname or IP is required`);
+      const tgt = targets[i];
+      if (!tgt.host.trim()) {
+        setError(`${t('newCheck.targetService')} #${i + 1}: ${t('newCheck.hostRequired')}`);
         return;
       }
-      if (t.protocol !== 'icmp') {
-        if (!t.port || t.port < 1 || t.port > 65535) {
-          setError(`Target #${i + 1}: Invalid port number (${t.port})`);
+      if (tgt.protocol !== 'icmp') {
+        if (!tgt.port || tgt.port < 1 || tgt.port > 65535) {
+          setError(`${t('newCheck.targetService')} #${i + 1}: ${t('newCheck.portRequired')}`);
           return;
         }
       }
@@ -202,10 +204,10 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
     <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-          New Network Connectivity Check
+          {t('newCheck.title')}
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-          Probe reachability to external databases, APIs, or internal services simultaneously across all cluster nodes.
+          {t('newCheck.subtitle')}
         </p>
       </div>
 
@@ -214,7 +216,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
           <div className="flex items-center space-x-2.5">
             <RotateCcw className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <span>
-              Pre-filled with parameters from {initialData.fromReportId ? `Report #${initialData.fromReportId.slice(0, 8)}` : 'previous check'}. Fix typos or adjust endpoints and run again.
+              {t('newCheck.prefillNotice')} {initialData.fromReportId ? `(#${initialData.fromReportId.slice(0, 8)})` : ''}.
             </span>
           </div>
           <button
@@ -222,7 +224,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
             onClick={handleResetForm}
             className="self-end sm:self-auto px-2.5 py-1 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-slate-700 rounded-md text-amber-800 dark:text-amber-300 font-semibold transition-colors"
           >
-            Reset Form
+            {t('newCheck.clearPrefill')}
           </button>
         </div>
       )}
@@ -239,7 +241,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 p-6 transition-colors">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
             <Network className="w-4 h-4 mr-2 text-gray-500 dark:text-slate-400" />
-            Check Network Mode
+            {t('newCheck.mode')}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label
@@ -250,7 +252,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-sm text-gray-900 dark:text-white">Host Network</span>
+                <span className="font-semibold text-sm text-gray-900 dark:text-white">{t('newCheck.hostMode')}</span>
                 <input
                   type="radio"
                   name="mode"
@@ -261,8 +263,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                 />
               </div>
               <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                Probe runs with <code className="text-xs bg-gray-100 dark:bg-slate-800 px-1 py-0.5 rounded text-gray-800 dark:text-slate-200">hostNetwork: true</code>.
-                Tests node-level routing, default gateway, and corporate firewalls.
+                {t('newCheck.hostModeDesc')}
               </p>
             </label>
 
@@ -274,7 +275,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-sm text-gray-900 dark:text-white">Pod Network</span>
+                <span className="font-semibold text-sm text-gray-900 dark:text-white">{t('newCheck.podMode')}</span>
                 <input
                   type="radio"
                   name="mode"
@@ -285,8 +286,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                 />
               </div>
               <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                Probe runs inside the pod network (CNI overlay).
-                Tests <code className="text-xs bg-gray-100 dark:bg-slate-800 px-1 py-0.5 rounded text-gray-800 dark:text-slate-200">NetworkPolicy</code> egress restrictions.
+                {t('newCheck.podModeDesc')}
               </p>
             </label>
           </div>
@@ -295,7 +295,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-semibold text-gray-700 dark:text-slate-300">
-                  Target Namespace
+                  {t('newCheck.namespace')}
                 </label>
                 {config?.namespace_list_enabled && config?.multi_namespace_allowed && availableNamespaces.length > 0 && (
                   <button
@@ -306,12 +306,12 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                     {isManualInput ? (
                       <>
                         <ListFilter className="w-3.5 h-3.5 mr-1" />
-                        Select from list
+                        {t('common.filter')}
                       </>
                     ) : (
                       <>
                         <Edit3 className="w-3.5 h-3.5 mr-1" />
-                        Type manually
+                        {t('common.actions')}
                       </>
                     )}
                   </button>
@@ -352,7 +352,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                 </p>
               )}
               <p className="mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                The check probe pod will be spawned in this namespace.
+                {t('newCheck.namespaceHelp')}
               </p>
             </div>
           )}
@@ -364,17 +364,17 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
             <div>
               <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center">
                 <Globe className="w-4 h-4 mr-2 text-gray-500 dark:text-slate-400" />
-                Target Services ({targets.length})
+                {t('newCheck.targets')} ({targets.length})
               </h2>
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                Define endpoints to probe simultaneously across cluster nodes.
+                {t('newCheck.subtitle')}
               </p>
             </div>
 
             {/* Quick Presets */}
             {quickAddItems.length > 0 && (
               <div className="hidden sm:flex items-center space-x-2 text-xs">
-                <span className="text-gray-400 dark:text-slate-500">Quick add:</span>
+                <span className="text-gray-400 dark:text-slate-500">{t('newCheck.quickAdd')}:</span>
                 {quickAddItems.map((item, idx) => {
                   const label = item.name
                     ? `+ ${item.name}`
@@ -405,7 +405,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                 className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3 bg-gray-50/70 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 rounded-xl"
               >
                 <div className="w-full md:w-28 flex-shrink-0">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">Protocol</label>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.protocol')}</label>
                   <select
                     value={target.protocol}
                     onChange={(e) => handleTargetChange(idx, 'protocol', e.target.value as Protocol)}
@@ -420,7 +420,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                 </div>
 
                 <div className="flex-1 w-full">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">Host / FQDN / IP</label>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.host')}</label>
                   <input
                     type="text"
                     required
@@ -433,7 +433,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
 
                 {target.protocol !== 'icmp' && (
                   <div className="w-full md:w-24 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">Port</label>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.port')}</label>
                     <input
                       type="number"
                       required
@@ -449,7 +449,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
 
                 {(target.protocol === 'http' || target.protocol === 'https') && (
                   <div className="w-full md:w-36 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">Path</label>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.path')}</label>
                     <input
                       type="text"
                       value={target.path || '/'}
@@ -469,13 +469,13 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                         onChange={(e) => handleTargetChange(idx, 'insecure_tls', e.target.checked)}
                         className="rounded text-red-600 focus:ring-red-500 mr-1.5"
                       />
-                      Skip TLS
+                      {t('newCheck.insecureTls')}
                     </label>
                   </div>
                 )}
 
                 <div className="w-full md:w-20 flex-shrink-0">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">Timeout</label>
+                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.timeout')}</label>
                   <div className="flex items-center">
                     <input
                       type="number"
@@ -485,7 +485,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                       onChange={(e) => handleTargetChange(idx, 'timeout_seconds', parseInt(e.target.value) || 5)}
                       className="block w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm text-gray-900 dark:text-white focus:ring-red-500 focus:border-red-500 text-center"
                     />
-                    <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">s</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">{t('newCheck.seconds')}</span>
                   </div>
                 </div>
 
@@ -495,7 +495,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
                     disabled={targets.length <= 1}
                     onClick={() => handleRemoveTarget(idx)}
                     className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 rounded transition-colors"
-                    title="Remove target"
+                    title={t('newCheck.removeTarget')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -512,7 +512,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
               className="inline-flex items-center px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-700 text-xs font-semibold text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
-              Add Another Target
+              {t('newCheck.addTarget')}
             </button>
             <span className="text-xs text-gray-400 dark:text-slate-500">Up to 10 targets per check</span>
           </div>
@@ -531,7 +531,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
             ) : (
               <Play className="w-4 h-4 mr-2 fill-current" />
             )}
-            <span>{loading ? 'Running...' : 'Run Check'}</span>
+            <span>{loading ? t('newCheck.runningCheck') : t('newCheck.runCheck')}</span>
             {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
           </button>
         </div>

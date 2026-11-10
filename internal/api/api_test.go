@@ -548,6 +548,9 @@ func TestAPI_ThemeSettings(t *testing.T) {
 	if sysCfg["default_theme"] != "light" {
 		t.Errorf("expected default_theme 'light', got %v", sysCfg["default_theme"])
 	}
+	if sysCfg["default_language"] != "en" {
+		t.Errorf("expected default_language 'en', got %v", sysCfg["default_language"])
+	}
 
 	// 2. Anonymous request to PUT /api/admin/settings/theme -> 401
 	payload := []byte(`{"default_theme":"dark"}`)
@@ -612,6 +615,29 @@ func TestAPI_ThemeSettings(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &sysCfg)
 	if sysCfg["default_theme"] != "dark" {
 		t.Errorf("expected default_theme 'dark' after update, got %v", sysCfg["default_theme"])
+	}
+
+	// 7. Admin updates default_language to 'ru'
+	langPayload := []byte(`{"default_language":"ru"}`)
+	req = httptest.NewRequest(http.MethodPut, "/api/admin/settings/theme", bytes.NewReader(langPayload))
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for admin updating language, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 8. Verify GetSystemConfig now returns 'ru'
+	req = httptest.NewRequest(http.MethodGet, "/api/system/config", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	sysCfg = nil
+	_ = json.Unmarshal(rec.Body.Bytes(), &sysCfg)
+	if sysCfg["default_language"] != "ru" {
+		t.Errorf("expected default_language 'ru' after update, got %v", sysCfg["default_language"])
 	}
 }
 

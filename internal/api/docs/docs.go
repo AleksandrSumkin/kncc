@@ -260,7 +260,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Admin endpoint to update default theme (light/dark)",
+                "description": "Admin endpoint to update default theme (light/dark) and language (en/ru)",
                 "consumes": [
                     "application/json"
                 ],
@@ -1379,6 +1379,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "default_language": {
+                    "type": "string",
+                    "example": "en"
+                },
                 "default_namespace": {
                     "type": "string",
                     "example": "kncc"
@@ -1434,6 +1438,9 @@ const docTemplate = `{
         "api.UpdateThemeSettingsRequest": {
             "type": "object",
             "properties": {
+                "default_language": {
+                    "type": "string"
+                },
                 "default_theme": {
                     "type": "string"
                 }
@@ -1934,7 +1941,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.12.0",
+	Version:          "1.13.0",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},

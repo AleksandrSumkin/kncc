@@ -246,12 +246,12 @@ go run ./cmd/kncc -mock
 ```bash
 # 1. Скачайте открытый ключ kncc-release.pub, манифест контрольных сумм и подпись из релиза Forgejo
 # 2. Проверьте цифровую подпись манифеста контрольных сумм
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.12.0-checksums.txt.sig kncc-1.12.0-checksums.txt
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.13.0-checksums.txt.sig kncc-1.13.0-checksums.txt
 # Ожидаемый вывод: Verified OK
 
-# 3. Проверьте целостность дистрибутивов (Helm-чарта kncc-1.12.0.tgz, манифестов, SBOM)
-sha256sum -c kncc-1.12.0-checksums.txt
-# Ожидаемый вывод: kncc-1.12.0.tgz: OK
+# 3. Проверьте целостность дистрибутивов (Helm-чарта kncc-1.13.0.tgz, манифестов, SBOM)
+sha256sum -c kncc-1.13.0-checksums.txt
+# Ожидаемый вывод: kncc-1.13.0.tgz: OK
 ```
 
 ### 6.2. Стандартная установка
@@ -553,6 +553,9 @@ helm upgrade --install kncc ./deploy/helm/kncc \
 
 ## 7. Параметры Helm Values
 
+> [!TIP]
+> Все параметры чарта подробно задокументированы непосредственно в файле [`deploy/helm/kncc/values.yaml`](deploy/helm/kncc/values.yaml) с детальным описанием назначения, рекомендаций по изменению, влияния на поведение сервиса и практик безопасности (Zero-Docs Onboarding). Ниже приведена сводная таблица ключевых параметров:
+
 | Параметр | Описание | По умолчанию |
 | :--- | :--- | :--- |
 | `replicaCount` | Количество реплик kncc сервера | `1` |
@@ -632,6 +635,8 @@ helm upgrade --install kncc ./deploy/helm/kncc \
 | `theme.appName` | Название сервиса в шапке UI | `Kubernetes Network Connectivity Checker` |
 | `theme.primaryColor` | Основной цвет темы | `#ffffff` |
 | `theme.accentColor` | Акцентный цвет кнопок и статусов | `#dc2626` |
+| `theme.defaultTheme` | Тема оформления по умолчанию (`light` или `dark`) | `light` |
+| `theme.defaultLanguage` | Язык интерфейса по умолчанию (`en` или `ru`) | `en` |
 | `logo.enabled` | Включение генерации ConfigMap с логотипом компании | `true` |
 | `logo.data` | Изображение логотипа в Base64 или raw SVG (по умолчанию судостроительное векторное лого) | `""` |
 | `logo.mimeType` | MIME-тип логотипа (`image/svg+xml`, `image/png`, `image/jpeg`, `image/webp`) | `"image/svg+xml"` |

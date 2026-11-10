@@ -77,6 +77,24 @@ func (h *Handler) getEffectiveDefaultTheme(ctx context.Context) string {
 	return "light"
 }
 
+func (h *Handler) getEffectiveDefaultLanguage(ctx context.Context) string {
+	if h.store != nil {
+		if val, err := h.store.GetSetting(ctx, "default_language"); err == nil && val != "" {
+			val = strings.ToLower(strings.TrimSpace(val))
+			if val == "en" || val == "ru" {
+				return val
+			}
+		}
+	}
+	if h.cfg.Theme.DefaultLanguage != "" {
+		val := strings.ToLower(strings.TrimSpace(h.cfg.Theme.DefaultLanguage))
+		if val == "en" || val == "ru" {
+			return val
+		}
+	}
+	return "en"
+}
+
 // GetSystemConfig godoc
 // @Summary Get system configuration
 // @Description Returns public theme, features, branding, and auth provider configuration
@@ -97,6 +115,7 @@ func (h *Handler) GetSystemConfig(w http.ResponseWriter, r *http.Request) {
 		"primary_color":           h.cfg.Theme.PrimaryColor,
 		"accent_color":            h.cfg.Theme.AccentColor,
 		"default_theme":           h.getEffectiveDefaultTheme(r.Context()),
+		"default_language":        h.getEffectiveDefaultLanguage(r.Context()),
 		"auth_providers":          h.authSvc.GetEnabledProviders(),
 		"multi_namespace_allowed": h.cfg.K8s.MultiNamespaceAllowed,
 		"namespace_list_enabled":  h.cfg.K8s.NamespaceListEnabled,
@@ -809,14 +828,15 @@ func (h *Handler) GetRBACPermissions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, report)
 }
 
-// UpdateThemeSettingsRequest payload for updating default theme.
+// UpdateThemeSettingsRequest payload for updating default theme and language.
 type UpdateThemeSettingsRequest struct {
-	DefaultTheme string `json:"default_theme"`
+	DefaultTheme    string `json:"default_theme,omitempty"`
+	DefaultLanguage string `json:"default_language,omitempty"`
 }
 
 // UpdateThemeSettings godoc
 // @Summary Update system theme setting
-// @Description Admin endpoint to update default theme (light/dark)
+// @Description Admin endpoint to update default theme (light/dark) and language (en/ru)
 // @Tags admin
 // @Accept json
 // @Produce json
@@ -835,23 +855,46 @@ func (h *Handler) UpdateThemeSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	themeVal := strings.ToLower(strings.TrimSpace(req.DefaultTheme))
-	if themeVal != "light" && themeVal != "dark" {
-		writeJSONError(w, http.StatusBadRequest, "Invalid default_theme: must be 'light' or 'dark'")
+	resp := map[string]any{"success": true}
+
+	if req.DefaultTheme != "" {
+		themeVal := strings.ToLower(strings.TrimSpace(req.DefaultTheme))
+		if themeVal != "light" && themeVal != "dark" {
+			writeJSONError(w, http.StatusBadRequest, "Invalid default_theme: must be 'light' or 'dark'")
+			return
+		}
+
+		if err := h.store.SetSetting(r.Context(), "default_theme", themeVal); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save theme setting: %v", err))
+			return
+		}
+
+		h.cfg.Theme.DefaultTheme = themeVal
+		resp["default_theme"] = themeVal
+	}
+
+	if req.DefaultLanguage != "" {
+		langVal := strings.ToLower(strings.TrimSpace(req.DefaultLanguage))
+		if langVal != "en" && langVal != "ru" {
+			writeJSONError(w, http.StatusBadRequest, "Invalid default_language: must be 'en' or 'ru'")
+			return
+		}
+
+		if err := h.store.SetSetting(r.Context(), "default_language", langVal); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save language setting: %v", err))
+			return
+		}
+
+		h.cfg.Theme.DefaultLanguage = langVal
+		resp["default_language"] = langVal
+	}
+
+	if req.DefaultTheme == "" && req.DefaultLanguage == "" {
+		writeJSONError(w, http.StatusBadRequest, "At least one of default_theme or default_language must be provided")
 		return
 	}
 
-	if err := h.store.SetSetting(r.Context(), "default_theme", themeVal); err != nil {
-		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to save theme setting: %v", err))
-		return
-	}
-
-	h.cfg.Theme.DefaultTheme = themeVal
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"success":       true,
-		"default_theme": themeVal,
-	})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // GetUserStats godoc

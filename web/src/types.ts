@@ -103,6 +103,7 @@ export interface SystemConfig {
   primary_color: string;
   accent_color: string;
   default_theme?: 'light' | 'dark';
+  default_language?: 'en' | 'ru' | string;
   auth_providers: string[];
   multi_namespace_allowed: boolean;
   namespace_list_enabled: boolean;

@@ -137,7 +137,8 @@ ca_certs:
   pem: ""
 
 theme:
-  default_theme: "light"   # Default theme for new users and unconfigured browsers ("light" or "dark")
+  default_theme: "light"      # Default theme for new users and unconfigured browsers ("light" or "dark")
+  default_language: "en"   # Default UI language ("en" for English, "ru" for Russian)
   primary_color: "#ffffff" # Primary background / card color
   accent_color: "#dc2626"  # Accent button / highlight color (default: red-600)
   app_name: "Kubernetes Network Connectivity Checker"

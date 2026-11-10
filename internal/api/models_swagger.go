@@ -27,6 +27,7 @@ type SystemConfigResponse struct {
 	PrimaryColor          string                  `json:"primary_color" example:"#ffffff"`
 	AccentColor           string                  `json:"accent_color" example:"#dc2626"`
 	DefaultTheme          string                  `json:"default_theme" example:"light"`
+	DefaultLanguage       string                  `json:"default_language" example:"en"`
 	AuthProviders         []string                `json:"auth_providers"`
 	MultiNamespaceAllowed bool                    `json:"multi_namespace_allowed" example:"false"`
 	NamespaceListEnabled  bool                    `json:"namespace_list_enabled" example:"true"`

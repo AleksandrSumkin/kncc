@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useTranslation } from '../context/LanguageContext';
 import { Report } from '../types';
 import { History, ChevronLeft, ChevronRight, RotateCw, ExternalLink, Activity, CheckCircle, XCircle } from 'lucide-react';
 
@@ -8,6 +9,7 @@ interface HistoryPageProps {
 }
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
+  const { t } = useTranslation();
   const [reports, setReports] = useState<Report[]>([]);
   const [total, setTotal] = useState(0);
   const [limit] = useState(15);
@@ -38,10 +40,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center">
             <History className="w-6 h-6 mr-2 text-gray-700 dark:text-slate-300" />
-            Check History
+            {t('history.title')}
           </h1>
           <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-            Browse previous network connectivity check results across cluster nodes.
+            {t('history.subtitle')}
           </p>
         </div>
 
@@ -51,7 +53,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
           className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
         >
           <RotateCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('common.refresh')}
         </button>
       </div>
 
@@ -60,14 +62,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800 text-left text-xs">
             <thead className="bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3">Report ID</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Mode</th>
-                <th className="px-6 py-3">Targets</th>
-                <th className="px-6 py-3">Nodes</th>
-                <th className="px-6 py-3">Created By</th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3 text-right">Action</th>
+                <th className="px-6 py-3">{t('history.id')}</th>
+                <th className="px-6 py-3">{t('history.status')}</th>
+                <th className="px-6 py-3">{t('history.mode')}</th>
+                <th className="px-6 py-3">{t('history.targets')}</th>
+                <th className="px-6 py-3">{t('history.nodes')}</th>
+                <th className="px-6 py-3">{t('history.user')}</th>
+                <th className="px-6 py-3">{t('history.date')}</th>
+                <th className="px-6 py-3 text-right">{t('history.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
@@ -81,7 +83,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
                     #{r.id.slice(0, 8)}
                   </td>
                   <td className="px-6 py-4">
-                    <StatusPill status={r.status} />
+                    <StatusPill status={r.status} t={t} />
                   </td>
                   <td className="px-6 py-4 uppercase font-semibold text-gray-700 dark:text-slate-300">
                     {r.mode}
@@ -92,7 +94,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
                     )}
                   </td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-400">
-                    <span className="font-semibold text-gray-900 dark:text-white">{r.targets?.length || 0}</span> targets
+                    <span className="font-semibold text-gray-900 dark:text-white">{r.targets?.length || 0}</span> {t('newCheck.targets').toLowerCase()}
                   </td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-400">
                     {r.completed_nodes} / {r.total_nodes}
@@ -111,7 +113,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
                       }}
                       className="inline-flex items-center text-xs font-semibold text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                     >
-                      <span>View</span>
+                      <span>{t('history.viewReport')}</span>
                       <ExternalLink className="w-3.5 h-3.5 ml-1" />
                     </button>
                   </td>
@@ -121,7 +123,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
               {reports.length === 0 && !loading && (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-gray-400 dark:text-slate-500">
-                    No reports found. Submit a new check to get started.
+                    {t('history.noReportsFound')}
                   </td>
                 </tr>
               )}
@@ -132,9 +134,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
         {/* Pagination Footer */}
         <div className="px-6 py-3 bg-gray-50 dark:bg-slate-800/80 border-t border-gray-200 dark:border-slate-800 flex items-center justify-between">
           <div className="text-xs text-gray-500 dark:text-slate-400">
-            Showing <strong className="text-gray-900 dark:text-white">{reports.length > 0 ? offset + 1 : 0}</strong> to{' '}
-            <strong className="text-gray-900 dark:text-white">{Math.min(offset + limit, total)}</strong> of{' '}
-            <strong className="text-gray-900 dark:text-white">{total}</strong> results
+            {reports.length > 0 ? offset + 1 : 0} – {Math.min(offset + limit, total)} {t('history.of')} {total}
           </div>
 
           <div className="flex space-x-2">
@@ -159,28 +159,28 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onSelectReport }) => {
   );
 };
 
-const StatusPill: React.FC<{ status: string }> = ({ status }) => {
+const StatusPill: React.FC<{ status: string; t: (path: string) => string }> = ({ status, t }) => {
   switch (status) {
     case 'running':
     case 'pending':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300">
           <Activity className="w-3 h-3 mr-1 animate-spin" />
-          Running
+          {t('history.statusRunning')}
         </span>
       );
     case 'completed':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300">
           <CheckCircle className="w-3 h-3 mr-1 text-green-600 dark:text-green-400" />
-          Completed
+          {t('history.statusSuccess')}
         </span>
       );
     case 'failed':
       return (
         <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300">
           <XCircle className="w-3 h-3 mr-1 text-red-600 dark:text-red-400" />
-          Failed
+          {t('history.statusFailed')}
         </span>
       );
     default:

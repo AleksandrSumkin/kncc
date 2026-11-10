@@ -9,7 +9,7 @@
         "license": {
             "name": "Apache 2.0"
         },
-        "version": "1.12.0"
+        "version": "1.13.0"
     },
     "basePath": "/",
     "paths": {
@@ -253,7 +253,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Admin endpoint to update default theme (light/dark)",
+                "description": "Admin endpoint to update default theme (light/dark) and language (en/ru)",
                 "consumes": [
                     "application/json"
                 ],
@@ -1372,6 +1372,10 @@
                         "type": "string"
                     }
                 },
+                "default_language": {
+                    "type": "string",
+                    "example": "en"
+                },
                 "default_namespace": {
                     "type": "string",
                     "example": "kncc"
@@ -1427,6 +1431,9 @@
         "api.UpdateThemeSettingsRequest": {
             "type": "object",
             "properties": {
+                "default_language": {
+                    "type": "string"
+                },
                 "default_theme": {
                     "type": "string"
                 }

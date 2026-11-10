@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../context/LanguageContext';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { Activity, Lock, User, AlertCircle, ArrowRight, Sun, Moon } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const { config, theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -85,13 +88,14 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-50 dark:bg-slate-950 transition-colors relative">
-      {/* Quick theme toggle for guests / unauthenticated users */}
-      <div className="absolute top-4 right-4">
+      {/* Quick theme and language toggle for guests / unauthenticated users */}
+      <div className="absolute top-4 right-4 flex items-center space-x-2">
+        <LanguageSwitcher />
         <button
           onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          aria-label="Toggle theme"
-          className="p-2.5 text-gray-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm transition-colors focus:outline-none"
+          title={theme === 'dark' ? t('navbar.lightMode') : t('navbar.darkMode')}
+          aria-label={theme === 'dark' ? t('navbar.lightMode') : t('navbar.darkMode')}
+          className="p-2 text-gray-500 dark:text-slate-400 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-lg shadow-sm transition-colors focus:outline-none"
         >
           {theme === 'dark' ? (
             <Sun className="w-5 h-5 text-amber-400" />
@@ -121,7 +125,7 @@ export const LoginPage: React.FC = () => {
           kncc
         </h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-          {config?.app_name || 'Kubernetes Network Connectivity Checker'}
+          {config?.app_name || t('login.subtitle')}
         </p>
       </div>
 
@@ -145,7 +149,7 @@ export const LoginPage: React.FC = () => {
                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                LDAP / Active Directory
+                {t('login.ldapAccount')}
               </button>
               <button
                 type="button"
@@ -156,7 +160,7 @@ export const LoginPage: React.FC = () => {
                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Local Account
+                {t('login.localAccount')}
               </button>
             </div>
           )}
@@ -164,7 +168,7 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Username
+                {t('login.username')}
               </label>
               <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-slate-500">
@@ -183,7 +187,7 @@ export const LoginPage: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Password
+                {t('login.password')}
               </label>
               <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-slate-500">
@@ -212,7 +216,7 @@ export const LoginPage: React.FC = () => {
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Sign In</span>
+                  <span>{t('login.signIn')}</span>
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </>
               )}
@@ -226,7 +230,7 @@ export const LoginPage: React.FC = () => {
                 onClick={handleOIDCLogin}
                 className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm text-sm font-medium text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
-                Sign in with Single Sign-On (OIDC)
+                {t('login.oidcSignIn')}
               </button>
             </div>
           )}

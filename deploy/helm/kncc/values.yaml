@@ -1,276 +1,502 @@
-﻿# Default values for kncc (Kubernetes Network Connectivity Checker).
+﻿# ==============================================================================
+# kncc — Kubernetes Network Connectivity Checker
+# Helm Chart Default Values
+# ==============================================================================
+# Этот файл содержит исчерпывающее описание каждого параметра конфигурации
+# для быстрого старта и промышленной настройки сервиса kncc в Kubernetes.
+#
+# Для каждого параметра поясняется:
+#   - За что отвечает параметр и как он влияет на поведение сервиса.
+#   - Нужно ли администратору его изменять или оставить значение по умолчанию.
+#   - Рекомендации по безопасности (PoLP, защита учетных данных, Anti-SSRF).
+# ==============================================================================
 
+# ------------------------------------------------------------------------------
+# 1. Базовые параметры развертывания (Deployment Settings)
+# ------------------------------------------------------------------------------
+
+# Количество реплик пода сервера kncc.
+# ВНИМАНИЕ: Оставьте значение 1! Сервис kncc использует встроенную базу данных SQLite (/data/kncc.db).
+# SQLite поддерживает работу строго в режиме одного пишущего процесса (Single Writer).
+# Увеличение числа реплик (> 1) приведёт к блокировкам базы данных ("database is locked")
+# либо рассинхронизации отчетов и пользователей между подами при использовании локального хранилища.
 replicaCount: 1
 
 image:
+  # Репозиторий и имя Docker-образа backend-сервера kncc.
+  # Измените при использовании корпоративного или закрытого (air-gapped) реестра:
+  # например, "harbor.corp.example.com/kncc/kncc" или "ghcr.io/homelab-public/kncc".
   repository: kncc/kncc
+
+  # Политика загрузки образа Kubernetes (IfNotPresent, Always, Never).
+  # Рекомендуется:
+  #   - "IfNotPresent" для стабильных релизных версий (экономит трафик и ускоряет рестарт).
+  #   - "Always" при использовании плавающих тегов ("latest", "dev") для принудительного обновления.
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+
+  # Переопределение тега образа.
+  # По умолчанию пусто ("") — чарт автоматически подставляет версию приложения из Chart.yaml (appVersion).
+  # Задайте явный тег (например, "1.11.0"), если хотите зафиксировать версию контейнера независимо от чарта.
   tag: ""
 
+# Список имен Kubernetes Secrets для авторизации в приватных реестрах контейнеров (imagePullSecrets).
+# Пример:
+#   imagePullSecrets:
+#     - name: "corp-registry-secret"
+# Оставьте пустым ([]), если образ скачивается из публичного реестра без авторизации.
 imagePullSecrets: []
+
+# Частичное переопределение базового имени чарта в названиях создаваемых ресурсов.
+# Оставьте пустым (""). Используется при встраивании kncc в качестве subchart в зонтичные чарты.
 nameOverride: ""
+
+# Полное переопределение имени всех создаваемых манифестов (Deployment, Service, ConfigMap и др.).
+# Оставьте пустым ("") для автогенерации имени вида "<release-name>-kncc".
+# Задайте строку (до 63 символов), если регламент кластера требует строго фиксированных имен ресурсов.
 fullnameOverride: ""
 
+# ------------------------------------------------------------------------------
+# 2. Сервер приложения и сетевые протоколы (Server & API)
+# ------------------------------------------------------------------------------
+
 server:
+  # IP-адрес сетевого интерфейса для прослушивания входящих HTTP-соединений.
+  # Оставьте "0.0.0.0" для приема трафика на всех интерфейсах контейнера.
+  # Установка "127.0.0.1" сделает сервис недоступным для Kubernetes Service и Ingress.
   host: "0.0.0.0"
+
+  # Основной порт HTTP REST API и веб-интерфейса kncc внутри контейнера.
+  # По умолчанию: 8080 (стандартный непривилегированный порт).
   port: 8080
+
+  # Время жизни пользовательского JWT-токена авторизации (формат времени Go: "8h", "24h", "7d").
+  # По истечении срока сессия завершается, и пользователю требуется повторно войти в систему.
+  # Рекомендация: "24h" для удобства операторов, либо "4h"-"8h" для повышенных требований ИБ.
   tokenTTL: "24h"
+
+  # Конфигурация встроенного HTTPS/TLS сервера на выделенном порту контейнера.
   tls:
-    # Enable dedicated HTTPS server on container port (default: 8443)
+    # Включение прямого TLS-сервера kncc.
+    # Оставьте false, если TLS терминируется на внешнем Ingress контроллере или Gateway API.
+    # Включите (true), если в кластере действует концепция Zero Trust и требуется End-to-End шифрование до пода.
     enabled: false
+
+    # Выделенный HTTPS-порт внутри контейнера kncc (по умолчанию: 8443).
     port: 8443
-    # Automatically generate self-signed ECDSA certificate if no custom cert/key is provided
+
+    # Автоматическая генерация самоподписанного сертификата ECDSA P-256 при старте пода.
+    # Работает только при отсутствии пользовательских сертификатов или секрета.
+    # Удобно для быстрого тестирования HTTPS в dev-средах без настройки PKI.
     autoGenerate: true
-    # Manual certificate/key file paths inside container or inline PEM blocks
+
+    # Пути к файлам сертификата (.crt/.pem) и приватного ключа (.key) внутри контейнера,
+    # если они монтируются сторонними томами вручную.
     certFile: ""
     keyFile: ""
+
+    # Текст сертификата и приватного ключа в формате PEM непосредственно в values.
+    # Используется для быстрой передачи сертификатов без создания отдельных манифестов Secret.
     certPem: ""
     keyPem: ""
+
+    # Минимально допустимая версия протокола TLS ("1.2" или "1.3").
+    # Значение "1.3" отключает устаревшие алгоритмы шифрования, но требует современных клиентов.
     minVersion: "1.2"
-    # Reference an existing Kubernetes Secret containing tls.crt and tls.key
+
+    # Имя существующего Kubernetes Secret, содержащего сертификат (tls.crt) и ключ (tls.key).
+    # Рекомендуемый способ для production при использовании HashiCorp Vault / External Secrets Operator.
     existingSecret: ""
-    # Container mount path for server TLS secret
+
+    # Путь монтирования TLS-секрета в файловую систему контейнера kncc.
     mountPath: "/etc/kncc-tls"
-    # cert-manager integration for automatic issuance and rotation of server TLS certificate
+
+    # Интеграция с cert-manager для автоматического выпуска и ротации TLS-сертификата сервера.
     certManager:
+      # Создавать ли ресурс cert-manager.io/v1 Certificate для сервера kncc.
       enabled: false
+
+      # Ссылка на эмитент сертификатов cert-manager.
       issuerRef:
-        name: ""              # Name of ClusterIssuer or Issuer (e.g. corporate-ca-issuer, letsencrypt)
-        kind: "ClusterIssuer" # ClusterIssuer or Issuer
+        name: ""              # Имя ClusterIssuer или Issuer (например, "letsencrypt-prod" или "corp-ca")
+        kind: "ClusterIssuer" # Тип эмитента: "ClusterIssuer" (общекластерный) или "Issuer" (в неймспейсе)
         group: "cert-manager.io"
-      dnsNames: []          # e.g. ["kncc.example.com", "kncc.kncc.svc"]
+
+      # Доменные имена (SAN), для которых выпускается сертификат (например, ["kncc.example.com", "kncc.kncc.svc"]).
+      dnsNames: []
+
+      # IP-адреса, включаемые в сертификат в качестве SAN.
       ipAddresses: []
-      duration: "8760h"     # 1 year
-      renewBefore: "720h"   # 30 days
+
+      # Общий срок действия выпускаемого сертификата (по умолчанию 1 год).
+      duration: "8760h"
+
+      # Время до окончания срока действия, когда cert-manager инициирует автоматическое обновление (за 30 дней).
+      renewBefore: "720h"
+
+  # Конфигурация интерактивной спецификации API (OpenAPI 3.x / Swagger UI).
   openapi:
-    # Enable OpenAPI documentation endpoints (/api/docs, /api/openapi.json, /api/openapi.yaml)
+    # Включение эндпоинтов документации (/api/docs, /api/openapi.json, /api/openapi.yaml).
+    # Оставьте true для удобной интеграции с внешними системами и автоматизированными потребителями.
     enabled: true
-    # When true, OpenAPI documentation is public without authentication (ideal for DAST scans in dev/preview)
+
+    # Режим открытого доступа без авторизации.
+    # При false (по умолчанию) для просмотра /api/docs требуется действующий JWT-токен (роль user или admin).
+    # Установите true для dev/preview-окружений, чтобы DAST-сканеры (OWASP ZAP, Nuclei) могли тестировать API без токена.
     public: false
 
-# Kubernetes probe settings
+# ------------------------------------------------------------------------------
+# 3. Движок сетевой диагностики Kubernetes (Probe Engine & GC)
+# ------------------------------------------------------------------------------
+
 k8s:
-  # Image used for ephemeral probe pods created on cluster nodes.
-  # Supported and verified images:
-  #   - "ghcr.io/homelab-public/kncc-agent:latest" (or "homelab/kncc-agent:latest"):
-  #       RECOMMENDED. Ultra-lightweight native probe image by kncc (~15MB uncompressed).
-  #       Contains ONLY required utilities (curl, openssl, nc, ping, ca-certificates, bind-tools).
-  #       Zero attack surface, sub-second cold start, zero known CVEs. Built from Dockerfile.agent.
+  # Образ контейнера для эфемерных диагностических подов kncc-probe, создаваемых на узлах кластера.
+  #
+  # Поддерживаемые и протестированные образы:
+  #   - "ghcr.io/homelab-public/kncc-agent:latest" (или "homelab/kncc-agent:latest"):
+  #       НАИБОЛЕЕ РЕКОМЕНДУЕМЫЙ. Нативный сверхлегкий образ kncc (~15 МБ).
+  #       Содержит строго необходимый набор утилит: curl, openssl, netcat, ping, ca-certificates, bind-tools.
+  #       Нулевая поверхность атаки (Zero Attack Surface), моментальный холодный старт, 0 известных CVE.
   #   - "wbitt/network-multitool:alpine-extra":
-  #       Public default fallback (~120MB). General-purpose network diagnostic container.
+  #       ПУБЛИЧНЫЙ ДЕФОЛТ (~120 МБ). Универсальный образ сетевой диагностики с curl, nc, ping, nmap.
+  #       Доступен напрямую из Docker Hub и не требует развертывания локального реестра.
   #   - "wbitt/network-multitool:minimal":
-  #       Lightweight version of network-multitool (~40MB).
+  #       Облегченная версия multitool (~40 МБ).
   #   - "nicolaka/netshoot:latest":
-  #       Comprehensive network troubleshooting Swiss Army knife (~400MB).
+  #       Мощный швейцарский нож сетевого траблшутинга (~400 МБ). Рекомендуется для ручной отладки через kubectl exec.
   #   - "curlimages/curl:latest":
-  #       Minimal curl container (~15MB). Supports ONLY HTTP/HTTPS checks.
+  #       Минималистичный образ curl (~15 МБ). Поддерживает ТОЛЬКО HTTP/HTTPS (проверки TCP/UDP/ICMP завершатся ошибкой).
   probeImage: "wbitt/network-multitool:alpine-extra"
+
+  # Таймаут на одну сетевую операцию внутри пода-зонда (в секундах).
+  # Применяется к TCP-хэндшейку, HTTP-запросу, UDP-тесту и ICMP-пингу.
+  # Увеличьте (до 45-60 сек) при проверке медленных удаленных каналов или спутниковой связи.
   probeTimeoutSeconds: 30
+
+  # Жесткий дедлайн жизни пода-зонда в Kubernetes (activeDeadlineSeconds).
+  # Если узел зависнет или сетевая проверка не завершится вовремя, Kubernetes гарантированно
+  # удалит под по истечении этого времени. Должен быть заведомо больше probeTimeoutSeconds.
   probeActiveDeadlineSeconds: 60
+
+  # Интервал запуска фонового сборщика мусора (Garbage Collector).
+  # Периодически сканирует кластер и удаляет завершившиеся поды kncc-probe.
   gcInterval: "2m"
+
+  # Минимальный возраст осиротевших подов для их удаления сборщиком мусора.
+  # Защита от race condition: гарантирует, что GC не удалит только что завершившийся под,
+  # пока бэкенд kncc считывает результаты диагностики из termination-log.
   gcStaleThreshold: "3m"
 
-  # Namespace Discovery & Dropdown Settings:
-  # When true, the kncc UI displays a dropdown of cluster namespaces, and kncc's ClusterRole
-  # is granted permission to list namespaces (namespaces: [get, list, watch]).
-  # When false (default), users manually type the target namespace. Following the Principle of
-  # Least Privilege (PoLP), kncc receives no namespace read permissions from the cluster.
+  # Обнаружение и выпадающий список пространств имён (Namespace Discovery):
+  #   - false (по умолчанию): Принцип наименьших привилегий (PoLP). Пользователи вводят namespace
+  #     вручную. Сервису kncc НЕ выдаются права на чтение пространств имён кластера.
+  #   - true: В веб-интерфейсе появляется удобный выпадающий список неймспейсов кластера,
+  #     а ClusterRole kncc получает права "namespaces: [get, list, watch]".
   namespaceListEnabled: false
 
-  # Namespaces that are permanently blocked from selection in the dropdown and execution in API.
+  # Черный список пространств имён, скрываемых из выпадающего списка в UI и навсегда
+  # заблокированных от выполнения проверок на уровне API сервера (защита Anti-Bypass).
   namespaceExcludeList:
     - "kube-system"
     - "kube-public"
     - "kube-node-lease"
 
-  # Standard Kubernetes LabelSelector used to exclude namespaces marked with specific labels.
-  # Example: "kncc.io/exclude=true"
+  # Стандартный Kubernetes LabelSelector для динамического скрытия маркированных неймспейсов.
+  # Любое пространство имён с такой меткой будет скрыто из UI и заблокировано в API.
   namespaceExcludeSelector: "kncc.io/exclude=true"
 
-# RBAC Configuration
+# ------------------------------------------------------------------------------
+# 4. Ролевая модель Kubernetes (RBAC & ServiceAccount)
+# ------------------------------------------------------------------------------
+
 rbac:
+  # Создавать ли ресурсы ServiceAccount, Role/ClusterRole и RoleBinding силами чарта.
+  # Оставьте true. Отключайте только в случае, если политики кластера запрещают создание
+  # RBAC через Helm и требуют предварительного ручного создания безопасниками.
   create: true
-  # If true, kncc can create probe pods across any user-specified namespace to test specific NetworkPolicies.
-  # Requires ClusterRole with Pod create/delete permissions.
-  # If false, kncc creates probe pods strictly inside its own release namespace.
+
+  # Режим проверок между пространствами имён (Multi-Namespace mode):
+  #   - false (по умолчанию): kncc создает поды-зонды исключительно внутри своего пространства имён.
+  #     Чарт создает обычную Role и RoleBinding в неймспейсе релиза.
+  #   - true: kncc разрешено создавать поды-зонды в ЛЮБЫХ пользовательских пространствах имён кластера.
+  #     Чарт создает ClusterRole и ClusterRoleBinding. Необходимо для тестирования CNI NetworkPolicies
+  #     непосредственно из сетевого контекста конкретного приложения.
   multiNamespace: false
+
   serviceAccount:
+    # Создавать ли объект ServiceAccount.
     create: true
+
+    # Имя используемого ServiceAccount. Если create: false, укажите имя существующего SA.
     name: ""
+
+    # Аннотации для ServiceAccount (используются для интеграции с облачными IAM-провайдерами):
+    #   AWS EKS (IRSA):
+    #     eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/kncc-role"
+    #   GCP GKE (Workload Identity):
+    #     iam.gke.io/gcp-service-account: "kncc-sa@project-id.iam.gserviceaccount.com"
+    #   HashiCorp Vault Injector:
+    #     vault.hashicorp.com/role: "kncc"
     annotations: {}
 
-# Security, Anti-SSRF & Rate Limiting
+# ------------------------------------------------------------------------------
+# 5. Безопасность, Anti-SSRF и Rate Limiting
+# ------------------------------------------------------------------------------
+
 security:
+  # Максимальное число создаваемых проверок в минуту на одного пользователя.
+  # Защищает Kubernetes API и кластер от DoS и лавинообразного спама подами. При превышении возвращается HTTP 429.
   rateLimitPerMinute: 30
+
+  # Черный список подсетей IP (Anti-SSRF фильтрация).
+  # Блокирует попытки запуска сетевых проверок к уязвимым сервисам метаданных облачных провайдеров
+  # и локальным сетевым интерфейсам самого узла кластера.
   blacklistCIDRs:
-    - "169.254.169.254/32" # Cloud instance metadata (AWS, GCP, Azure)
-    - "127.0.0.0/8"         # Loopback
-    - "::1/128"            # IPv6 Loopback
+    - "169.254.169.254/32" # Cloud instance metadata service (AWS, GCP, Azure, OpenStack)
+    - "127.0.0.0/8"         # IPv4 Loopback узла
+    - "::1/128"            # IPv6 Loopback узла
+
+  # Черный список доменных имен. Предотвращает обращение к метаданным по DNS-имени (защита от DNS Rebinding).
   blacklistDomains:
     - "metadata.google.internal"
     - "instance-data"
+
+  # Белый список подсетей IP (Strict Allowlist mode).
+  # Если список НЕ пуст, kncc разрешает проверки ТОЛЬКО к адресам из указанных подсетей.
+  # Если список пуст ([]), разрешены проверки к любым адресам, кроме заблокированных в blacklistCIDRs.
   whitelistCIDRs: []
+
+  # Белый список доменных шаблонов (Strict Allowlist mode).
+  # Если список НЕ пуст, разрешены проверки только к указанным доменным зонам.
   whitelistDomains: []
 
-# SQLite Storage & Reports Persistence
+# ------------------------------------------------------------------------------
+# 6. Хранилище отчетов и базы данных SQLite (Persistence)
+# ------------------------------------------------------------------------------
+
 persistence:
-  # When false, uses emptyDir (in-memory/ephemeral volume).
-  # When true, creates a PersistentVolumeClaim.
+  # Использование постоянного тома (PersistentVolumeClaim) для базы данных SQLite (/data/kncc.db).
+  # ВНИМАНИЕ:
+  #   - false (по умолчанию): используется временный том emptyDir. При рестарте пода kncc
+  #     ВСЯ история проверок, сохраненные отчеты и созданные пользователи БУДУТ УДАЛЕНЫ!
+  #   - true: создается PersistentVolumeClaim, сохраняющий данные между рестартами.
+  #     ОБЯЗАТЕЛЬНО для production-эксплуатации!
   enabled: false
+
+  # Имя StorageClass для динамического создания тома (например, "local-path", "gp3", "ceph-rbd").
+  # Оставьте пустым (""), чтобы использовать дефолтный StorageClass кластера.
   storageClass: ""
+
+  # Режим доступа к тому. SQLite требует монопольного монтирования на одном узле, поэтому оставьте ReadWriteOnce.
   accessMode: ReadWriteOnce
+
+  # Размер постоянного диска. 2Gi достаточно для хранения десятков тысяч сетевых отчетов.
   size: 2Gi
+
+  # Путь монтирования базы данных внутри контейнера. Не изменяйте без синхронизации с конфигурацией сервера.
   mountPath: /data
 
-# Authentication providers (Local, LDAP, OIDC)
+# ------------------------------------------------------------------------------
+# 7. Аутентификация и управление доступом (Local, LDAP, OIDC)
+# ------------------------------------------------------------------------------
+
 auth:
+  # Логин начальной учетной записи встроенного администратора.
   adminUsername: "admin"
-  # Initial password for default admin account on first startup (used only when existingSecret is empty)
-  # When left empty (default) and existingSecret is not set, kncc automatically generates a secure random
-  # password at startup and prints it to the application log.
+
+  # Начальный пароль администратора при первом запуске сервиса.
+  # Если оставить пустым ("") и не указывать existingSecret, kncc автоматически сгенерирует
+  # криптографически стойкий случайный пароль и выведет его в лог пода при первом старте.
   adminInitialPassword: ""
-  # Name of an existing Kubernetes Secret containing the admin initial password
-  # When set, adminInitialPassword is ignored and kncc reads the password from this secret
+
+  # Имя существующего Kubernetes Secret с паролем администратора.
+  # Рекомендуется для production/GitOps: пароль безопасно доставляется через Vault или External Secrets.
   existingSecret: ""
-  # Key inside existingSecret containing the admin initial password
+
+  # Ключ внутри existingSecret, содержащий пароль администратора.
   existingSecretPasswordKey: "ADMIN_INITIAL_PASSWORD"
+
+  # Включение локальной аутентификации по логину и паролю из базы данных SQLite.
+  # Установите false, если хотите запретить локальный вход и полностью перевести всех на SSO (LDAP / OIDC).
   localEnabled: true
 
-  # Admin password delivery mode:
-  # "volume" - delivered via emptyDir volume as a file, avoiding exposure in container environment (default)
-  # "env" - delivered as environment variable ADMIN_INITIAL_PASSWORD into container
+  # Механизм доставки пароля администратора в контейнер:
+  #   - "volume" (по умолчанию, рекомендуется): пароль монтируется как файл через RAM tmpfs том (emptyDir: Memory).
+  #     Исключает утечку пароля в системные логи, вывод kubectl describe pod и файловую систему /proc/$PID/environ.
+  #   - "env": передача пароля через переменную окружения ADMIN_INITIAL_PASSWORD (устаревший простой режим).
   deliveryMode: "volume"
 
-  # Settings for emptyDir password volume (used when auth.deliveryMode is "volume")
+  # Настройки тома для безопасной доставки пароля (используется при deliveryMode: "volume").
   volume:
-    # emptyDir medium: "Memory" (RAM/tmpfs) or "" (node disk)
+    # Тип носителя тома: "Memory" (tmpfs в оперативной памяти RAM) или "" (физический диск узла).
     medium: "Memory"
-    # Optional size limit for emptyDir volume
+    # Лимит объема памяти тома tmpfs.
     sizeLimit: "64Mi"
-    # Mount path inside the kncc container
+    # Путь монтирования тома внутри контейнера kncc.
     mountPath: "/etc/kncc-auth"
-    # File name inside the emptyDir volume
+    # Имя файла с паролем внутри тома.
     fileName: "admin-password"
-    # When true, an initContainer copies the secret to the emptyDir volume before the main container starts
+    # Использовать initContainer для безопасного копирования пароля из секрета в RAM-том с правами 0400.
     populateFromSecret: true
 
-  # LDAP / Active Directory Configuration
+  # ----------------------------------------------------------------------------
+  # Аутентификация через корпоративный каталог LDAP / Active Directory
+  # ----------------------------------------------------------------------------
+  # Включение провайдера входа через LDAP / Active Directory.
   ldapEnabled: false
   ldap:
+    # URL сервера каталогов. Для безопасного соединения настоятельно рекомендуется протокол ldaps:// и порт 636.
     url: "ldaps://ldap.corp.example.com:636"
+
+    # DN служебной учетной записи для режима классического поиска (Search-and-Bind).
     bindDN: "cn=kncc-svc,ou=services,dc=example,dc=com"
+
+    # Пароль служебной учетной записи LDAP (используется, если existingSecret пуст).
     bindPassword: ""
-    # Reference an existing Kubernetes Secret containing bindDN and/or bindPassword
-    # When set, kncc injects credentials from this secret instead of storing them in the release secret
+
+    # Имя существующего секрета Kubernetes с учетными данными LDAP (bindDN и bindPassword).
+    # Исключает хранение паролей каталога в Helm-значениях.
     existingSecret: ""
     existingSecretBindDNKey: "LDAP_BIND_DN"
     existingSecretBindPasswordKey: "LDAP_BIND_PASSWORD"
-    # Direct Bind / User Bind Pattern:
-    # When specified, kncc formats the entered username into this DN template (e.g. "uid=%s,ou=users,dc=example,dc=com")
-    # and binds directly with the user's credentials, eliminating the need for a dedicated service account.
+
+    # Шаблон прямого связывания (Direct Bind / User Bind Pattern).
+    # Если указан (например, "uid=%s,ou=users,dc=example,dc=com"), kncc подставляет имя пользователя
+    # в шаблон и связывается с LDAP напрямую под учетной записью пользователя без служебного аккаунта.
     userDNTemplate: ""
-    # Anonymous Search Mode:
-    # When true, kncc performs an unauthenticated bind (RFC 4513) to search the directory without service account credentials.
+
+    # Режим анонимного поиска (RFC 4513 Unauthenticated Bind).
+    # Позволяет находить DN пользователя без использования сервисного аккаунта.
     anonymousSearch: false
+
+    # Базовый DN для поиска учетных записей пользователей.
     baseDN: "ou=users,dc=example,dc=com"
+
+    # Поисковый фильтр пользователя. Маркер %s автоматически заменяется на введенный логин.
     userFilter: "(uid=%s)"
-    # Name or CN of LDAP group granting admin role in kncc (e.g. "RBAC_KNCC_ADMIN")
+
+    # Имя или CN группы LDAP, членам которой автоматически назначается роль администратора в kncc.
+    # Роли пересчитываются динамически при каждом входе пользователя в систему (RBAC kncc).
     adminGroup: ""
-    # Search filter to restrict retrieved user groups (e.g. "(cn=RBAC_KNCC_*)")
+
+    # Опциональный LDAP-фильтр для выборки групп пользователя (например, "(cn=RBAC_KNCC_*)").
     groupFilter: ""
-    # Base DN for group queries (defaults to baseDN if empty)
+
+    # Базовый DN для поиска групп (если пуст, используется значение baseDN).
     groupBaseDN: ""
+
+    # Отключение проверки TLS-сертификата LDAP-сервера.
+    # ВНИМАНИЕ: Значение true отключает верификацию сертификата, что несет угрозу атак Man-in-the-Middle!
+    # Для доверия корпоративным центрам сертификации используйте секцию caCerts вместо этого флага!
     insecureSkipVerify: false
 
-  # SSO / OIDC Configuration (Keycloak, Dex, Okta)
+  # ----------------------------------------------------------------------------
+  # Единая точка входа Single Sign-On (OIDC / OAuth2)
+  # ----------------------------------------------------------------------------
+  # Включение интеграции с OpenID Connect (Keycloak, Dex, Authentik, Okta, Azure AD).
   oidcEnabled: false
   oidc:
+    # URL эмитента OIDC (Discovery Endpoint доступен по адресу <issuerURL>/.well-known/openid-configuration).
     issuerURL: "https://auth.corp.example.com/realms/corp"
-    # Client ID for OIDC provider (used when not provided in existingSecret)
+
+    # Идентификатор клиента (Client ID), зарегистрированный в Identity Provider.
     clientID: "kncc"
-    # Plain-text client secret (used only when existingSecret is empty)
+
+    # Секрет клиента в открытом виде (используется только если existingSecret не задан).
     clientSecret: ""
+
+    # URL обратного вызова (Callback Redirect URL). Должен быть зарегистрирован в настройках клиента в IdP.
     redirectURL: "https://kncc.corp.example.com/api/auth/oidc/callback"
-    # Name of an existing Kubernetes Secret containing OIDC credentials (clientID and/or clientSecret)
+
+    # Имя существующего секрета Kubernetes с реквизитами OIDC (clientID и clientSecret).
     existingSecret: ""
-    # Key inside existingSecret containing clientID (optional; if empty, auth.oidc.clientID is used)
     existingSecretClientIDKey: ""
-    # Key inside existingSecret containing clientSecret (defaults to OIDC_CLIENT_SECRET)
     existingSecretClientSecretKey: "OIDC_CLIENT_SECRET"
 
-# Trusted Corporate CA Certificates (Root + Intermediate)
-# Provides support for internal/corporate CAs (Private PKI) in both kncc server (for secure LDAP/OIDC)
-# and probe pods (for verifying internal HTTPS endpoints without disabling TLS verification).
+# ------------------------------------------------------------------------------
+# 8. Доверенные корпоративные сертификаты (Private CA / PKI)
+# ------------------------------------------------------------------------------
+# Обеспечивает сквозное доверие корпоративным приватным центрам сертификации (Root CA + Intermediate CA):
+#   1. Сервер kncc валидирует сертификаты корпоративных каталогов LDAPS и OIDC провайдеров.
+#   2. Поды-зонды kncc-probe безопасно проверяют внутренние HTTPS-ресурсы узлов кластера с проверкой
+#      цепочки доверия без необходимости включать insecure_tls.
+
 caCerts:
-  # Enable mounting and loading additional trusted CA certificates
+  # Включить монтирование и загрузку дополнительных доверенных CA сертификатов.
   enabled: false
 
-  # 1. Manual Mode: Inline PEM format (Root CA and/or Intermediate CA chain)
-  # When set and existingSecret/existingConfigMap is empty, Helm automatically creates a dedicated ConfigMap.
-  # Example:
-  # pem: |
-  #   -----BEGIN CERTIFICATE-----
-  #   ... (Root CA) ...
-  #   -----END CERTIFICATE-----
-  #   -----BEGIN CERTIFICATE-----
-  #   ... (Intermediate CA) ...
-  #   -----END CERTIFICATE-----
+  # Вариант 1: Текст сертификата(ов) в формате PEM непосредственно в values (Root CA и/или Intermediate).
+  # Helm автоматически создаст ConfigMap с данным бандлом.
   pem: ""
 
-  # 2. Manual Mode: Reference an existing ConfigMap (e.g. distributed by cert-manager trust-manager)
+  # Вариант 2: Имя существующего ConfigMap с CA сертификатом (например, созданного cert-manager trust-manager).
   existingConfigMap: ""
 
-  # 3. Manual Mode: Reference an existing Secret (e.g. created manually or by cert-manager CA Issuer)
+  # Вариант 3: Имя существующего Secret с CA сертификатом.
   existingSecret: ""
 
-  # Key inside the ConfigMap or Secret that contains the certificate(s)
-  # Defaults to "ca.crt". Can also be "ca-bundle.crt", "tls.crt", etc.
+  # Ключ внутри ConfigMap или Secret, содержащий сертификат (по умолчанию "ca.crt").
   certKey: "ca.crt"
 
-  # Container mount path inside kncc server pod
+  # Путь монтирования сертификатов внутри контейнера kncc сервера.
   mountPath: "/etc/ssl/kncc-ca"
 
-  # 4. cert-manager Integration:
-  # When enabled, Helm renders a cert-manager.io/v1 Certificate resource pointing to your cluster/namespace Issuer.
-  # cert-manager issues the certificate and stores ca.crt and the chain in a managed Secret mounted into kncc.
+  # Вариант 4: Интеграция с cert-manager для автоматического получения CA из кластерного эмитента.
   certManager:
     enabled: false
     issuerRef:
-      name: ""              # Name of ClusterIssuer or Issuer (e.g. corporate-ca-issuer)
-      kind: "ClusterIssuer" # ClusterIssuer or Issuer
+      name: ""              # Имя ClusterIssuer или Issuer центра сертификации
+      kind: "ClusterIssuer"
       group: "cert-manager.io"
-    duration: "8760h"       # 1 year
-    renewBefore: "720h"     # 30 days
-    commonName: ""          # Defaults to {{ include "kncc.fullname" . }}-ca
+    duration: "8760h"
+    renewBefore: "720h"
+    commonName: ""          # По умолчанию: {{ include "kncc.fullname" . }}-ca
 
-# Web UI Theming (Customizable 2-color palette)
+# ------------------------------------------------------------------------------
+# 9. Корпоративный брендинг, темы и локализация (Branding, Theming & Localization)
+# ------------------------------------------------------------------------------
+
 theme:
+  # Название сервиса, отображаемое в шапке веб-интерфейса и заголовке вкладки браузера.
   appName: "Kubernetes Network Connectivity Checker"
-  primaryColor: "#ffffff" # Base background / card color
-  accentColor: "#dc2626"  # Accent brand color (Red-600 by default)
-  defaultTheme: "light"   # Default system theme ("light" or "dark")
 
-# Corporate Branding & Logo Configuration
+  # Основной цвет темы (HEX). Задает базовый цвет фона карточек и элементов.
+  primaryColor: "#ffffff"
+
+  # Акцентный цвет бренда (HEX). Используется для ключевых кнопок ("Run Check"), статусов и прогресс-баров.
+  accentColor: "#dc2626"
+
+  # Системная тема оформления по умолчанию для новых пользователей ("light" или "dark").
+  defaultTheme: "light"
+
+  # Язык интерфейса по умолчанию ("en" или "ru").
+  # Применяется при первом открытии веб-интерфейса до сохранения выбора пользователя в браузере.
+  defaultLanguage: "en"
+
 logo:
+  # Создавать ли Kubernetes ConfigMap для хранения корпоративного логотипа компании.
   enabled: true
-  # Base64-encoded image (SVG, PNG, JPEG, WebP) or raw SVG string.
-  # If empty, the default shipbuilding vector logo in blue/cyan palette is used.
+
+  # Изображение логотипа в Base64 или сырой SVG-строке.
+  # Если пусто (""), сервис отображает встроенный качественный векторный логотип на тему судостроения.
   data: ""
-  # MIME type of the logo data (image/svg+xml, image/png, image/jpeg, image/webp)
+
+  # MIME-тип передаваемого логотипа (image/svg+xml, image/png, image/jpeg, image/webp).
   mimeType: "image/svg+xml"
 
-# Custom Favicon Configuration
 favicon:
+  # Создавать ли Kubernetes ConfigMap для хранения кастомной иконки сайта (favicon).
   enabled: true
-  # Base64-encoded image (SVG, PNG, ICO, WebP, JPEG) or raw SVG string.
-  # If empty, kncc automatically defaults to the thumbnail of the corporate logo.
+
+  # Изображение фавикона в Base64 или raw SVG.
+  # Если пусто (""), сервис автоматически генерирует фавикон как аккуратную миниатюру корпоративного логотипа.
   data: ""
-  # MIME type of the favicon (image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/webp)
+
+  # MIME-тип фавикона (image/svg+xml, image/png, image/x-icon, image/vnd.microsoft.icon, image/webp).
   mimeType: "image/svg+xml"
 
-# Quick Add target suggestions configuration (between 1 and 3 default services)
 quickAdd:
+  # Список пресетов быстрого добавления целей диагностики (от 1 до 3 сервисов).
+  # Отображаются в виде удобных чипов на странице создания новой проверки для быстрого старта.
   presets:
     - name: "K8s API"
       protocol: "tcp"
@@ -280,35 +506,60 @@ quickAdd:
       protocol: "icmp"
       host: "8.8.8.8"
 
+# ------------------------------------------------------------------------------
+# 10. Сетевая публикация сервиса (Service, Ingress, Gateway API)
+# ------------------------------------------------------------------------------
+
 service:
+  # Тип сервиса Kubernetes:
+  #   - ClusterIP (по умолчанию): доступ только внутри кластера или через Ingress/Gateway.
+  #   - NodePort: открывает статический порт на каждом узле кластера (для изолированных тестовых сред).
+  #   - LoadBalancer: запрашивает внешний облачный балансировщик (MetalLB, AWS NLB, GCP LB).
   type: ClusterIP
+
+  # Внутренний порт сервиса Kubernetes для HTTP-трафика.
   port: 80
+
+  # Целевой порт контейнера kncc (соответствует server.port).
   targetPort: 8080
+
+  # Внутренний порт сервиса Kubernetes для HTTPS-трафика (при server.tls.enabled: true).
   tlsPort: 443
 
 ingress:
+  # Включение публикации веб-интерфейса через стандартный Kubernetes Ingress контроллер.
   enabled: false
+
+  # Имя Ingress-контроллера (например, "traefik", "nginx", "haproxy").
   className: "traefik"
+
+  # Аннотации для Ingress-контроллера (например, интеграция с cert-manager, настройки буферизации или тайм-аутов).
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+  # Маршрутизация хостов и путей:
   hosts:
     - host: kncc.example.com
       paths:
         - path: /
           pathType: Prefix
+
+  # Настройки TLS-сертификатов для терминирования HTTPS на уровне Ingress.
   tls: []
   #  - secretName: kncc-tls
   #    hosts:
   #      - kncc.example.com
-# Gateway API Configuration (gateway.networking.k8s.io/v1)
-# Modern declarative routing replacing or supplementing traditional Ingress.
+
 gateway:
-  # Enable creation of Gateway API HTTPRoute for publishing kncc
+  # Включение современной маршрутизации через стандарт Kubernetes Gateway API (gateway.networking.k8s.io/v1 HTTPRoute).
+  # Альтернатива или дополнение к классическому Ingress.
   enabled: false
+
+  # Аннотации и метки для создаваемого ресурса HTTPRoute.
   annotations: {}
   labels: {}
 
-  # References to parent Gateway resource(s) that should accept this route
+  # Ссылки на родительские ресурсы Gateway, принимающие трафик для данного маршрута.
   parentRefs:
     - name: default-gateway
       # namespace: gateway-system
@@ -317,25 +568,17 @@ gateway:
       # group: gateway.networking.k8s.io
       # kind: Gateway
 
-  # Hostnames matched by this HTTPRoute
+  # Доменные имена, перенаправляемые на сервис kncc.
   hostnames:
     - kncc.example.com
 
-  # Custom routing rules (filters, request headers, rewrites, timeouts).
-  # If empty, a default rule routing PathPrefix "/" to kncc Service is automatically generated.
+  # Пользовательские правила маршрутизации, фильтрации и подмены заголовков.
+  # Если пусто ([]), автоматически генерируется базовое правило перенаправления с PathPrefix: "/".
   rules: []
-    # - matches:
-    #     - path:
-    #         type: PathPrefix
-    #         value: /
-    #   backendRefs:
-    #     - name: kncc
-    #       port: 80
-    #       weight: 1
 
-  # Optional: Provision a dedicated Gateway resource alongside the HTTPRoute
+  # Создавать ли выделенный ресурс Gateway непосредственно силами чарта (для автономных развертываний).
   createGateway: false
-  gatewayName: "" # Defaults to {{ include "kncc.fullname" . }}
+  gatewayName: "" # По умолчанию: {{ include "kncc.fullname" . }}
   gatewayClassName: "traefik"
   gatewayAnnotations: {}
   gatewayLabels: {}
@@ -347,15 +590,26 @@ gateway:
         namespaces:
           from: Same
 
-# Kubernetes Pod Probes Configuration
+# ------------------------------------------------------------------------------
+# 11. Пробы готовности и жизнеспособности (Pod Health Probes)
+# ------------------------------------------------------------------------------
+
 probes:
+  # Проба начального запуска (Startup Probe).
+  # Опрашивает эндпоинт /api/startupz во время старта пода.
+  # Предоставляет сервису достаточно времени на монтирование томов, применение миграций SQLite
+  # и аудит прав RBAC, предотвращая преждевременный перезапуск контейнера Liveness-пробой.
   startup:
     enabled: true
     path: /api/startupz
     initialDelaySeconds: 2
     periodSeconds: 5
     timeoutSeconds: 2
-    failureThreshold: 12
+    failureThreshold: 12 # 12 попыток * 5 сек = до 60 сек на начальную инициализацию
+
+  # Проба жизнеспособности (Liveness Probe).
+  # Опрашивает эндпоинт /api/livez. Контролирует отклик HTTP-сервера и рантайма Go.
+  # В случае зависания процесса (deadlock) Kubernetes автоматически перезапускает контейнер.
   liveness:
     enabled: true
     path: /api/livez
@@ -363,6 +617,10 @@ probes:
     periodSeconds: 10
     timeoutSeconds: 2
     failureThreshold: 3
+
+  # Проба готовности к приему трафика (Readiness Probe).
+  # Опрашивает эндпоинт /api/readyz. Выполняет активную проверку доступности базы данных SQLite (PingContext).
+  # При недоступности базы данных под временно исключается из балансировки Ingress без аварийного рестарта.
   readiness:
     enabled: true
     path: /api/readyz
@@ -371,6 +629,13 @@ probes:
     timeoutSeconds: 2
     failureThreshold: 3
 
+# ------------------------------------------------------------------------------
+# 12. Ресурсы контейнера и правила размещения (Resources & Scheduling)
+# ------------------------------------------------------------------------------
+
+# Квоты ресурсов процессора и памяти для контейнера сервера kncc.
+# kncc является легковесным Go-приложением: базовое потребление составляет ~50m CPU и ~64Mi RAM.
+# При одновременном запуске тяжелых параллельных проверок потребление памяти может кратковременно возрастать.
 resources:
   limits:
     cpu: 250m
@@ -379,8 +644,13 @@ resources:
     cpu: 50m
     memory: 64Mi
 
+# Селектор меток узлов для планирования пода сервера kncc (например, "kubernetes.io/os: linux").
 nodeSelector: {}
 
+# Допуски (Tolerations) для размещения пода сервера kncc на узлах с ограничениями (Taints).
+# Примечание: эфемерные поды-зонды kncc-probe автоматически получают системные tolerations (operator: Exists)
+# и опрашивают все узлы кластера независимо от этого параметра.
 tolerations: []
 
+# Правила сродства узлов и подов (Affinity / Anti-Affinity) для расширенных сценариев оркестрации.
 affinity: {}

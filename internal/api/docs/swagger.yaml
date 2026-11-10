@@ -98,6 +98,9 @@ definitions:
         items:
           type: string
         type: array
+      default_language:
+        example: en
+        type: string
       default_namespace:
         example: kncc
         type: string
@@ -133,11 +136,13 @@ definitions:
         example: 30
         type: integer
       version:
-        example: 1.12.0
+        example: 1.11.0
         type: string
     type: object
   api.UpdateThemeSettingsRequest:
     properties:
+      default_language:
+        type: string
       default_theme:
         type: string
     type: object
@@ -479,7 +484,7 @@ info:
   license:
     name: Apache 2.0
   title: Kubernetes Network Connectivity Checker (kncc) API
-  version: 1.12.0
+  version: 1.13.0
 paths:
   /api/admin/rbac:
     get:
@@ -634,7 +639,8 @@ paths:
     put:
       consumes:
       - application/json
-      description: Admin endpoint to update default theme (light/dark)
+      description: Admin endpoint to update default theme (light/dark) and language
+        (en/ru)
       parameters:
       - description: Theme setting payload
         in: body

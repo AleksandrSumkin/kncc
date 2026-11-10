@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
+import { useTranslation } from './context/LanguageContext';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
 import { NewCheckPage, PrefillData } from './pages/NewCheckPage';
@@ -11,6 +12,7 @@ import { AdminPage } from './pages/AdminPage';
 export const App: React.FC = () => {
   const { user, loading } = useAuth();
   const { config } = useTheme();
+  const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<'new' | 'report' | 'history' | 'admin'>('new');
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [prefillCheckData, setPrefillCheckData] = useState<PrefillData | null>(() => {
@@ -152,7 +154,7 @@ export const App: React.FC = () => {
       </main>
 
       <footer className="py-4 border-t border-gray-200 dark:border-slate-800 text-center text-xs text-gray-400 dark:text-slate-500 bg-white dark:bg-slate-900 transition-colors">
-        kncc{config?.version ? (config.version === 'dev' ? ' (dev)' : ` v${config.version.replace(/^v/, '')}`) : ''} • Kubernetes Network Connectivity Checker • Open Source
+        kncc{config?.version ? (config.version === 'dev' ? ' (dev)' : ` v${config.version.replace(/^v/, '')}`) : ''} • {t('footer.description')} • {t('footer.openSource')}
       </footer>
     </div>
   );

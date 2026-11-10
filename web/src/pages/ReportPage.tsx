@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../api';
+import { useTranslation } from '../context/LanguageContext';
 import { Report, NodeResult, ProbeOutput, TargetService, CheckMode } from '../types';
 import { copyToClipboard } from '../utils/clipboard';
 import {
@@ -75,6 +76,7 @@ export interface TargetGroup {
 }
 
 export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated, onBackToEdit, onNavigateHome }) => {
+  const { t } = useTranslation();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -459,13 +461,13 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-1">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                Report #{report.id.slice(0, 8)}
+                {t('report.title')} #{report.id.slice(0, 8)}
               </h1>
-              {getStatusBadge(report.status)}
-              {getCheckModeBadge(report.mode, report.namespace, true)}
+              {getStatusBadge(report.status, t)}
+              {getCheckModeBadge(report.mode, report.namespace, true, t)}
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center space-x-2">
-              <span>Initiated by <strong className="text-gray-700 dark:text-slate-300">{report.username}</strong></span>
+              <span>{t('report.initiatedBy')}: <strong className="text-gray-700 dark:text-slate-300">{report.username}</strong></span>
               <span>•</span>
               <span className="flex items-center">
                 <Clock className="w-3.5 h-3.5 mr-1 text-gray-400 dark:text-slate-500" />
@@ -474,7 +476,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
               <span>•</span>
               <span className="flex items-center">
                 <Network className="w-3.5 h-3.5 mr-1 text-gray-400 dark:text-slate-500" />
-                Mode: <strong className="ml-1 text-gray-700 dark:text-slate-300 uppercase">{report.mode}</strong>
+                {t('report.modeLabel')}: <strong className="ml-1 text-gray-700 dark:text-slate-300 uppercase">{report.mode}</strong>
                 {report.mode === 'pod' && ` (ns: ${report.namespace})`}
               </span>
             </p>
@@ -492,12 +494,12 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
               {copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-emerald-700 dark:text-emerald-300">Link Copied!</span>
+                  <span className="text-emerald-700 dark:text-emerald-300">{t('common.copied')}</span>
                 </>
               ) : (
                 <>
                   <Share2 className="w-3.5 h-3.5 mr-1.5 text-gray-500 dark:text-slate-400" />
-                  <span>Share Report</span>
+                  <span>{t('report.share')}</span>
                 </>
               )}
             </button>
@@ -509,7 +511,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                 title="Edit these parameters in a new check"
               >
                 <ArrowLeft className="w-3.5 h-3.5 mr-1.5 text-gray-500 dark:text-slate-400" />
-                <span>Back to Edit</span>
+                <span>{t('report.editCheck')}</span>
               </button>
             )}
 
@@ -520,7 +522,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
               style={{ backgroundColor: 'var(--color-accent, #dc2626)' }}
             >
               <RotateCw className={`w-3.5 h-3.5 mr-1.5 ${rerunning ? 'animate-spin' : ''}`} />
-              <span>Rerun Check</span>
+              <span>{rerunning ? t('report.rerunning') : t('report.rerun')}</span>
             </button>
           </div>
         </div>
@@ -531,10 +533,10 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             <div className="flex justify-between items-center text-xs text-gray-600 dark:text-slate-400 mb-1">
               <span className="font-medium flex items-center">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping mr-2" />
-                Probing nodes in parallel...
+                {t('report.running')}
               </span>
               <span className="font-semibold text-gray-800 dark:text-slate-200">
-                {report.completed_nodes} / {report.total_nodes} nodes completed
+                {report.completed_nodes} / {report.total_nodes} {t('report.totalNodes').toLowerCase()}
               </span>
             </div>
             <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -551,28 +553,28 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
         {/* Metrics Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           <div className="p-3.5 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700/60">
-            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">Nodes Checked</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">{t('report.totalNodes')}</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
               {report.completed_nodes} / {report.total_nodes || nodeResultsList.length}
             </div>
           </div>
 
           <div className="p-3.5 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700/60">
-            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">Targets Reachable</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">{t('report.passedNodes')}</div>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
               {successfulTargets} / {totalTargetsChecked}
             </div>
           </div>
 
           <div className="p-3.5 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700/60">
-            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">Targets Blocked</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">{t('report.failedNodes')}</div>
             <div className={`text-2xl font-bold mt-1 ${totalTargetsChecked - successfulTargets > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
               {totalTargetsChecked - successfulTargets}
             </div>
           </div>
 
           <div className="p-3.5 bg-gray-50 dark:bg-slate-800/60 rounded-lg border border-gray-100 dark:border-slate-700/60">
-            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">Avg Latency</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400 uppercase font-semibold">{t('report.avgLatency')}</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
               {avgLatency > 0 ? `${avgLatency} ms` : '—'}
             </div>
@@ -589,7 +591,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             title="Return to check form with these parameters pre-filled to fix typos or adjust targets"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5 text-red-600 dark:text-red-400" />
-            <span>Back to Edit</span>
+            <span>{t('report.backToEdit')}</span>
           </button>
         )}
 
@@ -604,7 +606,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             }`}
           >
             <Target className="w-3.5 h-3.5 mr-1.5 text-red-600 dark:text-red-400" />
-            By Target
+            {t('report.byTarget')}
           </button>
           <button
             onClick={() => setViewMode('node')}
@@ -615,23 +617,23 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             }`}
           >
             <Server className="w-3.5 h-3.5 mr-1.5 text-gray-600 dark:text-slate-300" />
-            By Node
+            {t('report.byNode')}
           </button>
         </div>
 
         {/* Check Execution Mode Badge */}
-        {getCheckModeBadge(report.mode, report.namespace)}
+        {getCheckModeBadge(report.mode, report.namespace, false, t)}
 
         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
           {viewMode === 'target' ? (
             <>
               <Target className="w-5 h-5 mr-2 text-red-600 dark:text-red-400" />
-              Target Connectivity Results ({filteredTargets.length})
+              {t('report.targetResultsHeader')} ({filteredTargets.length})
             </>
           ) : (
             <>
               <Server className="w-5 h-5 mr-2 text-gray-600 dark:text-slate-300" />
-              Cluster Node Results ({filteredNodes.length})
+              {t('report.nodeResultsHeader')} ({filteredNodes.length})
             </>
           )}
         </h2>
@@ -646,7 +648,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={viewMode === 'target' ? 'Search target or node...' : 'Search node...'}
+            placeholder={viewMode === 'target' ? t('report.searchTargetPlaceholder') : t('report.searchNodePlaceholder')}
             className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500 shadow-sm"
           />
         </div>
@@ -663,7 +665,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                All
+                {t('report.filterAll')}
               </button>
               <button
                 onClick={() => setTargetFilter('issues')}
@@ -673,7 +675,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Issues Only
+                {t('report.filterIssuesOnly')}
               </button>
               <button
                 onClick={() => setTargetFilter('success')}
@@ -683,7 +685,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                All Reachable
+                {t('report.filterAllReachable')}
               </button>
             </div>
           ) : (
@@ -696,7 +698,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                All
+                {t('report.filterAll')}
               </button>
               <button
                 onClick={() => setNodeFilter('failed')}
@@ -706,7 +708,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Failed
+                {t('report.filterFailed')}
               </button>
               <button
                 onClick={() => setNodeFilter('success')}
@@ -716,7 +718,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                     : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                Success
+                {t('report.filterSuccess')}
               </button>
             </div>
           )}
@@ -728,13 +730,13 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
                 onClick={() => setAllExpanded(true)}
                 className="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md transition-colors font-medium border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
               >
-                Expand all
+                {t('report.expandAll')}
               </button>
               <button
                 onClick={() => setAllExpanded(false)}
                 className="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 rounded-md transition-colors font-medium border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
               >
-                Collapse all
+                {t('report.collapseAll')}
               </button>
             </div>
           )}
@@ -757,7 +759,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             <div className="py-12 text-center bg-white rounded-xl border border-dashed border-gray-200">
               <Target className="w-8 h-8 text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-500 font-medium">
-                {isRunning ? 'Waiting for target probe results...' : 'No targets match current filter'}
+                {isRunning ? t('report.waitingTargets') : t('report.noTargetsMatch')}
               </p>
             </div>
           )}
@@ -775,7 +777,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
             <div className="col-span-full py-12 text-center bg-white rounded-xl border border-dashed border-gray-200">
               <Server className="w-8 h-8 text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-500 font-medium">
-                {isRunning ? 'Waiting for node probe results...' : 'No nodes match current filter'}
+                {isRunning ? t('report.waitingNodes') : t('report.noNodesFound')}
               </p>
             </div>
           )}
@@ -814,6 +816,7 @@ interface TargetCardProps {
 }
 
 const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpand }) => {
+  const { t } = useTranslation();
   const {
     target,
     displayLabel,
@@ -864,14 +867,14 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500 dark:text-slate-400">
               <span className="flex items-center">
                 <Globe className="w-3 h-3 mr-1 text-gray-400 dark:text-slate-500" />
-                Host: <strong className="ml-1 text-gray-700 dark:text-slate-300">{target.host}</strong>
+                {t('report.colHost')}: <strong className="ml-1 text-gray-700 dark:text-slate-300">{target.host}</strong>
               </span>
               {target.port && (
-                <span>Port: <strong className="text-gray-700 dark:text-slate-300">{target.port}</strong></span>
+                <span>{t('report.colPort')}: <strong className="text-gray-700 dark:text-slate-300">{target.port}</strong></span>
               )}
               {target.insecure_tls && (
                 <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-800 font-medium">
-                  Insecure TLS
+                  {t('newCheck.insecureTls')}
                 </span>
               )}
             </div>
@@ -882,14 +885,14 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
         <div className="flex items-center justify-between md:justify-end space-x-3 sm:space-x-4">
           <div className="text-right">
             <div className="flex items-center justify-end space-x-2">
-              {getTargetStatusBadge(overallStatus, successfulNodes, totalNodes)}
-              {target.protocol === 'https' && group.certStatus && renderCertBadge(group.certStatus, group.certExpiry, group.certDaysLeft)}
+              {getTargetStatusBadge(overallStatus, successfulNodes, totalNodes, t)}
+              {target.protocol === 'https' && group.certStatus && renderCertBadge(group.certStatus, group.certExpiry, group.certDaysLeft, t)}
             </div>
 
             <div className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center justify-end space-x-2">
               <span>
-                Reachable: <strong className={successfulNodes === totalNodes ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-800 dark:text-slate-200'}>
-                  {successfulNodes}/{totalNodes} nodes ({percentReachable}%)
+                {t('report.reachable')}: <strong className={successfulNodes === totalNodes ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-800 dark:text-slate-200'}>
+                  {successfulNodes}/{totalNodes} ({percentReachable}%)
                 </strong>
               </span>
               {avgLatencyMs > 0 && (
@@ -923,7 +926,7 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
       <div className="px-4 sm:px-5 py-2.5 bg-gray-50/70 dark:bg-slate-800/50 border-t border-b border-gray-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold uppercase text-gray-400 dark:text-slate-500 mr-1 flex items-center">
           <Server className="w-3 h-3 mr-1" />
-          Nodes:
+          {t('report.colNodes')}:
         </span>
         {nodes.map((node) => (
           <div
@@ -955,7 +958,7 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
       {isExpanded && (
         <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 space-y-2.5 transition-colors">
           <div className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-            Per-Node Connectivity Breakdown ({nodes.length} nodes)
+            {t('report.perNodeBreakdown')} ({nodes.length})
           </div>
 
           <div className="space-y-2">
@@ -973,6 +976,7 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
 // TARGET NODE DETAIL ROW COMPONENT
 // ==========================================
 const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => {
+  const { t } = useTranslation();
   const isRunning = node.node_status === 'running';
   const isFailed = !isRunning && !node.success;
 
@@ -1018,7 +1022,7 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
                 : 'bg-red-600 text-white'
             }`}
           >
-            {isRunning ? 'RUNNING' : node.success ? 'REACHABLE' : 'BLOCKED'}
+            {isRunning ? t('report.statusRunning') : node.success ? t('report.statusReachable') : t('report.statusBlocked')}
           </span>
         </div>
       </div>
@@ -1037,12 +1041,12 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
         ) : null}
         {node.cert_expiry && (
           <span className="flex items-center space-x-1">
-            <span>Cert Expiry:</span>
+            <span>{t('report.certExpiry')}:</span>
             <code className="text-gray-800 dark:text-slate-200 font-mono font-semibold">{formatCertDate(node.cert_expiry)}</code>
             {node.cert_status === 'expired' ? (
               <span className="text-red-600 dark:text-red-400 font-bold ml-1 inline-flex items-center">
                 <ShieldAlert className="w-3 h-3 mr-0.5" />
-                ({node.cert_days_left !== undefined ? `${Math.abs(node.cert_days_left)}d ago` : 'expired'})
+                ({node.cert_days_left !== undefined ? `${Math.abs(node.cert_days_left)}d ago` : t('report.certExpired')})
               </span>
             ) : node.cert_status === 'expiring_soon' ? (
               <span className="text-amber-600 dark:text-amber-400 font-semibold ml-1 inline-flex items-center">
@@ -1052,7 +1056,7 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
             ) : (
               <span className="text-emerald-700 dark:text-emerald-400 ml-1 inline-flex items-center">
                 <ShieldCheck className="w-3 h-3 mr-0.5" />
-                ({node.cert_days_left !== undefined ? `${node.cert_days_left}d left` : 'valid'})
+                ({node.cert_days_left !== undefined ? `${node.cert_days_left}d left` : t('report.certValid')})
               </span>
             )}
           </span>
@@ -1064,7 +1068,7 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
         <div className="mt-2 p-2 bg-red-100/90 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded text-red-900 dark:text-red-200 font-medium text-xs leading-relaxed flex items-start space-x-1.5">
           <ShieldAlert className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
           <div>
-            <strong>SSL Certificate Expired:</strong> Expired on {formatCertDate(node.cert_expiry)} ({node.cert_days_left !== undefined ? `${Math.abs(node.cert_days_left)} days ago` : 'expired'}).
+            <strong>{t('report.certExpired')}:</strong> Expired on {formatCertDate(node.cert_expiry)} ({node.cert_days_left !== undefined ? `${Math.abs(node.cert_days_left)} days ago` : 'expired'}).
             {node.cert_subject && <div className="text-[11px] text-red-700 dark:text-red-300 font-mono mt-0.5">Subject: {node.cert_subject}</div>}
           </div>
         </div>
@@ -1074,7 +1078,7 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
         <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 rounded text-amber-900 dark:text-amber-200 font-medium text-xs leading-relaxed flex items-start space-x-1.5">
           <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
-            <strong>SSL Certificate Expiring Soon:</strong> Expires in {node.cert_days_left} days ({formatCertDate(node.cert_expiry)}).
+            <strong>{t('report.certExpiringSoon')}:</strong> Expires in {node.cert_days_left} days ({formatCertDate(node.cert_expiry)}).
             {node.cert_subject && <div className="text-[11px] text-amber-700 dark:text-amber-300 font-mono mt-0.5">Subject: {node.cert_subject}</div>}
           </div>
         </div>
@@ -1104,6 +1108,7 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
 // CLASSIC NODE CARD COMPONENT (Node-Centric)
 // ==========================================
 const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
+  const { t } = useTranslation();
   const isFailed = node.status !== 'completed' || node.service_results?.some((s) => !s.success);
 
   return (
@@ -1141,7 +1146,7 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
                 : 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300'
             }`}
           >
-            {node.status}
+            {node.status === 'completed' ? t('report.statusCompleted') : node.status === 'failed' ? t('report.statusFailed') : t('report.statusRunning')}
           </span>
         </div>
       </div>
@@ -1149,7 +1154,7 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
       {/* Node-level Error */}
       {node.error && (
         <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-950/50 text-xs text-red-700 dark:text-red-300 rounded-md border border-red-200 dark:border-red-800">
-          <strong>Node Error:</strong> {node.error}
+          <strong>{t('report.errorDetails')}:</strong> {node.error}
         </div>
       )}
 
@@ -1164,6 +1169,7 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
 };
 
 const TargetResultRow: React.FC<{ result: ProbeOutput }> = ({ result }) => {
+  const { t } = useTranslation();
   const {
     target,
     success,
@@ -1196,7 +1202,7 @@ const TargetResultRow: React.FC<{ result: ProbeOutput }> = ({ result }) => {
               success ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
             }`}
           >
-            {success ? 'OK' : 'BLOCKED'}
+            {success ? t('report.statusReachable') : t('report.statusBlocked')}
           </span>
         </div>
       </div>
@@ -1214,7 +1220,7 @@ const TargetResultRow: React.FC<{ result: ProbeOutput }> = ({ result }) => {
         ) : null}
         {cert_expiry && (
           <span className="flex items-center space-x-1">
-            <span>Cert Expiry:</span>
+            <span>{t('report.certExpiry')}:</span>
             <code className="text-gray-700 dark:text-slate-300 font-mono">{formatCertDate(cert_expiry)}</code>
             {cert_status === 'expired' ? (
               <span className="text-red-600 dark:text-red-400 font-bold ml-1 inline-flex items-center">
@@ -1307,62 +1313,63 @@ function getProtocolBadgeStyle(protocol: string): string {
 function getTargetStatusBadge(
   status: 'all_ok' | 'partial' | 'all_failed' | 'running',
   successfulNodes: number,
-  totalNodes: number
+  totalNodes: number,
+  t?: (key: string) => string
 ) {
   switch (status) {
     case 'all_ok':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800">
           <CheckCircle className="w-3.5 h-3.5 mr-1 text-green-600 dark:text-green-400" />
-          ALL NODES REACHABLE
+          {t ? t('report.allNodesReachable') : 'ALL NODES REACHABLE'}
         </span>
       );
     case 'partial':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
           <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600 dark:text-amber-400" />
-          PARTIALLY REACHABLE ({successfulNodes}/{totalNodes})
+          {t ? t('report.partiallyReachable') : 'PARTIALLY REACHABLE'} ({successfulNodes}/{totalNodes})
         </span>
       );
     case 'all_failed':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800">
           <XCircle className="w-3.5 h-3.5 mr-1 text-red-600 dark:text-red-400" />
-          UNREACHABLE
+          {t ? t('report.allNodesFailed') : 'UNREACHABLE'}
         </span>
       );
     case 'running':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
           <Activity className="w-3.5 h-3.5 mr-1 animate-spin text-yellow-600 dark:text-yellow-400" />
-          PROBING...
+          {t ? t('report.probing') : 'PROBING...'}
         </span>
       );
   }
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, t?: (key: string) => string) {
   switch (status) {
     case 'pending':
     case 'running':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300">
           <Activity className="w-3 h-3 mr-1 animate-spin" />
-          RUNNING
+          {t ? t('report.statusRunning') : 'RUNNING'}
         </span>
       );
     case 'completed':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300">
           <CheckCircle className="w-3 h-3 mr-1" />
-          COMPLETED
+          {t ? t('report.statusCompleted') : 'COMPLETED'}
         </span>
       );
     case 'failed':
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300">
           <AlertTriangle className="w-3 h-3 mr-1" />
-          FAILED
+          {t ? t('report.statusFailed') : 'FAILED'}
         </span>
       );
     default:
@@ -1370,7 +1377,7 @@ function getStatusBadge(status: string) {
   }
 }
 
-function getCheckModeBadge(mode: CheckMode, namespace?: string, compact: boolean = false) {
+function getCheckModeBadge(mode: CheckMode, namespace?: string, compact: boolean = false, t?: any) {
   if (mode === 'host') {
     return (
       <span
@@ -1380,7 +1387,7 @@ function getCheckModeBadge(mode: CheckMode, namespace?: string, compact: boolean
         title="Check executed directly in host network mode (hostNetwork: true) on cluster node interfaces"
       >
         <Server className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-        <span>Host Network</span>
+        <span>{t ? t('report.hostNetwork') : 'Host Network'}</span>
       </span>
     );
   }
@@ -1393,7 +1400,7 @@ function getCheckModeBadge(mode: CheckMode, namespace?: string, compact: boolean
       title={`Check executed in pod network mode (CNI overlay)${namespace ? ` in namespace: ${namespace}` : ''}`}
     >
       <Network className="w-3.5 h-3.5 mr-1.5 text-sky-600 dark:text-sky-400 shrink-0" />
-      <span>Pod Network</span>
+      <span>{t ? t('report.podNetwork') : 'Pod Network'}</span>
       {namespace && (
         <span className="ml-1.5 px-1.5 py-0.2 rounded bg-sky-100/90 dark:bg-sky-900/60 text-sky-800 dark:text-sky-200 font-mono text-[11px] font-normal border border-sky-200/60 dark:border-sky-700/60">
           ns: {namespace}
@@ -1415,7 +1422,8 @@ function formatCertDate(dateStr?: string): string {
 function renderCertBadge(
   status: 'valid' | 'expiring_soon' | 'expired',
   expiry?: string,
-  daysLeft?: number
+  daysLeft?: number,
+  t?: (key: string) => string
 ) {
   const formattedDate = formatCertDate(expiry);
   if (status === 'expired') {
@@ -1425,7 +1433,7 @@ function renderCertBadge(
         title={`SSL Certificate expired on ${expiry || 'unknown'}`}
       >
         <ShieldAlert className="w-3.5 h-3.5 mr-1 text-red-600" />
-        CERT EXPIRED {daysLeft !== undefined ? `(${Math.abs(daysLeft)}d ago)` : ''}
+        {t ? t('report.certExpiredBadge') : 'CERT EXPIRED'} {daysLeft !== undefined ? `(${Math.abs(daysLeft)}d ago)` : ''}
       </span>
     );
   }
@@ -1436,7 +1444,7 @@ function renderCertBadge(
         title={`SSL Certificate expires on ${expiry || 'unknown'} (${daysLeft} days left)`}
       >
         <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-600" />
-        EXPIRING SOON ({daysLeft !== undefined ? `${daysLeft}d left` : formattedDate})
+        {t ? t('report.certExpiringBadge') : 'EXPIRING SOON'} ({daysLeft !== undefined ? `${daysLeft}d left` : formattedDate})
       </span>
     );
   }
@@ -1446,7 +1454,7 @@ function renderCertBadge(
       title={`SSL Certificate valid until ${expiry || 'unknown'}`}
     >
       <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-      CERT VALID {daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
+      {t ? t('report.certValidBadge') : 'CERT VALID'} {daysLeft !== undefined ? `(${daysLeft}d left)` : ''}
     </span>
   );
 }

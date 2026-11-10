@@ -40,6 +40,9 @@ func TestConfig_Defaults(t *testing.T) {
 	if cfg.Theme.DefaultTheme != "light" {
 		t.Errorf("expected default theme 'light', got %s", cfg.Theme.DefaultTheme)
 	}
+	if cfg.Theme.DefaultLanguage != "en" {
+		t.Errorf("expected default language 'en', got %s", cfg.Theme.DefaultLanguage)
+	}
 	if len(cfg.QuickAdd.Presets) != 2 {
 		t.Fatalf("expected 2 default quick add presets, got %d", len(cfg.QuickAdd.Presets))
 	}
@@ -478,5 +481,53 @@ func TestDefaultConfig_AdminInitialPasswordEmpty(t *testing.T) {
 	cfg := DefaultConfig()
 	if cfg.Auth.AdminInitialPassword != "" {
 		t.Errorf("expected default AdminInitialPassword to be empty for auto-generation, got '%s'", cfg.Auth.AdminInitialPassword)
+	}
+}
+
+func TestConfig_DefaultLanguage(t *testing.T) {
+	// 1. Test from YAML
+	tmpDir := t.TempDir()
+	cfgFile := filepath.Join(tmpDir, "config.yaml")
+	content := `
+theme:
+  default_language: ru
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfg.Theme.DefaultLanguage != "ru" {
+		t.Errorf("expected default language 'ru', got %s", cfg.Theme.DefaultLanguage)
+	}
+
+	// 2. Test invalid language fallback to "en"
+	contentInvalid := `
+theme:
+  default_language: fr
+`
+	if err := os.WriteFile(cfgFile, []byte(contentInvalid), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	cfgInv, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfgInv.Theme.DefaultLanguage != "en" {
+		t.Errorf("expected fallback default language 'en', got %s", cfgInv.Theme.DefaultLanguage)
+	}
+
+	// 3. Test ENV variable override
+	os.Setenv("THEME_DEFAULT_LANGUAGE", "RU")
+	defer os.Unsetenv("THEME_DEFAULT_LANGUAGE")
+	cfgEnv, err := Load("")
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfgEnv.Theme.DefaultLanguage != "ru" {
+		t.Errorf("expected env default language 'ru', got %s", cfgEnv.Theme.DefaultLanguage)
 	}
 }

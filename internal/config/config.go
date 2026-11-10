@@ -126,10 +126,11 @@ type AuthConfig struct {
 }
 
 type ThemeConfig struct {
-	PrimaryColor string `yaml:"primary_color"`
-	AccentColor  string `yaml:"accent_color"`
-	AppName      string `yaml:"app_name"`
-	DefaultTheme string `yaml:"default_theme"`
+	PrimaryColor    string `yaml:"primary_color"`
+	AccentColor     string `yaml:"accent_color"`
+	AppName         string `yaml:"app_name"`
+	DefaultTheme    string `yaml:"default_theme"`
+	DefaultLanguage string `yaml:"default_language"`
 }
 
 type QuickAddPreset struct {
@@ -211,10 +212,11 @@ func DefaultConfig() *Config {
 			OIDCEnabled:          false,
 		},
 		Theme: ThemeConfig{
-			PrimaryColor: "#ffffff",
-			AccentColor:  "#dc2626", // Red-600
-			AppName:      "Kubernetes Network Connectivity Checker",
-			DefaultTheme: "light",
+			PrimaryColor:    "#ffffff",
+			AccentColor:     "#dc2626", // Red-600
+			AppName:         "Kubernetes Network Connectivity Checker",
+			DefaultTheme:    "light",
+			DefaultLanguage: "en",
 		},
 		QuickAdd: QuickAddConfig{
 			Presets: []QuickAddPreset{
@@ -302,6 +304,12 @@ func Load(configPath string) (*Config, error) {
 			return nil, fmt.Errorf("reading oidc client secret file %s: %w", cfg.Auth.OIDC.ClientSecretFile, err)
 		}
 		cfg.Auth.OIDC.ClientSecret = strings.TrimSpace(string(data))
+	}
+
+	// Normalize default language (supported: "en", "ru")
+	cfg.Theme.DefaultLanguage = strings.ToLower(strings.TrimSpace(cfg.Theme.DefaultLanguage))
+	if cfg.Theme.DefaultLanguage != "ru" && cfg.Theme.DefaultLanguage != "en" {
+		cfg.Theme.DefaultLanguage = "en"
 	}
 
 	// Normalize and limit quick add presets (from 1 to 3 items)
@@ -557,6 +565,13 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("THEME_DEFAULT_THEME"); v != "" {
 		c.Theme.DefaultTheme = v
+	}
+	if v := os.Getenv("THEME_DEFAULT_LANGUAGE"); v != "" {
+		c.Theme.DefaultLanguage = v
+	} else if v := os.Getenv("KNCC_DEFAULT_LANGUAGE"); v != "" {
+		c.Theme.DefaultLanguage = v
+	} else if v := os.Getenv("KNCC_THEME_DEFAULT_LANGUAGE"); v != "" {
+		c.Theme.DefaultLanguage = v
 	}
 
 	// Quick Add presets

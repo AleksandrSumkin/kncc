@@ -43,4 +43,5 @@ kubeconfig
 scratch/
 .scratch/
 pr-description.md
-.preview/
+.preview/*
+!.preview/values.yaml
