@@ -39,19 +39,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/rbac.RBACReport"
+                            "$ref": "#/definitions/kncc_internal_k8s_rbac.RBACReport"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -88,7 +88,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/api.UploadFaviconRequestJSON"
+                            "$ref": "#/definitions/internal_api.UploadFaviconRequestJSON"
                         }
                     }
                 ],
@@ -96,25 +96,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MessageResponse"
+                            "$ref": "#/definitions/internal_api.MessageResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -137,19 +137,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MessageResponse"
+                            "$ref": "#/definitions/internal_api.MessageResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -186,7 +186,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/api.UploadLogoRequestJSON"
+                            "$ref": "#/definitions/internal_api.UploadLogoRequestJSON"
                         }
                     }
                 ],
@@ -194,25 +194,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MessageResponse"
+                            "$ref": "#/definitions/internal_api.MessageResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -235,19 +235,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MessageResponse"
+                            "$ref": "#/definitions/internal_api.MessageResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -278,7 +278,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.UpdateThemeSettingsRequest"
+                            "$ref": "#/definitions/internal_api.UpdateThemeSettingsRequest"
                         }
                     }
                 ],
@@ -286,31 +286,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.StatusOKResponse"
+                            "$ref": "#/definitions/internal_api.StatusOKResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -335,25 +335,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/model.UserStatsResponse"
+                            "$ref": "#/definitions/kncc_internal_model.UserStatsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -378,25 +378,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.UsersResponse"
+                            "$ref": "#/definitions/internal_api.UsersResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -425,7 +425,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.CreateUserRequest"
+                            "$ref": "#/definitions/internal_api.CreateUserRequest"
                         }
                     }
                 ],
@@ -433,31 +433,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/model.User"
+                            "$ref": "#/definitions/kncc_internal_model.User"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -483,7 +483,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.LoginRequest"
+                            "$ref": "#/definitions/internal_api.LoginRequest"
                         }
                     }
                 ],
@@ -491,25 +491,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.LoginResponse"
+                            "$ref": "#/definitions/internal_api.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -529,7 +529,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MessageResponse"
+                            "$ref": "#/definitions/internal_api.MessageResponse"
                         }
                     }
                 }
@@ -554,13 +554,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.CreateUserResponse"
+                            "$ref": "#/definitions/internal_api.CreateUserResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -594,19 +594,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.LoginResponse"
+                            "$ref": "#/definitions/internal_api.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -638,19 +638,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.LoginResponse"
+                            "$ref": "#/definitions/internal_api.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -681,13 +681,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -707,7 +707,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.AuthProvidersResponse"
+                            "$ref": "#/definitions/internal_api.AuthProvidersResponse"
                         }
                     }
                 }
@@ -738,7 +738,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.CheckRequest"
+                            "$ref": "#/definitions/kncc_internal_model.CheckRequest"
                         }
                     }
                 ],
@@ -746,25 +746,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/model.Report"
+                            "$ref": "#/definitions/kncc_internal_model.Report"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -789,19 +789,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.QuickAddResponse"
+                            "$ref": "#/definitions/internal_api.QuickAddResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -821,7 +821,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.StatusOKResponse"
+                            "$ref": "#/definitions/internal_api.StatusOKResponse"
                         }
                     },
                     "503": {
@@ -855,25 +855,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.NamespacesResponse"
+                            "$ref": "#/definitions/internal_api.NamespacesResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -893,7 +893,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.StatusOKResponse"
+                            "$ref": "#/definitions/internal_api.StatusOKResponse"
                         }
                     }
                 }
@@ -913,7 +913,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.StatusOKResponse"
+                            "$ref": "#/definitions/internal_api.StatusOKResponse"
                         }
                     },
                     "503": {
@@ -961,19 +961,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.ReportsResponse"
+                            "$ref": "#/definitions/internal_api.ReportsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -1007,31 +1007,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/model.Report"
+                            "$ref": "#/definitions/kncc_internal_model.Report"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -1065,31 +1065,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/model.Report"
+                            "$ref": "#/definitions/kncc_internal_model.Report"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/api.ErrorResponse"
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     }
                 }
@@ -1109,7 +1109,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.StatusOKResponse"
+                            "$ref": "#/definitions/internal_api.StatusOKResponse"
                         }
                     },
                     "503": {
@@ -1138,7 +1138,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.SystemConfigResponse"
+                            "$ref": "#/definitions/internal_api.SystemConfigResponse"
                         }
                     }
                 }
@@ -1231,7 +1231,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.AuthProvidersResponse": {
+        "internal_api.AuthProvidersResponse": {
             "type": "object",
             "properties": {
                 "oidc_auth_url": {
@@ -1246,7 +1246,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.CreateUserRequest": {
+        "internal_api.CreateUserRequest": {
             "type": "object",
             "properties": {
                 "email": {
@@ -1256,22 +1256,22 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "role": {
-                    "$ref": "#/definitions/model.Role"
+                    "$ref": "#/definitions/kncc_internal_model.Role"
                 },
                 "username": {
                     "type": "string"
                 }
             }
         },
-        "api.CreateUserResponse": {
+        "internal_api.CreateUserResponse": {
             "type": "object",
             "properties": {
                 "user": {
-                    "$ref": "#/definitions/model.User"
+                    "$ref": "#/definitions/kncc_internal_model.User"
                 }
             }
         },
-        "api.ErrorResponse": {
+        "internal_api.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -1280,7 +1280,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.LoginRequest": {
+        "internal_api.LoginRequest": {
             "type": "object",
             "properties": {
                 "password": {
@@ -1295,7 +1295,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.LoginResponse": {
+        "internal_api.LoginResponse": {
             "type": "object",
             "properties": {
                 "token": {
@@ -1303,11 +1303,11 @@ const docTemplate = `{
                     "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 },
                 "user": {
-                    "$ref": "#/definitions/model.User"
+                    "$ref": "#/definitions/kncc_internal_model.User"
                 }
             }
         },
-        "api.MessageResponse": {
+        "internal_api.MessageResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -1316,7 +1316,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.NamespacesResponse": {
+        "internal_api.NamespacesResponse": {
             "type": "object",
             "properties": {
                 "namespaces": {
@@ -1331,29 +1331,29 @@ const docTemplate = `{
                 }
             }
         },
-        "api.QuickAddResponse": {
+        "internal_api.QuickAddResponse": {
             "type": "object",
             "properties": {
                 "quick_add": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.TargetService"
+                        "$ref": "#/definitions/kncc_internal_model.TargetService"
                     }
                 }
             }
         },
-        "api.ReportsResponse": {
+        "internal_api.ReportsResponse": {
             "type": "object",
             "properties": {
                 "reports": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.Report"
+                        "$ref": "#/definitions/kncc_internal_model.Report"
                     }
                 }
             }
         },
-        "api.StatusOKResponse": {
+        "internal_api.StatusOKResponse": {
             "type": "object",
             "properties": {
                 "status": {
@@ -1362,7 +1362,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.SystemConfigResponse": {
+        "internal_api.SystemConfigResponse": {
             "type": "object",
             "properties": {
                 "accent_color": {
@@ -1422,7 +1422,7 @@ const docTemplate = `{
                 "quick_add_presets": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/config.QuickAddPreset"
+                        "$ref": "#/definitions/kncc_internal_config.QuickAddPreset"
                     }
                 },
                 "rate_limit_per_minute": {
@@ -1435,7 +1435,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UpdateThemeSettingsRequest": {
+        "internal_api.UpdateThemeSettingsRequest": {
             "type": "object",
             "properties": {
                 "default_language": {
@@ -1446,7 +1446,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UploadFaviconRequestJSON": {
+        "internal_api.UploadFaviconRequestJSON": {
             "type": "object",
             "properties": {
                 "data": {
@@ -1459,7 +1459,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UploadLogoRequestJSON": {
+        "internal_api.UploadLogoRequestJSON": {
             "type": "object",
             "properties": {
                 "data": {
@@ -1472,18 +1472,18 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsersResponse": {
+        "internal_api.UsersResponse": {
             "type": "object",
             "properties": {
                 "users": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.User"
+                        "$ref": "#/definitions/kncc_internal_model.User"
                     }
                 }
             }
         },
-        "config.QuickAddPreset": {
+        "kncc_internal_config.QuickAddPreset": {
             "type": "object",
             "properties": {
                 "host": {
@@ -1502,338 +1502,14 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "protocol": {
-                    "$ref": "#/definitions/model.Protocol"
+                    "$ref": "#/definitions/kncc_internal_model.Protocol"
                 },
                 "timeout_seconds": {
                     "type": "integer"
                 }
             }
         },
-        "model.CertStatus": {
-            "type": "string",
-            "enum": [
-                "valid",
-                "expiring_soon",
-                "expired"
-            ],
-            "x-enum-varnames": [
-                "CertStatusValid",
-                "CertStatusExpiringSoon",
-                "CertStatusExpired"
-            ]
-        },
-        "model.CheckMode": {
-            "type": "string",
-            "enum": [
-                "host",
-                "pod"
-            ],
-            "x-enum-varnames": [
-                "ModeHostNetwork",
-                "ModePodNetwork"
-            ]
-        },
-        "model.CheckRequest": {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "$ref": "#/definitions/model.CheckMode"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "targets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.TargetService"
-                    }
-                }
-            }
-        },
-        "model.NodeResult": {
-            "type": "object",
-            "properties": {
-                "duration_ms": {
-                    "type": "integer"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "finished_at": {
-                    "type": "string"
-                },
-                "node_ip": {
-                    "type": "string"
-                },
-                "node_name": {
-                    "type": "string"
-                },
-                "service_results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.ProbeOutput"
-                    }
-                },
-                "status": {
-                    "description": "\"completed\", \"failed\", \"timeout\", \"running\"",
-                    "type": "string"
-                }
-            }
-        },
-        "model.ProbeOutput": {
-            "type": "object",
-            "properties": {
-                "cert_days_left": {
-                    "type": "integer"
-                },
-                "cert_expiry": {
-                    "type": "string"
-                },
-                "cert_issuer": {
-                    "type": "string"
-                },
-                "cert_status": {
-                    "$ref": "#/definitions/model.CertStatus"
-                },
-                "cert_subject": {
-                    "type": "string"
-                },
-                "details": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "http_status_code": {
-                    "type": "integer"
-                },
-                "latency_ms": {
-                    "type": "integer"
-                },
-                "resolved_ip": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                },
-                "target": {
-                    "$ref": "#/definitions/model.TargetService"
-                }
-            }
-        },
-        "model.Protocol": {
-            "type": "string",
-            "enum": [
-                "tcp",
-                "udp",
-                "http",
-                "https",
-                "icmp"
-            ],
-            "x-enum-varnames": [
-                "ProtocolTCP",
-                "ProtocolUDP",
-                "ProtocolHTTP",
-                "ProtocolHTTPS",
-                "ProtocolICMP"
-            ]
-        },
-        "model.Report": {
-            "type": "object",
-            "properties": {
-                "completed_at": {
-                    "type": "string"
-                },
-                "completed_nodes": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "expires_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "mode": {
-                    "$ref": "#/definitions/model.CheckMode"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "node_results": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/model.NodeResult"
-                    }
-                },
-                "status": {
-                    "$ref": "#/definitions/model.ReportStatus"
-                },
-                "targets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.TargetService"
-                    }
-                },
-                "total_nodes": {
-                    "type": "integer"
-                },
-                "user_id": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.ReportStatus": {
-            "type": "string",
-            "enum": [
-                "pending",
-                "running",
-                "completed",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "StatusPending",
-                "StatusRunning",
-                "StatusCompleted",
-                "StatusFailed"
-            ]
-        },
-        "model.Role": {
-            "type": "string",
-            "enum": [
-                "admin",
-                "user"
-            ],
-            "x-enum-varnames": [
-                "RoleAdmin",
-                "RoleUser"
-            ]
-        },
-        "model.TargetService": {
-            "type": "object",
-            "properties": {
-                "host": {
-                    "type": "string"
-                },
-                "insecure_tls": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "path": {
-                    "type": "string"
-                },
-                "port": {
-                    "type": "integer"
-                },
-                "protocol": {
-                    "$ref": "#/definitions/model.Protocol"
-                },
-                "timeout_seconds": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.User": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "provider": {
-                    "description": "\"local\", \"ldap\", \"oidc\"",
-                    "type": "string"
-                },
-                "role": {
-                    "$ref": "#/definitions/model.Role"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "model.UserStats": {
-            "type": "object",
-            "properties": {
-                "day_count": {
-                    "type": "integer"
-                },
-                "last_active": {
-                    "type": "string"
-                },
-                "month_count": {
-                    "type": "integer"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "role": {
-                    "$ref": "#/definitions/model.Role"
-                },
-                "total_count": {
-                    "type": "integer"
-                },
-                "user_id": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                },
-                "week_count": {
-                    "type": "integer"
-                },
-                "year_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.UserStatsResponse": {
-            "type": "object",
-            "properties": {
-                "total": {
-                    "$ref": "#/definitions/model.UserStatsSummary"
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.UserStats"
-                    }
-                }
-            }
-        },
-        "model.UserStatsSummary": {
-            "type": "object",
-            "properties": {
-                "day_count": {
-                    "type": "integer"
-                },
-                "month_count": {
-                    "type": "integer"
-                },
-                "total_count": {
-                    "type": "integer"
-                },
-                "week_count": {
-                    "type": "integer"
-                },
-                "year_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "rbac.PolicyRule": {
+        "kncc_internal_k8s_rbac.PolicyRule": {
             "type": "object",
             "properties": {
                 "api_group": {
@@ -1883,7 +1559,7 @@ const docTemplate = `{
                 }
             }
         },
-        "rbac.RBACReport": {
+        "kncc_internal_k8s_rbac.RBACReport": {
             "type": "object",
             "properties": {
                 "evaluation_error": {
@@ -1895,7 +1571,7 @@ const docTemplate = `{
                 "rules": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/rbac.PolicyRule"
+                        "$ref": "#/definitions/kncc_internal_k8s_rbac.PolicyRule"
                     }
                 },
                 "source": {
@@ -1903,11 +1579,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "subject": {
-                    "$ref": "#/definitions/rbac.SubjectInfo"
+                    "$ref": "#/definitions/kncc_internal_k8s_rbac.SubjectInfo"
                 }
             }
         },
-        "rbac.SubjectInfo": {
+        "kncc_internal_k8s_rbac.SubjectInfo": {
             "type": "object",
             "properties": {
                 "kind": {
@@ -1927,11 +1603,335 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "kncc_internal_model.CertStatus": {
+            "type": "string",
+            "enum": [
+                "valid",
+                "expiring_soon",
+                "expired"
+            ],
+            "x-enum-varnames": [
+                "CertStatusValid",
+                "CertStatusExpiringSoon",
+                "CertStatusExpired"
+            ]
+        },
+        "kncc_internal_model.CheckMode": {
+            "type": "string",
+            "enum": [
+                "host",
+                "pod"
+            ],
+            "x-enum-varnames": [
+                "ModeHostNetwork",
+                "ModePodNetwork"
+            ]
+        },
+        "kncc_internal_model.CheckRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "$ref": "#/definitions/kncc_internal_model.CheckMode"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/kncc_internal_model.TargetService"
+                    }
+                }
+            }
+        },
+        "kncc_internal_model.NodeResult": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "node_ip": {
+                    "type": "string"
+                },
+                "node_name": {
+                    "type": "string"
+                },
+                "service_results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/kncc_internal_model.ProbeOutput"
+                    }
+                },
+                "status": {
+                    "description": "\"completed\", \"failed\", \"timeout\", \"running\"",
+                    "type": "string"
+                }
+            }
+        },
+        "kncc_internal_model.ProbeOutput": {
+            "type": "object",
+            "properties": {
+                "cert_days_left": {
+                    "type": "integer"
+                },
+                "cert_expiry": {
+                    "type": "string"
+                },
+                "cert_issuer": {
+                    "type": "string"
+                },
+                "cert_status": {
+                    "$ref": "#/definitions/kncc_internal_model.CertStatus"
+                },
+                "cert_subject": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "http_status_code": {
+                    "type": "integer"
+                },
+                "latency_ms": {
+                    "type": "integer"
+                },
+                "resolved_ip": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "target": {
+                    "$ref": "#/definitions/kncc_internal_model.TargetService"
+                }
+            }
+        },
+        "kncc_internal_model.Protocol": {
+            "type": "string",
+            "enum": [
+                "tcp",
+                "udp",
+                "http",
+                "https",
+                "icmp"
+            ],
+            "x-enum-varnames": [
+                "ProtocolTCP",
+                "ProtocolUDP",
+                "ProtocolHTTP",
+                "ProtocolHTTPS",
+                "ProtocolICMP"
+            ]
+        },
+        "kncc_internal_model.Report": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "completed_nodes": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mode": {
+                    "$ref": "#/definitions/kncc_internal_model.CheckMode"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "node_results": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/kncc_internal_model.NodeResult"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/kncc_internal_model.ReportStatus"
+                },
+                "targets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/kncc_internal_model.TargetService"
+                    }
+                },
+                "total_nodes": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "kncc_internal_model.ReportStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusRunning",
+                "StatusCompleted",
+                "StatusFailed"
+            ]
+        },
+        "kncc_internal_model.Role": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "RoleAdmin",
+                "RoleUser"
+            ]
+        },
+        "kncc_internal_model.TargetService": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "insecure_tls": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "protocol": {
+                    "$ref": "#/definitions/kncc_internal_model.Protocol"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "kncc_internal_model.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "\"local\", \"ldap\", \"oidc\"",
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/kncc_internal_model.Role"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "kncc_internal_model.UserStats": {
+            "type": "object",
+            "properties": {
+                "day_count": {
+                    "type": "integer"
+                },
+                "last_active": {
+                    "type": "string"
+                },
+                "month_count": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/kncc_internal_model.Role"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "week_count": {
+                    "type": "integer"
+                },
+                "year_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "kncc_internal_model.UserStatsResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "$ref": "#/definitions/kncc_internal_model.UserStatsSummary"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/kncc_internal_model.UserStats"
+                    }
+                }
+            }
+        },
+        "kncc_internal_model.UserStatsSummary": {
+            "type": "object",
+            "properties": {
+                "day_count": {
+                    "type": "integer"
+                },
+                "month_count": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "week_count": {
+                    "type": "integer"
+                },
+                "year_count": {
+                    "type": "integer"
+                }
+            }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Введите 'Bearer \u003cJWT_TOKEN\u003e' для авторизации защищенных запросов.",
+            "description": "Enter 'Bearer \u003cJWT_TOKEN\u003e' to authenticate protected requests.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -1941,12 +1941,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.14.0",
+	Version:          "1.15.0",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Kubernetes Network Connectivity Checker (kncc) API",
-	Description:      "REST API сервера kncc для диагностики сетевой связности в кластере Kubernetes.",
+	Description:      "kncc server REST API for network connectivity diagnostics in Kubernetes clusters.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

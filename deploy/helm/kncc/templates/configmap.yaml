@@ -54,6 +54,9 @@ data:
       {{- end }}
       probe_timeout_seconds: {{ .Values.k8s.probeTimeoutSeconds }}
       probe_active_deadline_seconds: {{ .Values.k8s.probeActiveDeadlineSeconds }}
+      {{- if hasKey .Values.k8s "probeAllowPrivilegeEscalation" }}
+      probe_allow_privilege_escalation: {{ .Values.k8s.probeAllowPrivilegeEscalation }}
+      {{- end }}
       gc_interval: "{{ .Values.k8s.gcInterval }}"
       gc_stale_threshold: "{{ default "3m" .Values.k8s.gcStaleThreshold }}"
 

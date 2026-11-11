@@ -30,18 +30,18 @@ import (
 )
 
 // @title Kubernetes Network Connectivity Checker (kncc) API
-// @version 1.14.0
-// @description REST API сервера kncc для диагностики сетевой связности в кластере Kubernetes.
+// @version 1.15.0
+// @description kncc server REST API for network connectivity diagnostics in Kubernetes clusters.
 // @contact.name kncc Maintainers
 // @license.name Apache 2.0
 // @BasePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Введите 'Bearer <JWT_TOKEN>' для авторизации защищенных запросов.
+// @description Enter 'Bearer <JWT_TOKEN>' to authenticate protected requests.
 
 var (
-	version = "1.14.0"
+	version = "1.15.0"
 	commit  = "none"
 	date    = "unknown"
 )

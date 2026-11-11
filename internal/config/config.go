@@ -65,9 +65,10 @@ type K8sConfig struct {
 	NamespaceListEnabled       bool          `yaml:"namespace_list_enabled"`
 	NamespaceExcludeList       []string      `yaml:"namespace_exclude_list"`
 	NamespaceExcludeSelector   string        `yaml:"namespace_exclude_selector"`
-	ProbeTimeoutSeconds        int           `yaml:"probe_timeout_seconds"`
-	ProbeActiveDeadlineSeconds int64         `yaml:"probe_active_deadline_seconds"`
-	GCInterval                 time.Duration `yaml:"gc_interval"`
+	ProbeTimeoutSeconds           int           `yaml:"probe_timeout_seconds"`
+	ProbeActiveDeadlineSeconds    int64         `yaml:"probe_active_deadline_seconds"`
+	ProbeAllowPrivilegeEscalation *bool         `yaml:"probe_allow_privilege_escalation"`
+	GCInterval                    time.Duration `yaml:"gc_interval"`
 	GCStaleThreshold           time.Duration `yaml:"gc_stale_threshold"`
 	LogoConfigMapName          string        `yaml:"logo_configmap_name"`
 	FaviconConfigMapName       string        `yaml:"favicon_configmap_name"`
@@ -181,9 +182,10 @@ func DefaultConfig() *Config {
 				"kube-node-lease",
 			},
 			NamespaceExcludeSelector:   "",
-			ProbeTimeoutSeconds:        30,
-			ProbeActiveDeadlineSeconds: 60,
-			GCInterval:                 2 * time.Minute,
+			ProbeTimeoutSeconds:           30,
+			ProbeActiveDeadlineSeconds:    60,
+			ProbeAllowPrivilegeEscalation: boolPtr(true),
+			GCInterval:                    2 * time.Minute,
 			GCStaleThreshold:           3 * time.Minute,
 			LogoConfigMapName:          "kncc-logo",
 			FaviconConfigMapName:       "kncc-favicon",
@@ -423,6 +425,11 @@ func (c *Config) loadFromEnv() {
 			c.K8s.ProbeTimeoutSeconds = t
 		}
 	}
+	if v := os.Getenv("K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION"); v != "" {
+		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
+	} else if v := os.Getenv("KNCC_K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION"); v != "" {
+		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
+	}
 	if v := os.Getenv("K8S_GC_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.K8s.GCInterval = d
@@ -609,6 +616,10 @@ func (c *Config) loadFromEnv() {
 func parseBool(s string) bool {
 	s = strings.ToLower(strings.TrimSpace(s))
 	return s == "true" || s == "1" || s == "yes" || s == "on"
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 func splitAndTrim(s, sep string) []string {

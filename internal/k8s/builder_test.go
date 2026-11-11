@@ -137,6 +137,45 @@ func TestBuildProbePod_WithKnccAgentImage(t *testing.T) {
 		pod.Spec.Containers[0].SecurityContext.Capabilities.Add[0] != corev1.Capability("NET_RAW") {
 		t.Errorf("expected NET_RAW capability to be added")
 	}
+	if pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation == nil ||
+		!*pod.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation {
+		t.Errorf("expected AllowPrivilegeEscalation to be true by default")
+	}
+}
+
+func TestBuildProbePod_AllowPrivilegeEscalationConfig(t *testing.T) {
+	report := &model.Report{
+		ID:        "rep-priv-test",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Targets: []model.TargetService{
+			{Protocol: model.ProtocolICMP, Host: "8.8.8.8"},
+		},
+	}
+
+	// 1. Explicitly disabled via config
+	f := false
+	cfg := config.DefaultConfig()
+	cfg.K8s.ProbeAllowPrivilegeEscalation = &f
+
+	podDisabled, err := BuildProbePod(report, "node-1", "kncc", cfg)
+	if err != nil {
+		t.Fatalf("BuildProbePod failed: %v", err)
+	}
+	if podDisabled.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation == nil ||
+		*podDisabled.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation != false {
+		t.Errorf("expected AllowPrivilegeEscalation to be false when configured")
+	}
+
+	// 2. nil cfg defaults to true
+	podNilCfg, err := BuildProbePod(report, "node-1", "kncc", nil)
+	if err != nil {
+		t.Fatalf("BuildProbePod with nil cfg failed: %v", err)
+	}
+	if podNilCfg.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation == nil ||
+		*podNilCfg.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation != true {
+		t.Errorf("expected AllowPrivilegeEscalation to be true when cfg is nil")
+	}
 }
 
 func corev1HasSubstring(s, sub string) bool {

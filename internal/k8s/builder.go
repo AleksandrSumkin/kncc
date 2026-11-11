@@ -34,19 +34,24 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 
 	podName := generateProbePodName(report.ID, nodeName)
 	isHostNetwork := report.Mode == model.ModeHostNetwork
-	activeDeadline := cfg.K8s.ProbeActiveDeadlineSeconds
-	if activeDeadline <= 0 {
-		activeDeadline = 60
+
+	var activeDeadline int64 = 60
+	probeImage := "wbitt/network-multitool:alpine-extra"
+	allowPrivilegeEscalation := true
+
+	if cfg != nil {
+		if cfg.K8s.ProbeActiveDeadlineSeconds > 0 {
+			activeDeadline = cfg.K8s.ProbeActiveDeadlineSeconds
+		}
+		if cfg.K8s.ProbeImage != "" {
+			probeImage = cfg.K8s.ProbeImage
+		}
+		if cfg.K8s.ProbeAllowPrivilegeEscalation != nil {
+			allowPrivilegeEscalation = *cfg.K8s.ProbeAllowPrivilegeEscalation
+		}
 	}
 
-	// Drop all capabilities except NET_RAW for ICMP ping
-	allowPrivilegeEscalation := false
 	readOnlyRootFilesystem := false // container needs to write to /dev/termination-log and /tmp
-
-	probeImage := cfg.K8s.ProbeImage
-	if probeImage == "" {
-		probeImage = "wbitt/network-multitool:alpine-extra"
-	}
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

@@ -292,7 +292,7 @@ func (h *Handler) UploadFavicon(w http.ResponseWriter, r *http.Request) {
 		"etag":              etag,
 		"mime_type":         mimeType,
 		"configmap_updated": cmUpdated,
-		"message":           "Фавикон успешно сохранен",
+		"message":           "Favicon updated successfully",
 	})
 }
 
@@ -342,7 +342,7 @@ func (h *Handler) ResetFavicon(w http.ResponseWriter, r *http.Request) {
 		"favicon_url":       fmt.Sprintf("/api/system/favicon?v=%s", hex.EncodeToString(hash[:])),
 		"etag":              etag,
 		"configmap_updated": cmUpdated,
-		"message":           "Фавикон сброшен на миниатюру корпоративного логотипа",
+		"message":           "Favicon reset to corporate logo thumbnail",
 	})
 }
 

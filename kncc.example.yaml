@@ -60,6 +60,11 @@ k8s:
 
   probe_timeout_seconds: 30
   probe_active_deadline_seconds: 60
+  # Controls allowPrivilegeEscalation in probe pod SecurityContext.
+  # When true (default), unprivileged probe containers (such as kncc-agent running as UID 10001)
+  # are permitted to utilize the SUID bit on /bin/ping to acquire the NET_RAW capability,
+  # enabling ICMP checks in HostNetwork mode without granting any extra capabilities.
+  probe_allow_privilege_escalation: true
   gc_interval: "2m"
   # Minimum age before an orphaned or zombie probe pod is deleted by GC.
   # Prevents race conditions with actively running or just completed checks.

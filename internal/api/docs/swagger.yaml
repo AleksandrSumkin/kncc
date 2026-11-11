@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  api.AuthProvidersResponse:
+  internal_api.AuthProvidersResponse:
     properties:
       oidc_auth_url:
         example: http://dex:5556/auth
@@ -10,29 +10,29 @@ definitions:
           type: string
         type: array
     type: object
-  api.CreateUserRequest:
+  internal_api.CreateUserRequest:
     properties:
       email:
         type: string
       password:
         type: string
       role:
-        $ref: '#/definitions/model.Role'
+        $ref: '#/definitions/kncc_internal_model.Role'
       username:
         type: string
     type: object
-  api.CreateUserResponse:
+  internal_api.CreateUserResponse:
     properties:
       user:
-        $ref: '#/definitions/model.User'
+        $ref: '#/definitions/kncc_internal_model.User'
     type: object
-  api.ErrorResponse:
+  internal_api.ErrorResponse:
     properties:
       error:
         example: invalid request parameter
         type: string
     type: object
-  api.LoginRequest:
+  internal_api.LoginRequest:
     properties:
       password:
         type: string
@@ -42,21 +42,21 @@ definitions:
       username:
         type: string
     type: object
-  api.LoginResponse:
+  internal_api.LoginResponse:
     properties:
       token:
         example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         type: string
       user:
-        $ref: '#/definitions/model.User'
+        $ref: '#/definitions/kncc_internal_model.User'
     type: object
-  api.MessageResponse:
+  internal_api.MessageResponse:
     properties:
       message:
         example: operation completed successfully
         type: string
     type: object
-  api.NamespacesResponse:
+  internal_api.NamespacesResponse:
     properties:
       namespaces:
         items:
@@ -66,27 +66,27 @@ definitions:
         example: cluster
         type: string
     type: object
-  api.QuickAddResponse:
+  internal_api.QuickAddResponse:
     properties:
       quick_add:
         items:
-          $ref: '#/definitions/model.TargetService'
+          $ref: '#/definitions/kncc_internal_model.TargetService'
         type: array
     type: object
-  api.ReportsResponse:
+  internal_api.ReportsResponse:
     properties:
       reports:
         items:
-          $ref: '#/definitions/model.Report'
+          $ref: '#/definitions/kncc_internal_model.Report'
         type: array
     type: object
-  api.StatusOKResponse:
+  internal_api.StatusOKResponse:
     properties:
       status:
         example: ok
         type: string
     type: object
-  api.SystemConfigResponse:
+  internal_api.SystemConfigResponse:
     properties:
       accent_color:
         example: '#dc2626'
@@ -130,7 +130,7 @@ definitions:
         type: string
       quick_add_presets:
         items:
-          $ref: '#/definitions/config.QuickAddPreset'
+          $ref: '#/definitions/kncc_internal_config.QuickAddPreset'
         type: array
       rate_limit_per_minute:
         example: 30
@@ -139,14 +139,14 @@ definitions:
         example: 1.11.0
         type: string
     type: object
-  api.UpdateThemeSettingsRequest:
+  internal_api.UpdateThemeSettingsRequest:
     properties:
       default_language:
         type: string
       default_theme:
         type: string
     type: object
-  api.UploadFaviconRequestJSON:
+  internal_api.UploadFaviconRequestJSON:
     properties:
       data:
         description: raw SVG or base64 data URL / raw base64
@@ -155,7 +155,7 @@ definitions:
         description: optional MIME type hint
         type: string
     type: object
-  api.UploadLogoRequestJSON:
+  internal_api.UploadLogoRequestJSON:
     properties:
       data:
         description: raw SVG or base64 data URL
@@ -164,14 +164,14 @@ definitions:
         description: optional MIME type hint
         type: string
     type: object
-  api.UsersResponse:
+  internal_api.UsersResponse:
     properties:
       users:
         items:
-          $ref: '#/definitions/model.User'
+          $ref: '#/definitions/kncc_internal_model.User'
         type: array
     type: object
-  config.QuickAddPreset:
+  kncc_internal_config.QuickAddPreset:
     properties:
       host:
         type: string
@@ -184,232 +184,11 @@ definitions:
       port:
         type: integer
       protocol:
-        $ref: '#/definitions/model.Protocol'
+        $ref: '#/definitions/kncc_internal_model.Protocol'
       timeout_seconds:
         type: integer
     type: object
-  model.CertStatus:
-    enum:
-    - valid
-    - expiring_soon
-    - expired
-    type: string
-    x-enum-varnames:
-    - CertStatusValid
-    - CertStatusExpiringSoon
-    - CertStatusExpired
-  model.CheckMode:
-    enum:
-    - host
-    - pod
-    type: string
-    x-enum-varnames:
-    - ModeHostNetwork
-    - ModePodNetwork
-  model.CheckRequest:
-    properties:
-      mode:
-        $ref: '#/definitions/model.CheckMode'
-      namespace:
-        type: string
-      targets:
-        items:
-          $ref: '#/definitions/model.TargetService'
-        type: array
-    type: object
-  model.NodeResult:
-    properties:
-      duration_ms:
-        type: integer
-      error:
-        type: string
-      finished_at:
-        type: string
-      node_ip:
-        type: string
-      node_name:
-        type: string
-      service_results:
-        items:
-          $ref: '#/definitions/model.ProbeOutput'
-        type: array
-      status:
-        description: '"completed", "failed", "timeout", "running"'
-        type: string
-    type: object
-  model.ProbeOutput:
-    properties:
-      cert_days_left:
-        type: integer
-      cert_expiry:
-        type: string
-      cert_issuer:
-        type: string
-      cert_status:
-        $ref: '#/definitions/model.CertStatus'
-      cert_subject:
-        type: string
-      details:
-        type: string
-      error:
-        type: string
-      http_status_code:
-        type: integer
-      latency_ms:
-        type: integer
-      resolved_ip:
-        type: string
-      success:
-        type: boolean
-      target:
-        $ref: '#/definitions/model.TargetService'
-    type: object
-  model.Protocol:
-    enum:
-    - tcp
-    - udp
-    - http
-    - https
-    - icmp
-    type: string
-    x-enum-varnames:
-    - ProtocolTCP
-    - ProtocolUDP
-    - ProtocolHTTP
-    - ProtocolHTTPS
-    - ProtocolICMP
-  model.Report:
-    properties:
-      completed_at:
-        type: string
-      completed_nodes:
-        type: integer
-      created_at:
-        type: string
-      expires_at:
-        type: string
-      id:
-        type: string
-      mode:
-        $ref: '#/definitions/model.CheckMode'
-      namespace:
-        type: string
-      node_results:
-        additionalProperties:
-          $ref: '#/definitions/model.NodeResult'
-        type: object
-      status:
-        $ref: '#/definitions/model.ReportStatus'
-      targets:
-        items:
-          $ref: '#/definitions/model.TargetService'
-        type: array
-      total_nodes:
-        type: integer
-      user_id:
-        type: string
-      username:
-        type: string
-    type: object
-  model.ReportStatus:
-    enum:
-    - pending
-    - running
-    - completed
-    - failed
-    type: string
-    x-enum-varnames:
-    - StatusPending
-    - StatusRunning
-    - StatusCompleted
-    - StatusFailed
-  model.Role:
-    enum:
-    - admin
-    - user
-    type: string
-    x-enum-varnames:
-    - RoleAdmin
-    - RoleUser
-  model.TargetService:
-    properties:
-      host:
-        type: string
-      insecure_tls:
-        type: boolean
-      name:
-        type: string
-      path:
-        type: string
-      port:
-        type: integer
-      protocol:
-        $ref: '#/definitions/model.Protocol'
-      timeout_seconds:
-        type: integer
-    type: object
-  model.User:
-    properties:
-      created_at:
-        type: string
-      email:
-        type: string
-      id:
-        type: string
-      provider:
-        description: '"local", "ldap", "oidc"'
-        type: string
-      role:
-        $ref: '#/definitions/model.Role'
-      username:
-        type: string
-    type: object
-  model.UserStats:
-    properties:
-      day_count:
-        type: integer
-      last_active:
-        type: string
-      month_count:
-        type: integer
-      provider:
-        type: string
-      role:
-        $ref: '#/definitions/model.Role'
-      total_count:
-        type: integer
-      user_id:
-        type: string
-      username:
-        type: string
-      week_count:
-        type: integer
-      year_count:
-        type: integer
-    type: object
-  model.UserStatsResponse:
-    properties:
-      total:
-        $ref: '#/definitions/model.UserStatsSummary'
-      users:
-        items:
-          $ref: '#/definitions/model.UserStats'
-        type: array
-    type: object
-  model.UserStatsSummary:
-    properties:
-      day_count:
-        type: integer
-      month_count:
-        type: integer
-      total_count:
-        type: integer
-      week_count:
-        type: integer
-      year_count:
-        type: integer
-    type: object
-  rbac.PolicyRule:
+  kncc_internal_k8s_rbac.PolicyRule:
     properties:
       api_group:
         description: '"core" or named group'
@@ -445,7 +224,7 @@ definitions:
           type: string
         type: array
     type: object
-  rbac.RBACReport:
+  kncc_internal_k8s_rbac.RBACReport:
     properties:
       evaluation_error:
         type: string
@@ -453,15 +232,15 @@ definitions:
         type: string
       rules:
         items:
-          $ref: '#/definitions/rbac.PolicyRule'
+          $ref: '#/definitions/kncc_internal_k8s_rbac.PolicyRule'
         type: array
       source:
         description: '"cluster-rbac", "self-subject-rules-review", "mock"'
         type: string
       subject:
-        $ref: '#/definitions/rbac.SubjectInfo'
+        $ref: '#/definitions/kncc_internal_k8s_rbac.SubjectInfo'
     type: object
-  rbac.SubjectInfo:
+  kncc_internal_k8s_rbac.SubjectInfo:
     properties:
       kind:
         description: '"ServiceAccount" or "User"'
@@ -476,15 +255,236 @@ definitions:
         description: e.g. "system:serviceaccount:kncc:kncc"
         type: string
     type: object
+  kncc_internal_model.CertStatus:
+    enum:
+    - valid
+    - expiring_soon
+    - expired
+    type: string
+    x-enum-varnames:
+    - CertStatusValid
+    - CertStatusExpiringSoon
+    - CertStatusExpired
+  kncc_internal_model.CheckMode:
+    enum:
+    - host
+    - pod
+    type: string
+    x-enum-varnames:
+    - ModeHostNetwork
+    - ModePodNetwork
+  kncc_internal_model.CheckRequest:
+    properties:
+      mode:
+        $ref: '#/definitions/kncc_internal_model.CheckMode'
+      namespace:
+        type: string
+      targets:
+        items:
+          $ref: '#/definitions/kncc_internal_model.TargetService'
+        type: array
+    type: object
+  kncc_internal_model.NodeResult:
+    properties:
+      duration_ms:
+        type: integer
+      error:
+        type: string
+      finished_at:
+        type: string
+      node_ip:
+        type: string
+      node_name:
+        type: string
+      service_results:
+        items:
+          $ref: '#/definitions/kncc_internal_model.ProbeOutput'
+        type: array
+      status:
+        description: '"completed", "failed", "timeout", "running"'
+        type: string
+    type: object
+  kncc_internal_model.ProbeOutput:
+    properties:
+      cert_days_left:
+        type: integer
+      cert_expiry:
+        type: string
+      cert_issuer:
+        type: string
+      cert_status:
+        $ref: '#/definitions/kncc_internal_model.CertStatus'
+      cert_subject:
+        type: string
+      details:
+        type: string
+      error:
+        type: string
+      http_status_code:
+        type: integer
+      latency_ms:
+        type: integer
+      resolved_ip:
+        type: string
+      success:
+        type: boolean
+      target:
+        $ref: '#/definitions/kncc_internal_model.TargetService'
+    type: object
+  kncc_internal_model.Protocol:
+    enum:
+    - tcp
+    - udp
+    - http
+    - https
+    - icmp
+    type: string
+    x-enum-varnames:
+    - ProtocolTCP
+    - ProtocolUDP
+    - ProtocolHTTP
+    - ProtocolHTTPS
+    - ProtocolICMP
+  kncc_internal_model.Report:
+    properties:
+      completed_at:
+        type: string
+      completed_nodes:
+        type: integer
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      mode:
+        $ref: '#/definitions/kncc_internal_model.CheckMode'
+      namespace:
+        type: string
+      node_results:
+        additionalProperties:
+          $ref: '#/definitions/kncc_internal_model.NodeResult'
+        type: object
+      status:
+        $ref: '#/definitions/kncc_internal_model.ReportStatus'
+      targets:
+        items:
+          $ref: '#/definitions/kncc_internal_model.TargetService'
+        type: array
+      total_nodes:
+        type: integer
+      user_id:
+        type: string
+      username:
+        type: string
+    type: object
+  kncc_internal_model.ReportStatus:
+    enum:
+    - pending
+    - running
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusRunning
+    - StatusCompleted
+    - StatusFailed
+  kncc_internal_model.Role:
+    enum:
+    - admin
+    - user
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+  kncc_internal_model.TargetService:
+    properties:
+      host:
+        type: string
+      insecure_tls:
+        type: boolean
+      name:
+        type: string
+      path:
+        type: string
+      port:
+        type: integer
+      protocol:
+        $ref: '#/definitions/kncc_internal_model.Protocol'
+      timeout_seconds:
+        type: integer
+    type: object
+  kncc_internal_model.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      provider:
+        description: '"local", "ldap", "oidc"'
+        type: string
+      role:
+        $ref: '#/definitions/kncc_internal_model.Role'
+      username:
+        type: string
+    type: object
+  kncc_internal_model.UserStats:
+    properties:
+      day_count:
+        type: integer
+      last_active:
+        type: string
+      month_count:
+        type: integer
+      provider:
+        type: string
+      role:
+        $ref: '#/definitions/kncc_internal_model.Role'
+      total_count:
+        type: integer
+      user_id:
+        type: string
+      username:
+        type: string
+      week_count:
+        type: integer
+      year_count:
+        type: integer
+    type: object
+  kncc_internal_model.UserStatsResponse:
+    properties:
+      total:
+        $ref: '#/definitions/kncc_internal_model.UserStatsSummary'
+      users:
+        items:
+          $ref: '#/definitions/kncc_internal_model.UserStats'
+        type: array
+    type: object
+  kncc_internal_model.UserStatsSummary:
+    properties:
+      day_count:
+        type: integer
+      month_count:
+        type: integer
+      total_count:
+        type: integer
+      week_count:
+        type: integer
+      year_count:
+        type: integer
+    type: object
 info:
   contact:
     name: kncc Maintainers
-  description: REST API сервера kncc для диагностики сетевой связности в кластере
-    Kubernetes.
+  description: kncc server REST API for network connectivity diagnostics in Kubernetes
+    clusters.
   license:
     name: Apache 2.0
   title: Kubernetes Network Connectivity Checker (kncc) API
-  version: 1.14.0
+  version: 1.15.0
 paths:
   /api/admin/rbac:
     get:
@@ -496,15 +496,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/rbac.RBACReport'
+            $ref: '#/definitions/kncc_internal_k8s_rbac.RBACReport'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Inspect cluster RBAC permissions
@@ -520,15 +520,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.MessageResponse'
+            $ref: '#/definitions/internal_api.MessageResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Reset favicon to default
@@ -548,26 +548,26 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/api.UploadFaviconRequestJSON'
+          $ref: '#/definitions/internal_api.UploadFaviconRequestJSON'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.MessageResponse'
+            $ref: '#/definitions/internal_api.MessageResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Upload custom favicon
@@ -582,15 +582,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.MessageResponse'
+            $ref: '#/definitions/internal_api.MessageResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Reset corporate logo to default
@@ -610,26 +610,26 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/api.UploadLogoRequestJSON'
+          $ref: '#/definitions/internal_api.UploadLogoRequestJSON'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.MessageResponse'
+            $ref: '#/definitions/internal_api.MessageResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Upload corporate logo
@@ -647,30 +647,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/api.UpdateThemeSettingsRequest'
+          $ref: '#/definitions/internal_api.UpdateThemeSettingsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.StatusOKResponse'
+            $ref: '#/definitions/internal_api.StatusOKResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update system theme setting
@@ -685,19 +685,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.UserStatsResponse'
+            $ref: '#/definitions/kncc_internal_model.UserStatsResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get user diagnostic request statistics
@@ -712,19 +712,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.UsersResponse'
+            $ref: '#/definitions/internal_api.UsersResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: List all users
@@ -740,30 +740,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/api.CreateUserRequest'
+          $ref: '#/definitions/internal_api.CreateUserRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/model.User'
+            $ref: '#/definitions/kncc_internal_model.User'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a new user
@@ -781,26 +781,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/api.LoginRequest'
+          $ref: '#/definitions/internal_api.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.LoginResponse'
+            $ref: '#/definitions/internal_api.LoginResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       summary: User login
       tags:
       - auth
@@ -813,7 +813,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.MessageResponse'
+            $ref: '#/definitions/internal_api.MessageResponse'
       summary: User logout
       tags:
       - auth
@@ -826,11 +826,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.CreateUserResponse'
+            $ref: '#/definitions/internal_api.CreateUserResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get current user profile
@@ -855,15 +855,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.LoginResponse'
+            $ref: '#/definitions/internal_api.LoginResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       summary: OIDC callback handler
       tags:
       - auth
@@ -885,15 +885,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.LoginResponse'
+            $ref: '#/definitions/internal_api.LoginResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       summary: OIDC callback handler
       tags:
       - auth
@@ -913,11 +913,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       summary: Initiate OIDC Single Sign-On
       tags:
       - auth
@@ -930,7 +930,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.AuthProvidersResponse'
+            $ref: '#/definitions/internal_api.AuthProvidersResponse'
       summary: Get active authentication providers
       tags:
       - auth
@@ -945,26 +945,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/model.CheckRequest'
+          $ref: '#/definitions/kncc_internal_model.CheckRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/model.Report'
+            $ref: '#/definitions/kncc_internal_model.Report'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Submit network connectivity check
@@ -979,15 +979,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.QuickAddResponse'
+            $ref: '#/definitions/internal_api.QuickAddResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get quick-add diagnostic targets
@@ -1002,7 +1002,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.StatusOKResponse'
+            $ref: '#/definitions/internal_api.StatusOKResponse'
         "503":
           description: Service Unavailable
           schema:
@@ -1021,19 +1021,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.NamespacesResponse'
+            $ref: '#/definitions/internal_api.NamespacesResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: List allowed Kubernetes namespaces
@@ -1048,7 +1048,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.StatusOKResponse'
+            $ref: '#/definitions/internal_api.StatusOKResponse'
       summary: Kubernetes liveness probe
       tags:
       - system
@@ -1061,7 +1061,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.StatusOKResponse'
+            $ref: '#/definitions/internal_api.StatusOKResponse'
         "503":
           description: Service Unavailable
           schema:
@@ -1090,15 +1090,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.ReportsResponse'
+            $ref: '#/definitions/internal_api.ReportsResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: List connectivity reports
@@ -1119,23 +1119,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/model.Report'
+            $ref: '#/definitions/kncc_internal_model.Report'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get connectivity report by ID
@@ -1156,23 +1156,23 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/model.Report'
+            $ref: '#/definitions/kncc_internal_model.Report'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/api.ErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Rerun existing connectivity check
@@ -1188,7 +1188,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.StatusOKResponse'
+            $ref: '#/definitions/internal_api.StatusOKResponse'
         "503":
           description: Service Unavailable
           schema:
@@ -1207,7 +1207,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.SystemConfigResponse'
+            $ref: '#/definitions/internal_api.SystemConfigResponse'
       summary: Get system configuration
       tags:
       - system
@@ -1274,7 +1274,7 @@ paths:
       - system
 securityDefinitions:
   BearerAuth:
-    description: Введите 'Bearer <JWT_TOKEN>' для авторизации защищенных запросов.
+    description: Enter 'Bearer <JWT_TOKEN>' to authenticate protected requests.
     in: header
     name: Authorization
     type: apiKey

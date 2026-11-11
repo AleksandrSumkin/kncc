@@ -21,6 +21,7 @@ RUN apk add --no-cache \
     iputils-ping \
     bind-tools \
     musl-utils \
+    && chmod 4755 /bin/ping \
     && rm -rf /var/cache/apk/* /tmp/*
 
 # Create dedicated non-root kncc-agent user and group

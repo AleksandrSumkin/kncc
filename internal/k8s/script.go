@@ -211,6 +211,8 @@ else
   SUCCESS=false
   if [ -z "$RESOLVED_IP" ]; then
     ERR_MSG="DNS resolution failed for host $HOST"
+  elif echo "$PING_OUT" | grep -qiE "Operation not permitted|missing cap_net_raw|Permission denied"; then
+    ERR_MSG="ICMP socket permission denied: Operation not permitted (check container NET_RAW capability and allowPrivilegeEscalation)"
   else
     ERR_MSG="ICMP ping packet loss / destination unreachable"
   fi

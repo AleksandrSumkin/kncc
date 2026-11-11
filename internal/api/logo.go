@@ -291,7 +291,7 @@ func (h *Handler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 		"etag":              etag,
 		"mime_type":         mimeType,
 		"configmap_updated": cmUpdated,
-		"message":           "Корпоративный логотип успешно сохранен",
+		"message":           "Corporate logo updated successfully",
 	})
 }
 
@@ -341,7 +341,7 @@ func (h *Handler) ResetLogo(w http.ResponseWriter, r *http.Request) {
 		"success":           true,
 		"logo_url":          fmt.Sprintf("/api/system/logo?v=%s", hex.EncodeToString(hash[:])),
 		"configmap_updated": cmUpdated,
-		"message":           "Логотип сброшен на значение по умолчанию (судостроение)",
+		"message":           "Logo reset to default value",
 	})
 }
 

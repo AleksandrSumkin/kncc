@@ -32,6 +32,7 @@ func TestBuildProbeScript(t *testing.T) {
 		"INSECURE_FLAG=\"-k\"",
 		"nc -u -z -w \"$TIMEOUT\" \"$HOST\" \"$PORT\"",
 		"ping -c 2 -W \"$TIMEOUT\" \"$HOST\"",
+		"Operation not permitted|missing cap_net_raw|Permission denied",
 		"LOG_FILE=\"/dev/termination-log\"",
 		"exit 0",
 	}

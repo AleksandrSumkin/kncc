@@ -1,7 +1,7 @@
 ﻿# Kubernetes Network Connectivity Checker (`kncc`)
 
 <p align="center">
-  <strong>Легковесный, открытый инструмент параллельной сетевой диагностики для Kubernetes</strong>
+  <strong>A lightweight, open-source parallel network connectivity diagnostic tool for Kubernetes</strong>
 </p>
 
 <p align="center">
@@ -14,28 +14,28 @@
 
 ---
 
-## 1. Проблема и назначение проекта
+## 1. Problem Statement & Project Purpose
 
-В enterprise-окружениях и многопользовательских кластерах Kubernetes со строгой сетевой сегментацией (Firewall, CNI NetworkPolicy, Calico, Cilium) у обычных разработчиков и инженеров поддержки **нет прямого доступа к узлам (`node access`) и запрещён `kubectl exec` в контейнеры**.
+In enterprise environments and multi-tenant Kubernetes clusters with strict network segmentation (firewalls, CNI NetworkPolicies, Calico, Cilium), regular developers and support engineers **lack direct node access and are restricted from running `kubectl exec` into containers**.
 
-При развертывании приложений часто возникает ситуация, когда внешний сервис (база данных, корпоративный API, внешний брокер сообщений) недоступен с определенных узлов или из конкретных неймспейсов. Приложение при старте падает с сетевыми ошибками, что затягивает отладку и несет риски для бизнеса.
+During application deployment, scenarios frequently arise where an external service (database, corporate API, message broker) is unreachable from specific cluster nodes or target namespaces. Applications crash on startup with cryptic network errors, prolonging troubleshooting and posing business risks.
 
-**kncc** решает эту проблему:
-- Позволяет пользователям и инженерам поддержки через простой веб-интерфейс и API запустить проверку достижимости внешних сервисов **параллельно со всех узлов кластера** (в один клик кнопкой **«Run Check»**).
-- Предоставляет ориентированный на цели интерфейс отчётов (**Target-Centric View**) со сводными статусами (`ALL NODES REACHABLE`, `PARTIALLY REACHABLE`, `UNREACHABLE`), интерактивными чипами узлов и быстрым возвратом к редактированию (**Back to Edit**).
-- Поддерживает два ключевых режима: **Host Network** (проверка физической маршрутизации узла и фаервола) и **Pod Network** (проверка CNI-сети и `NetworkPolicy` в целевом namespace).
-- Поддерживает безопасный выбор или ручной ввод целевого namespace с фильтрацией системных пространств имён.
-- Позволяет делиться постоянной ссылкой на отчет с коллегами и сетевыми администраторами, а также перезапускать проверки в один клик.
+**kncc** solves this challenge:
+- Empowers users and support engineers through an intuitive web UI and REST API to run connectivity checks against external targets **in parallel across all cluster nodes** (with a single click of the **"Run Check"** button).
+- Provides a **Target-Centric Report View** with aggregate reachability statuses (`ALL NODES REACHABLE`, `PARTIALLY REACHABLE`, `UNREACHABLE`), interactive node chips, and a instant **Back to Edit** action.
+- Supports two key diagnostic modes: **Host Network** (verifies physical node routing and perimeter firewalls) and **Pod Network** (verifies CNI overlays and `NetworkPolicy` rules within a target namespace).
+- Supports safe namespace selection via interactive cluster dropdown or manual input with automatic exclusion of system namespaces.
+- Enables persistent link sharing for diagnostic reports with colleagues and network administrators, as well as one-click test reruns.
 
-История изменений проекта документируется в файле **[CHANGELOG.md](CHANGELOG.md)**.
+The complete version history is documented in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
-## 2. Архитектура и схема работы
+## 2. Architecture & How It Works
 
 ```text
                       +---------------------------------------+
-                      |               Браузер                 |
+                      |                Browser                |
                       |   React 18 + Vite + Tailwind CSS SPA  |
                       +-------------------+-------------------+
                                           |
@@ -52,7 +52,7 @@
 |                              Runner | K8s API                                   |
 +-------------------------------------|-------------------------------------------+
                                       |
-         Параллельный запуск On-Demand Pods на каждом узле кластера
+         Concurrent execution of On-Demand Pods on every cluster node
                                       |
         +-----------------------------+-----------------------------+
         |                             |                             |
@@ -67,198 +67,199 @@
         |                             |                             |
         +-----------------------------+-----------------------------+
                                       v
-       Результаты диагностики в /dev/termination-log (JSON) -> Report
+       Diagnostic output written to /dev/termination-log (JSON) -> Report
 ```
 
-### Ключевые архитектурные принципы:
-1. **On-Demand Pods:** отсутствие постоянно висящих агентов. Поды создаются только на время проверки и сразу же удаляются backend'ом.
-2. **Гарантированное расписание на всех узлах:** автоматические системные `Tolerations` (`operator: Exists`) позволяют проводить диагностику на master/control-plane и любых tainted узлах (GPU, выделенные пулы).
-3. **Быстрый и надежный сбор результатов:** зонд формирует структурированный JSON с latency, DNS-резолвом и кодами ошибок в `/dev/termination-log`. Backend читает статус завершения напрямую из Pod API без тяжелого стриминга логов.
-4. **Автономный Garbage Collector:** фоновый воркер `kncc` периодически очищает любые завершившиеся или зависшие поды `kncc-probe` с контролем возраста (`k8s.gcStaleThreshold`) и поддержкой очистки по всем namespace кластера в режиме Multi-Namespace.
+### Key Architectural Principles:
+1. **On-Demand Pods:** Zero long-running daemon agents. Pods are spun up strictly for the duration of a check and immediately cleaned up by the backend.
+2. **Guaranteed Scheduling on All Nodes:** System `Tolerations` (`operator: Exists`) ensure execution across master/control-plane and tainted nodes (GPU, dedicated node pools).
+3. **Fast and Reliable Result Gathering:** Each probe writes structured JSON containing latency, DNS resolution, and error details to `/dev/termination-log`. The backend extracts results directly from Pod API termination status without streaming logs.
+4. **Autonomous Garbage Collector:** Background GC worker periodically discovers and purges finished or abandoned `kncc-probe` pods with age safeguards (`k8s.gcStaleThreshold`) across all namespaces in Multi-Namespace mode.
 
 ---
 
-## 3. Поддерживаемые протоколы и режимы
+## 3. Supported Protocols and Network Modes
 
-### Протоколы:
-* **TCP:** проверка установки 3-way handshake (SYN/ACK). Различает ошибки: закрытый порт (*Connection refused RST*) и блокировку фаерволом (*Connection timed out*).
-* **UDP:** отправка дейтаграмм и валидация доступности порта без ICMP Port Unreachable.
-* **HTTP / HTTPS:** замер времени ответа (latency), валидация статусов (2xx/3xx), опциональный пропуск валидации TLS (`insecure_tls`). Для **HTTPS** автоматически собираются и отображаются сведения о сертификате (дата окончания, количество оставшихся дней, субъект и издатель) с предупреждениями при скором истечении (<=30 дней) или явной подсветкой просроченных сертификатов.
-* **ICMP (Ping):** измерение среднего RTT (latency) и процента потерь пакетов.
+### Protocols:
+* **TCP:** Validates 3-way handshake (SYN/ACK). Clearly distinguishes between closed ports (*Connection refused RST*) and firewall drops (*Connection timed out*).
+* **UDP:** Sends test datagrams and validates port responsiveness without ICMP Port Unreachable responses.
+* **HTTP / HTTPS:** Measures latency, validates HTTP status codes (2xx/3xx), with optional TLS certificate validation bypass (`insecure_tls`). For **HTTPS**, automatically collects and displays certificate validity dates, remaining days, subject, and issuer, flagging expiring certificates (<=30 days) and expired certificates.
+* **ICMP (Ping):** Measures average round-trip time (RTT latency) and packet loss percentage.
 
-### Режимы сетевой проверки:
-* **`Host Network` (`hostNetwork: true`):** запуск на уровне сетевого пространства самого узла. Проверяет физическую маршрутизацию, шлюз по умолчанию и корпоративные периметровые Firewall.
-* **`Pod Network`:** запуск внутри CNI-сети в указанном пользователем `Namespace`. Позволяет выявить блокировки со стороны `NetworkPolicy` (Calico, Cilium, kube-router).
+### Network Check Modes:
+* **`Host Network` (`hostNetwork: true`):** Runs inside the host network namespace of the node. Validates physical node routing, default gateway, and corporate perimeter firewalls.
+* **`Pod Network`:** Runs inside the CNI overlay network in a user-specified `Namespace`. Identifies traffic blocks enforced by `NetworkPolicy` controllers (Calico, Cilium, kube-router).
 
-#### Выбор Target Namespace (ручной ввод или выпадающий список):
-- **Безопасный режим по умолчанию (`k8s.namespace_list_enabled: false`):** пользователь вручную вводит свой namespace. Приложению вообще не выдаются права на чтение пространств имён кластера (соответствие принципу наименьших привилегий).
-- **Режим выпадающего списка (`k8s.namespace_list_enabled: true`):** администратор разрешает kncc опрашивать Kubernetes API и предоставлять список пространств имён в UI. Пользователь может как выбрать namespace из списка, так и переключиться в режим ручного ввода.
-- **Фильтрация и черный список:**
-  - Системные пространства имён (`kube-system`, `kube-public`, `kube-node-lease` или кастомные из `namespace_exclude_list`) исключаются из списка.
-  - Поддержка `namespace_exclude_selector` (LabelSelector): администратор может маркировать чувствительные или системные namespace лейблом (например, `kncc.io/exclude=true`), и они автоматически скроются из UI.
-  - **Anti-Bypass:** API бэкенда (`POST /api/checks`) гарантированно блокирует попытку запуска зонда в исключенных namespace, даже если запрос был отправлен напрямую через curl или скрипт.
-
----
-
-### 3.3. Анализ отчётов (Target-Centric Reporting & Back to Edit)
-
-Отчёт о сетевой проверке предоставляет два режима визуализации:
-
-- **Режим группировки по целям (`By Target`, по умолчанию):**
-  - Результаты агрегируются вокруг проверяемых сервисов, а не узлов кластера.
-  - Мгновенные статусы доступности цели по всему кластеру:
-    - **`ALL NODES REACHABLE`** — цель успешно достижима со 100% узлов.
-    - **`PARTIALLY REACHABLE`** — частичная изоляция (цель доступна с одних узлов, но заблокирована на других).
-    - **`UNREACHABLE`** — полная недоступность цели с узлов кластера.
-  - Интерактивные мини-чипы узлов (`✓ node`, `✗ node`) прямо в шапке карточки цели.
-  - Карточки целей по умолчанию свернуты для компактности при диагностике десятков сервисов.
-  - Кнопки массового раскрытия и сворачивания (`Expand all` / `Collapse all`).
-  - Быстрые фильтры состояния: `All`, `Issues Only` (выделяет только проблемные сервисы) и `All Reachable`.
-  - Полнотекстовый поиск по имени сервиса, IP-адресу или имени узла.
-
-- **Режим по узлам (`By Node`):**
-  - Классический аудит доступности относительно физических узлов кластера.
-  - Наглядное отображение времени выполнения зонда (`Probe runtime`) в секундах (`X.Xs`) или миллисекундах (`X ms`) с поясняющей всплывающей подсказкой и иконкой таймера, чётко разграниченное с сетевой задержкой таргетов (RTT).
-  - Оптимизированный опрос хостов по IP-адресам без ожидания таймаутов обратных DNS PTR-запросов.
-
-- **Индикация сетевого режима (Check Mode Marker):**
-  - Контрастный бейдж сетевого режима (**`Host Network`** или **`Pod Network`** с указанием `ns: <namespace>`) расположен непосредственно в панели управления результатами рядом с переключателем вида `By Target` / `By Node`, а также в шапке страницы отчёта.
-  - Позволяет операторам и сетевым инженерам мгновенно идентифицировать контекст выполнения: тестировался ли сетевой стек самого хоста ноды (`hostNetwork: true`) или изолированная оверлейная сеть подов (CNI) с применением `NetworkPolicy`.
-  - Содержит поясняющие всплывающие подсказки (тултипы) и поддерживает светлую и тёмную темы оформления.
-
-- **Возврат к редактированию параметров (`Back to Edit`):**
-  - Кнопка на странице отчёта в один клик перенаправляет в форму создания проверки с предзаполненными параметрами текущего отчета (режим сети, целевой namespace, список целей с портами и таймаутами).
-  - Позволяет моментально исправить опечатку в адресе или скорректировать список целей без повторного ручного ввода.
-  - Кэширование параметров в `sessionStorage` и информационный баннер со сбросом (`Reset Form`).
-
-### 3.4. Доверенные корпоративные сертификаты (Private CA & cert-manager)
-
-В корпоративных инфраструктурах внутренние сервисы подписываются приватным центром сертификации (Root CA и промежуточные Intermediate CA).
-`kncc` обеспечивает сквозное доверие корпоративным сертификатам:
-1. **Контейнер сервера `kncc`:**
-   - Исходящие TLS-соединения к корпоративным каталогам **LDAP / LDAPS** (`ldaps://...`) и провайдерам **OIDC** (Keycloak, Dex, ADFS) валидируют цепочку доверия без необходимости включать небезопасный флаг `insecure_skip_verify: true`.
-2. **Контейнеры зондов `kncc-probe`:**
-   - Автоматически получают доверенный CA-бандл (Alpine system CA + корпоративная цепочка).
-   - `curl` и `openssl` проводят безопасную валидацию внутренних HTTPS-сервисов узлов без необходимости взводить `insecure_tls: true`.
-   - Поддерживают все режимы: Pod Network, Host Network и Multi-Namespace.
-3. **Методы поставки через Helm (`deploy/helm/kncc`):**
-   - **Inline PEM:** передача цепочки прямо в `values.yaml` (`caCerts.pem: | ...`).
-   - **Существующий секрет / ConfigMap:** подключение уже созданных ресурсов (`caCerts.existingSecret` или `caCerts.existingConfigMap`).
-   - **Интеграция с cert-manager:** автоматическое создание ресурса `cert-manager.io/v1` `Certificate` с привязкой к корпоративному `ClusterIssuer` (`caCerts.certManager.enabled: true`).
+#### Target Namespace Selection (Dropdown or Manual Input):
+- **Safe Mode by Default (`k8s.namespace_list_enabled: false`):** Users enter namespaces manually. kncc ServiceAccount is granted no cluster-wide namespace read permissions (Principle of Least Privilege).
+- **Cluster List Mode (`k8s.namespace_list_enabled: true`):** Administrators allow kncc to query the Kubernetes API and present a searchable namespace dropdown in the UI.
+- **Filtering & Blacklisting:**
+  - System namespaces (`kube-system`, `kube-public`, `kube-node-lease`, or custom entries in `namespace_exclude_list`) are hidden from selection.
+  - Supports `namespace_exclude_selector` (LabelSelector): Administrators can tag sensitive or restricted namespaces (e.g. `kncc.io/exclude=true`) to hide them automatically.
+  - **Anti-Bypass Protection:** Backend API (`POST /api/checks`) rejects any attempts to schedule probe pods in excluded namespaces, even if requests bypass the web UI.
 
 ---
 
-### 3.5. Сетевые образы подов-зондов (Probe Pod Images)
+### 3.3. Report Analysis (Target-Centric Reporting & Back to Edit)
 
-При запуске сетевой диагностики `kncc` создает эфемерные поды `kncc-probe` на каждом выбранном узле кластера. Контейнер зонда должен обладать достаточным набором сетевых утилит для выполнения проверок (TCP, UDP, HTTP, HTTPS, ICMP) и формирования структурированного JSON-отчета в `/dev/termination-log`.
+Connectivity reports offer two complementary visualization modes:
 
-#### 1. Собственный специализированный образ `kncc-agent` (Рекомендуемый)
-Для минимизации сетевого оверхеда, ускорения cold-start и обеспечения наивысшего уровня безопасности (`Zero-Attack-Surface`) проект `kncc` предоставляет собственный минималистичный образ зонда:
-- **Базовый образ:** `alpine:3.21`
-- **Размер:** всего **~15 МБ** в распакованном виде (~5–6 МБ при скачивании по сети), что в 8–10 раз меньше публичных образов.
-- **Включенные утилиты:** строго только то, что необходимо для сценариев `kncc`:
-  - `curl` — для замеров latency, статус-кодов и HTTP-запросов;
-  - `openssl` — для детального извлечения параметров X.509 сертификатов (даты окончания, Issuer, Subject);
-  - `netcat-openbsd` — для надежного тестирования TCP и UDP портов (`nc -z -w`, `nc -u -z -w`);
-  - `iputils-ping` — для расчета среднего RTT и потерь ICMP ping;
-  - `bind-tools` и `musl-utils` — для разрешения DNS-имен (`dig`, `nslookup`, `getent hosts`);
-  - `ca-certificates` — доверенные корневые сертификаты с поддержкой конкатенации корпоративных CA.
-- **Безопасность:**
-  - Полное отсутствие лишних сервисов (нет Nginx, Apache), сетевых снифферов (`tcpdump`, `wireshark`), сетевых сканеров (`nmap`), компиляторов и языковых интерпретаторов.
-  - Нулевое количество известных уязвимостей (0 CVE по результатам сканирования Trivy / Grype).
-  - Работает под непривилегированным пользователем `kncc-agent` (UID 10001) в сочетании с безопасным профилем Kubernetes SecurityContext (`Drop: [ALL]`, `Add: [NET_RAW]`).
+- **Grouped by Target (`By Target`, default):**
+  - Aggregates results around target endpoints rather than individual cluster nodes.
+  - Instant cluster-wide reachability status badges:
+    - **`ALL NODES REACHABLE`** — target reachable from 100% of cluster nodes.
+    - **`PARTIALLY REACHABLE`** — partial network isolation (reachable from some nodes, blocked on others).
+    - **`UNREACHABLE`** — completely unreachable across all nodes.
+  - Interactive mini status chips (`✓ node`, `✗ node`) in the target card header.
+  - Target cards collapsed by default for compact navigation when checking dozens of endpoints.
+  - Bulk actions: **Expand all** / **Collapse all**.
+  - Quick status filters: `All`, `Issues Only` (focuses solely on problematic targets), and `All Reachable`.
+  - Full-text search across service names, IP addresses, and node names.
 
-**Сборка собственного образа `kncc-agent`:**
+- **Grouped by Node (`By Node`):**
+  - Classic node-oriented perspective auditing connectivity relative to physical cluster nodes.
+  - Clear presentation of probe execution time (`Probe runtime`) in seconds (`X.Xs`) or milliseconds (`X ms`) with informative tooltips and timer icons, separated from target network latency (RTT).
+  - Optimized IP probing bypassing reverse DNS PTR lookup timeouts.
+
+- **Check Mode Marker:**
+  - High-contrast visual badge (**`Host Network`** or **`Pod Network`** with `ns: <namespace>`) displayed in the results toolbar next to the view toggle and in the report header.
+  - Informs operators immediately whether diagnostics were executed on host interfaces (`hostNetwork: true`) or within an isolated CNI pod network with `NetworkPolicy`.
+  - Supports light and dark UI themes with explanatory tooltips.
+
+- **Return to Edit Form (`Back to Edit`):**
+  - One-click button returning to the check creation form with parameters pre-populated from the active report (network mode, target namespace, endpoint list, ports, protocols, timeouts).
+  - Enables instant typo corrections or target adjustments without re-entering data.
+  - Backed by `sessionStorage` caching with a convenient **Reset Form** banner.
+
+---
+
+### 3.4. Trusted Corporate Certificates (Private CA & cert-manager)
+
+In enterprise environments, internal services are issued by private Certificate Authorities (Root CA and Intermediate CAs).
+`kncc` provides end-to-end trust for private enterprise certificates:
+1. **kncc Server Container:**
+   - Outbound TLS connections to corporate **LDAP / LDAPS** directories (`ldaps://...`) and **OIDC** providers (Keycloak, Dex, ADFS) validate full trust chains without requiring insecure `insecure_skip_verify: true`.
+2. **kncc-probe Containers:**
+   - Automatically receive the trusted CA bundle (combining Alpine system CA with corporate trust chains).
+   - `curl` and `openssl` securely validate internal HTTPS cluster endpoints without requiring `insecure_tls: true`.
+   - Supported across all modes: Pod Network, Host Network, and Multi-Namespace.
+3. **Provisioning Methods via Helm (`deploy/helm/kncc`):**
+   - **Inline PEM:** Embed certificate chains directly into `values.yaml` (`caCerts.pem: | ...`).
+   - **Existing Secret / ConfigMap:** Link pre-provisioned resources (`caCerts.existingSecret` or `caCerts.existingConfigMap`).
+   - **cert-manager Integration:** Automatically provision a `cert-manager.io/v1` `Certificate` bound to an enterprise `ClusterIssuer` (`caCerts.certManager.enabled: true`).
+
+---
+
+### 3.5. Probe Pod Images
+
+When running network diagnostics, `kncc` schedules ephemeral `kncc-probe` pods on designated cluster nodes. Probe containers must package sufficient network tools to execute diagnostics (TCP, UDP, HTTP, HTTPS, ICMP) and output structured JSON to `/dev/termination-log`.
+
+#### 1. Custom Specialized `kncc-agent` Image (Recommended)
+To minimize network overhead, speed up cold-starts, and achieve a strict **Zero-Attack-Surface**, `kncc` provides its own specialized probe image:
+- **Base image:** `alpine:3.21`
+- **Footprint:** only **~15 MB** uncompressed (~5–6 MB compressed download), 8–10x smaller than public multitool images.
+- **Included utilities:** strictly tailored to `kncc` requirements:
+  - `curl` — latency measurements, status codes, and HTTP requests;
+  - `openssl` — detailed X.509 certificate inspection (expiration dates, Issuer, Subject);
+  - `netcat-openbsd` — reliable TCP and UDP port probing (`nc -z -w`, `nc -u -z -w`);
+  - `iputils-ping` — average RTT and ICMP packet loss calculations;
+  - `bind-tools` and `musl-utils` — DNS name resolution (`dig`, `nslookup`, `getent hosts`);
+  - `ca-certificates` — trusted root store with enterprise CA concatenation support.
+- **Security:**
+  - Zero unneeded daemons (no Nginx, Apache), packet sniffers (`tcpdump`, `wireshark`), port scanners (`nmap`), compilers, or scripting runtimes.
+  - Zero known vulnerabilities (0 CVE according to Trivy / Grype audits).
+  - Runs under dedicated unprivileged user `kncc-agent` (UID 10001) with hardened Kubernetes SecurityContext (`Drop: [ALL]`, `Add: [NET_RAW]`, `allowPrivilegeEscalation: true` for ICMP raw socket operation in HostNetwork mode).
+
+**Building custom `kncc-agent` image:**
 ```bash
-# Локальная сборка через Docker
 docker build -f Dockerfile.agent -t ghcr.io/AleksandrSumkin/kncc-agent:latest .
 docker push ghcr.io/AleksandrSumkin/kncc-agent:latest
 ```
 
-#### 2. Поддерживаемые публичные и альтернативные образы
-`kncc` архитектурно совместим с широким спектром стандартных диагностических образов:
-- **`wbitt/network-multitool:alpine-extra` (Публичный дефолт):** универсальный диагностический образ (~120 МБ), содержащий curl, nc, ping, nginx, tcpdump, nmap. Доступен прямо из Docker Hub без необходимости развертывания локального реестра.
-- **`wbitt/network-multitool:minimal`:** облегченная версия multitool (~40 МБ).
-- **`nicolaka/netshoot:latest`:** мощный швейцарский нож сетевого траблшутинга (~400 МБ) с расширенными утилитами (`iperf3`, `mtr`, `tshark`, `socat`). Рекомендуется для ручной интерактивной отладки через `kubectl exec`.
-- **`curlimages/curl:latest`:** легковесный официальный образ curl (~15 МБ). Поддерживает *только* проверки HTTP/HTTPS (проверки TCP, UDP и ICMP завершатся ошибкой из-за отсутствия `nc` и `ping`).
+#### 2. Supported Public and Alternative Images
+`kncc` is architecturally compatible with a wide range of standard network troubleshooting images:
+- **`wbitt/network-multitool:alpine-extra` (Public default fallback):** General-purpose diagnostic image (~120 MB) containing curl, nc, ping, nginx, tcpdump, nmap. Pulled directly from Docker Hub without requiring a local registry.
+- **`wbitt/network-multitool:minimal`:** Slimmed down multitool variant (~40 MB).
+- **`nicolaka/netshoot:latest`:** Feature-rich Swiss Army knife (~400 MB) with advanced utilities (`iperf3`, `mtr`, `tshark`, `socat`). Recommended for interactive debugging via `kubectl exec`.
+- **`curlimages/curl:latest`:** Minimalist official curl image (~15 MB). Supports *only* HTTP/HTTPS checks (TCP, UDP, and ICMP checks will fail due to missing `nc` and `ping`).
 
-#### 3. Сводная матрица совместимости образов
+#### 3. Image Compatibility Matrix
 
-| Образ контейнера | Тип | Размер | TCP | UDP | HTTP | HTTPS + X.509 | ICMP Ping | CVE (Trivy) | Назначение и рекомендация |
+| Container Image | Type | Size | TCP | UDP | HTTP | HTTPS + X.509 | ICMP Ping | CVE (Trivy) | Recommendation |
 |---|---|---|---|---|---|---|---|---|---|
-| **`kncc-agent` (собственный)** | **Собственный** | **~15 МБ** | **✅** | **✅** | **✅** | **✅** | **✅** | **0** | **Рекомендуемый (Production & Preview).** Мгновенный старт, Zero Attack Surface. |
-| `wbitt/network-multitool:alpine-extra` | Публичный | ~120 МБ | ✅ | ✅ | ✅ | ✅ | ✅ | Низкий | Публичный fallback по умолчанию. Не требует локального реестра. |
-| `wbitt/network-multitool:minimal` | Публичный | ~40 МБ | ✅ | ✅ | ✅ | ⚠️ | ✅ | Низкий | Облегченный multitool без части утилит. |
-| `nicolaka/netshoot:latest` | Публичный | ~400 МБ | ✅ | ✅ | ✅ | ✅ | ✅ | Средний | Для глубокой интерактивной отладки сетевых аномалий (`kubectl exec`). |
-| `curlimages/curl:latest` | Публичный | ~15 МБ | ❌ | ❌ | ✅ | ⚠️ (без x509 дат) | ❌ | 0 | Узкоспециализированный (только чистый HTTP/HTTPS). |
+| **`kncc-agent` (custom)** | **Native** | **~15 MB** | **✅** | **✅** | **✅** | **✅** | **✅** | **0** | **Recommended (Production & Preview).** Instant cold-start, Zero Attack Surface. |
+| `wbitt/network-multitool:alpine-extra` | Public | ~120 MB | ✅ | ✅ | ✅ | ✅ | ✅ | Low | Public default fallback. No local registry needed. |
+| `wbitt/network-multitool:minimal` | Public | ~40 MB | ✅ | ✅ | ✅ | ⚠️ | ✅ | Low | Lightweight multitool with reduced tooling. |
+| `nicolaka/netshoot:latest` | Public | ~400 MB | ✅ | ✅ | ✅ | ✅ | ✅ | Medium | In-depth interactive debugging (`kubectl exec`). |
+| `curlimages/curl:latest` | Public | ~15 MB | ❌ | ❌ | ✅ | ⚠️ (no X.509 dates) | ❌ | 0 | Specialized HTTP/HTTPS-only usage. |
 
-#### 4. Системный контракт для кастомных образов (System Contract)
-Если в вашей организации действует политика использования исключительно внутренних базовых образов (например, на базе RHEL UBI, Debian slim или Chainguard), кастомный образ должен удовлетворять следующим минимальным требованиям:
-1. **Шелл:** наличие POSIX-совместимого `/bin/sh`.
-2. **DNS:** утилита `getent hosts <host>` или `nslookup <host>`.
-3. **TCP:** `nc` с поддержкой флагов `-z` и `-w <sec>`.
-4. **UDP:** `nc` с поддержкой флагов `-u -z -w <sec>`.
-5. **HTTP/HTTPS:** `curl` с поддержкой аргументов `-s -S -o /dev/null -w "%{http_code}:%{time_total}:%{remote_ip}" --connect-timeout <sec> -m <sec>`.
-6. **HTTPS X.509:** `openssl s_client -connect <host>:<port> -servername <host>` и `openssl x509 -dateopt iso_8601 -noout -enddate / -subject / -issuer`.
-7. **ICMP:** `ping` с поддержкой флагов `-c <count> -W <sec>` (требует capability `NET_RAW`).
-8. **Файловая система:** возможность записи отчета в `/dev/termination-log` либо `/tmp/termination-log` (chmod 1777).
-
----
-
-## 4. Безопасность и защита от злоупотреблений
-
-- **Anti-SSRF & Blacklist:** встроенная блокировка запросов к чувствительным сервисам метаданных (`169.254.169.254/32`, `metadata.google.internal`, `127.0.0.0/8`, `::1/128`).
-- **Защита от DNS Rebinding:** доменные имена автоматически резолвятся, и полученные IP проверяются по черным спискам CIDR.
-- **Rate Limiting:** ограничение количества проверок (по умолчанию 30 запросов в минуту на пользователя).
-- **Ролевая модель (RBAC kncc):**
-  - `Admin`: видит настройки, системные политики, всех пользователей и все отчеты кластера.
-  - `User`: создает проверки, видит историю своих отчетов и может просматривать/перезапускать расшаренные отчеты по прямой ссылке.
-- **Провайдеры аутентификации:** одновременная поддержка локальных пользователей (dev/debug), LDAP / Active Directory и SSO через OpenID Connect (Keycloak, Dex, Okta).
+#### 4. System Contract for Custom Images
+If organizational policy mandates proprietary base images (e.g. RHEL UBI, Debian slim, Chainguard), custom images must meet the following minimum contract:
+1. **Shell:** POSIX-compliant `/bin/sh`.
+2. **DNS:** `getent hosts <host>` or `nslookup <host>`.
+3. **TCP:** `nc` supporting `-z` and `-w <sec>`.
+4. **UDP:** `nc` supporting `-u -z -w <sec>`.
+5. **HTTP/HTTPS:** `curl` supporting `-s -S -o /dev/null -w "%{http_code}:%{time_total}:%{remote_ip}" --connect-timeout <sec> -m <sec>`.
+6. **HTTPS X.509:** `openssl s_client -connect <host>:<port> -servername <host>` and `openssl x509 -dateopt iso_8601 -noout -enddate / -subject / -issuer`.
+7. **ICMP:** `ping` supporting `-c <count> -W <sec>` (requires capability `NET_RAW`).
+8. **Filesystem:** Write access to `/dev/termination-log` or `/tmp/termination-log` (chmod 1777).
 
 ---
 
-## 5. Быстрый запуск
+## 4. Security & Abuse Prevention
 
-### Запуск в режиме локального демо (Mock Mode)
+- **Anti-SSRF & Blacklisting:** Built-in blocking of sensitive metadata IP ranges (`169.254.169.254/32`, `metadata.google.internal`, `127.0.0.0/8`, `::1/128`).
+- **Anti-DNS Rebinding:** Domain names are dynamically resolved, and resolved IPs are verified against CIDR blacklists prior to socket creation.
+- **Rate Limiting:** Request throttling per authenticated user (default 30 requests per minute).
+- **Role Model (kncc RBAC):**
+  - `Admin`: System configuration, cluster policies, user directory, and all reports.
+  - `User`: Creates checks, inspects personal history, views/reruns shared reports via direct links.
+- **Authentication Providers:** Simultaneous support for local SQLite credentials (dev/debug), LDAP / Active Directory, and OpenID Connect SSO (Keycloak, Dex, Okta, Azure AD).
 
-`kncc` может запускаться локально без подключения к живому Kubernetes-кластеру. В этом режиме сервер симулирует 4 узла кластера и содержит демонстрационные отчеты:
+---
+
+## 5. Quick Start
+
+### Local Demo Mode (Mock Mode)
+
+`kncc` can run locally without connecting to a live Kubernetes cluster. In this mode, the server simulates 4 cluster nodes with pre-seeded demo reports:
 
 ```bash
-# Клонировать репозиторий
+# Clone repository
 git clone https://github.com/AleksandrSumkin/kncc.git
 cd kncc
 
-# Собрать и запустить сервер с моками
+# Build and run server in mock mode
 go run ./cmd/kncc -mock
 ```
 
-Откройте в браузере: **`http://localhost:8080`**
-- **Администратор:** логин `admin`, пароль `admin` (дополнительные пользователи создаются администратором в панели `/admin` либо настраиваются через LDAP/OIDC)
+Open your browser at: **`http://localhost:8080`**
+- **Default Administrator:** Username `admin`, password `admin` (additional users can be created in `/admin` or provisioned via LDAP/OIDC).
 
 ---
 
-## 6. Развертывание в Kubernetes с помощью Helm
+## 6. Kubernetes Deployment via Helm
 
-Готовый Helm-чарт расположен в директории `deploy/helm/kncc`.
+The production Helm chart is located in `deploy/helm/kncc`.
 
-### 6.1. Верификация подлинности и целостности релизных дистрибутивов
+### 6.1. Verifying Release Integrity and Digital Signatures
 
-Перед установкой артефактов в промышленный кластер рекомендуется проверить цифровую подпись манифеста контрольных сумм и целостность скачанных файлов:
+Before deploying release artifacts to production clusters, verify digital signatures and checksums:
 
 ```bash
-# 1. Скачайте открытый ключ kncc-release.pub, манифест контрольных сумм и подпись из релиза Forgejo
-# 2. Проверьте цифровую подпись манифеста контрольных сумм
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.14.0-checksums.txt.sig kncc-1.14.0-checksums.txt
-# Ожидаемый вывод: Verified OK
+# 1. Download release public key, checksum manifest, and signature from Forgejo Release page
+# 2. Verify digital signature of checksum manifest
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.15.0-checksums.txt.sig kncc-1.15.0-checksums.txt
+# Expected output: Verified OK
 
-# 3. Проверьте целостность дистрибутивов (Helm-чарта kncc-1.14.0.tgz, манифестов, SBOM)
-sha256sum -c kncc-1.14.0-checksums.txt
-# Ожидаемый вывод: kncc-1.14.0.tgz: OK
+# 3. Verify artifact checksums (Helm chart kncc-1.15.0.tgz, manifests, SBOM)
+sha256sum -c kncc-1.15.0-checksums.txt
+# Expected output: kncc-1.15.0.tgz: OK
 ```
 
-### 6.2. Стандартная установка
+### 6.2. Standard Installation
 
-По умолчанию `kncc` развертывается с автоматической генерацией надежного пароля администратора при первом запуске (пароль выводится в лог пода: `kubectl logs -n kncc -l app.kubernetes.io/name=kncc`):
+By default, `kncc` auto-generates a secure administrator password on first startup (printed to pod logs: `kubectl logs -n kncc -l app.kubernetes.io/name=kncc`):
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -266,7 +267,7 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --create-namespace
 ```
 
-При необходимости можно задать начальный пароль администратора явно:
+Alternatively, set an explicit initial administrator password:
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -275,9 +276,9 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set auth.adminInitialPassword="MySecurePassword123"
 ```
 
-### 6.3. Включение проверок из произвольных Namespace (`multiNamespace: true`)
+### 6.3. Enabling Multi-Namespace Diagnostics (`multiNamespace: true`)
 
-По умолчанию `kncc` создает поды только в своем собственном неймспейсе (`kncc`). Если вы хотите разрешить разработчикам проверять сетевые политики из их собственных пространств имен приложений, включите расширенный RBAC:
+By default, `kncc` creates probe pods strictly inside its own namespace (`kncc`). To allow developers to evaluate network policies from within application namespaces, enable extended RBAC:
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -287,9 +288,9 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set auth.adminInitialPassword="MySecurePassword123"
 ```
 
-### 6.4. Включение выпадающего списка доступных Namespace (`namespaceListEnabled: true`)
+### 6.4. Enabling Namespace Discovery Dropdown (`namespaceListEnabled: true`)
 
-Если требуется предоставить пользователям удобный выбор пространств имён из списка:
+To provide users with an interactive namespace dropdown in the UI:
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -300,11 +301,11 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set auth.adminInitialPassword="MySecurePassword123"
 ```
 
-*Примечание по безопасности:* Права на чтение неймспейсов кластера (`namespaces: ["get", "list", "watch"]`) добавляются в `ClusterRole` только тогда, когда `k8s.namespaceListEnabled: true`.
+*Security note:* Cluster-wide namespace permissions (`namespaces: ["get", "list", "watch"]`) are included in `ClusterRole` only when `k8s.namespaceListEnabled: true`.
 
-### 6.5. Публикация сервиса через Ingress
+### 6.5. Ingress Publishing
 
-Для публикации веб-интерфейса через встроенный Ingress контроллер (например, Traefik в k3s):
+To expose the web UI and API through an Ingress controller (e.g. Traefik in k3s):
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -319,11 +320,11 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set ingress.hosts[0].paths[0].pathType="Prefix"
 ```
 
-После применения веб-интерфейс доступен по адресу: `http://kncc.example.com`.
+Access the interface at: `http://kncc.example.com`.
 
-### 6.6. Публикация сервиса через Gateway API (HTTPRoute)
+### 6.6. Gateway API Publishing (HTTPRoute)
 
-Для публикации веб-интерфейса через современный стандарт Kubernetes Gateway API (`gateway.networking.k8s.io/v1`):
+To expose the service using modern Kubernetes Gateway API (`gateway.networking.k8s.io/v1`):
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -334,7 +335,7 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set gateway.hostnames[0]="kncc.example.com"
 ```
 
-Опционально можно создать выделенный ресурс `Gateway` непосредственно силами чарта:
+Optionally provision a dedicated `Gateway` resource directly via the chart:
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
@@ -346,46 +347,46 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set gateway.hostnames[0]="kncc.example.com"
 ```
 
-### 6.7. Кастомизация темы оформления
+### 6.7. UI Theming Customization
 
-Администратор может настроить основной фон и акцентный цвет под корпоративный стиль:
+Administrators can customize background and accent brand colors:
 
 ```bash
 helm upgrade --install kncc ./deploy/helm/kncc \
   --namespace kncc \
-  --set theme.appName="Corporate Network Diagnostic" \
+  --set theme.appName="Corporate Network Diagnostics" \
   --set theme.primaryColor="#ffffff" \
-  --set theme.accentColor="#2563eb" # Синий акцент вместо красного
+  --set theme.accentColor="#2563eb" # Blue accent instead of red
 ```
 
-### 6.8. Аудит прав ServiceAccount на Kubernetes API (RBAC)
+### 6.8. ServiceAccount Kubernetes API RBAC Permission Audit
 
-Для обеспечения прозрачности безопасности и упрощения диагностики сетевых прав сервис `kncc` предоставляет аудит результирующих прав RBAC:
-1. **Логирование при старте:** При запуске сервис вычисляет эффективные права используемого ServiceAccount (через `SelfSubjectRulesReview` или обход `RoleBindings`/`ClusterRoleBindings`) и выводит форматированную ASCII-таблицу в журнал по стандарту `rbac-tool policy-rules` (`TYPE | SUBJECT | VERBS | NAMESPACE | API GROUP | KIND | NAMES | NONRESOURCEURI | ORIGINATED FROM`).
-2. **Панель администратора (`/#/admin`):** Раздел «Kubernetes SA Permissions (RBAC)» отображает интерактивную таблицу прав с фильтрами по ресурсам, действиям (`VERBS`), областям видимости, а также возможностью скопировать отчет в текстовом виде или JSON.
-3. **Безопасность доступа:** Административный эндпоинт `GET /api/admin/rbac` доступен строго авторизованным пользователям с ролью `admin`.
+For transparent cluster governance, `kncc` audits effective RBAC permissions:
+1. **Startup Logging:** On boot, the service evaluates effective ServiceAccount rules (via `SelfSubjectRulesReview` or role binding traversal) and logs a formatted ASCII table matching the `rbac-tool policy-rules` standard (`TYPE | SUBJECT | VERBS | NAMESPACE | API GROUP | KIND | NAMES | NONRESOURCEURI | ORIGINATED FROM`).
+2. **Admin Dashboard (`/#/admin`):** The "Kubernetes SA Permissions (RBAC)" tab presents an interactive table with resource filters, verb badges, scope indicators, and copy actions (ASCII or JSON).
+3. **Endpoint Security:** The `GET /api/admin/rbac` endpoint is restricted strictly to users with the `admin` role.
 
-### 6.9. Статистика пользования сервисом по пользователям
+### 6.9. User Activity and Query Statistics
 
-В панели администратора (`/#/admin`, вкладка «Статистика запросов») доступен расширенный мониторинг активности:
-1. **Разбивка по временным диапазонам:** количество запросов сетевой диагностики за 24 часа, 7 дней, 30 дней, 365 дней и за всё время.
-2. **Сводные KPI-карточки:** общие метрики нагрузки на сервис по всем диапазонам.
-3. **Таблица пользователей с сортировкой:** детальные строки по каждому пользователю с аватаром, ролью, методом аутентификации (local/ldap/oidc) и временем последней активности.
-4. **Итоговая строка (Summary Footer):** автоматический расчет суммы сетевых проверок по всем диапазонам среди всех учетных записей.
-5. **Экспорт данных:** быстрый экспорт в буфер обмена в формате TSV для анализа в Excel / Google Sheets.
-6. **Персистентность истории:** учет ведется в таблице `user_request_logs` SQLite независимо от времени жизни отчетов (`ReportTTL`).
+The administrative dashboard (`/#/admin`, "Query Statistics" tab) provides usage metrics:
+1. **Time Breakdown:** Track checks executed across 24 hours, 7 days, 30 days, 365 days, and all-time.
+2. **KPI Summary Cards:** Service load metrics at a glance.
+3. **User Table with Sorting:** User avatar, role, auth provider (local/ldap/oidc), and last active timestamp.
+4. **Summary Footer:** Automated totals across all active user accounts.
+5. **TSV Export:** One-click clipboard export for spreadsheet analysis.
+6. **Persistent Retention:** Activity logged in `user_request_logs` independent of report TTL.
 
-### 6.10. Использование существующего секрета для пароля администратора (External Secrets / Vault)
+### 6.10. Existing Secret for Administrator Password (External Secrets / Vault)
 
-Если пароль администратора управляется внешним оператором секретов (например, HashiCorp Vault, External Secrets Operator (ESO), Sealed Secrets, SOPS) и уже существует в кластере в виде Kubernetes Secret, вы можете передать имя и ключ секрета:
+When managing secrets via HashiCorp Vault, External Secrets Operator (ESO), Sealed Secrets, or SOPS:
 
 ```bash
-# Пример: секрет создан внешним оператором или вручную:
+# Example pre-created secret:
 kubectl create secret generic kncc-admin-vault \
   --namespace kncc \
   --from-literal=admin-password="SuperSecurePasswordFromVault"
 
-# Установка чарта с подключением внешнего секрета:
+# Helm installation referencing existing secret:
 helm upgrade --install kncc ./deploy/helm/kncc \
   --namespace kncc \
   --create-namespace \
@@ -393,16 +394,16 @@ helm upgrade --install kncc ./deploy/helm/kncc \
   --set auth.existingSecretPasswordKey="admin-password"
 ```
 
-При указании `auth.existingSecret` создание встроенного секрета `kncc-secrets` для пароля администратора отключается, а под подключает `ADMIN_INITIAL_PASSWORD` напрямую из внешнего секрета.
+Setting `auth.existingSecret` disables creation of the internal `kncc-secrets` resource for administrator credentials.
 
-### 6.11. Настройка быстрых подсказок "Quick add"
+### 6.11. Quick Add Target Presets
 
-На странице создания проверки блок подсказок Quick Add автоматически адаптируется под пользователя:
-1. **Начальные пресеты:** для новых пользователей отображаются сконфигурированные подсказки по умолчанию (от 1 до 3 сервисов).
-2. **Динамическая адаптация:** по мере запуска проверок в подсказки добавляются первые сервисы пользователя.
-3. **Топ-3 сервисов:** в процессе регулярной работы выводятся 3 самых часто запрашиваемых пользователем сервиса.
+On the New Check page, Quick Add chips dynamically assist users:
+1. **Initial Presets:** New users see configured default targets (1 to 3 services).
+2. **Adaptive Learning:** Recent user targets automatically populate suggestions.
+3. **Top-3 Services:** Experienced users see their 3 most frequently checked endpoints.
 
-Настройка подсказок по умолчанию через Helm `values.yaml`:
+Configure defaults in Helm `values.yaml`:
 ```yaml
 quickAdd:
   presets:
@@ -415,307 +416,182 @@ quickAdd:
       host: "8.8.8.8"
 ```
 
-### 6.12. Пробы жизненного цикла Kubernetes (Startup, Liveness, Readiness)
+### 6.12. Kubernetes Health Probes (Startup, Liveness, Readiness)
 
-Для обеспечения высокой надежности и корректного управления трафиком в Kubernetes сервис реализует специализированные эндпоинты жизненного цикла:
-1. **Startup Probe (`GET /api/startupz`)**: опрашивается в процессе запуска пода до активации Liveness-пробы. Предоставляет достаточно времени на монтирование тома, применение миграций схемы SQLite и валидацию учетной записи администратора, предотвращая ложные перезапуски медленно стартующих контейнеров.
-2. **Liveness Probe (`GET /api/livez`)**: контролирует живучесть процесса и отсутствие зависаний/дедлоков в рантайме Go. Не зависит от временных сбоев хранилища, предотвращая каскадные рестарты контейнера.
-3. **Readiness Probe (`GET /api/readyz`)**: выполняет активную проверку доступности базы данных SQLite (`PingContext`). При невозможности обращения к хранилищу немедленно возвращает `503 Service Unavailable` (`{"status": "degraded"}`), что побуждает Kubernetes временно исключить под из Endpoints/Ingress без аварийного завершения процесса.
-4. **Healthz (`GET /api/healthz`)**: прозрачно проксирует вызов в `Readyz`, обеспечивая полную обратную совместимость с унаследованными системами мониторинга.
+For reliable cluster orchestration, `kncc` exposes standard health probes:
+1. **Startup Probe (`GET /api/startupz`)**: Evaluated on startup prior to liveness checks. Grants sufficient time for volume mounting, SQLite schema migrations, and admin account setup.
+2. **Liveness Probe (`GET /api/livez`)**: Monitors HTTP server responsiveness and Go runtime health without deadlocks, decoupled from storage status to prevent cascading restarts.
+3. **Readiness Probe (`GET /api/readyz`)**: Actively probes SQLite database availability (`PingContext`). Returns `503 Service Unavailable` (`{"status": "degraded"}`) if database is unreachable, removing pod endpoints without process termination.
+4. **Healthz (`GET /api/healthz`)**: Transparently proxies to `Readyz` for backward compatibility with legacy monitoring systems.
 
-Параметры интервалов, задержек и порогов срабатывания настраиваются через блок `probes` в `values.yaml`.
+### 6.13. Corporate Logo and Favicon Branding
 
-### 6.13. Настройка корпоративного логотипа и брендинга
+#### Default Logo
+Ships with a high-resolution vector emblem centered around **shipbuilding and marine engineering** in blue/cyan tones (research vessel silhouette, hydrodynamics, and radar navigation mesh).
 
-Сервис `kncc` поддерживает гибкую настройку корпоративного логотипа, отображаемого на постоянной верхней панели навигации (`Navbar`), экране авторизации (`LoginPage`) и страницах отчетов.
+#### Custom Logo via Helm (Base64)
+```bash
+# Convert to Base64 (Linux/macOS):
+base64 -w 0 company_logo.svg > logo.b64
 
-#### Дефолтный логотип (судостроение и морская инженерия)
-По умолчанию сервис поставляется со встроенным высококачественным масштабируемым вектором на тему **судостроения и морских технологий** в сине-голубых тонах (силуэт исследовательского судна, гидродинамические волны и элементы радарной навигационной сети).
+# Deploy via Helm:
+helm upgrade --install kncc ./deploy/helm/kncc \
+  --namespace kncc \
+  --set-file logo.data=logo.b64 \
+  --set logo.mimeType="image/svg+xml"
+```
 
-#### Способ 1: Передача логотипа через Helm-чарт в Base64
-Вы можете передать логотип компании (SVG, PNG, JPEG или WebP) при установке или обновлении Helm-релиза в формате Base64:
+#### Custom Logo via Admin Dashboard
+Navigate to **Admin** -> **App Settings** -> **Corporate Branding & Logo**, drag and drop a new logo (SVG, PNG, JPEG, WebP up to 1 MB), and click **Upload & Apply Logo**.
 
-1. **Кодирование логотипа в Base64:**
-   - **Linux / macOS:**
-     ```bash
-     base64 -w 0 company_logo.svg > logo.b64
-     # или для PNG:
-     base64 -w 0 company_logo.png > logo.b64
-     ```
-   - **Windows PowerShell:**
-     ```powershell
-     [Convert]::ToBase64String([IO.File]::ReadAllBytes('company_logo.png')) | Out-File -NoNewline -Encoding ascii logo.b64
-     ```
+#### Custom Favicon
+- **Default Fallback:** Favicon is automatically generated as a thumbnail of the active corporate logo.
+- **Custom Upload:** Upload custom ICO, SVG, PNG, WebP icons (up to 512 KB) via Helm or the Admin dashboard with instant browser tab preview.
 
-2. **Применение через Helm:**
-   ```bash
-   helm upgrade --install kncc ./deploy/helm/kncc \
-     --namespace kncc \
-     --set-file logo.data=logo.b64 \
-     --set logo.mimeType="image/png"
-   ```
-   Или напрямую через `--set logo.data="<base64_string>"`.
+### 6.14. Administrator Password Delivery via emptyDir Volume (`medium: Memory`)
 
-#### Способ 2: Загрузка через веб-интерфейс (Панель администратора)
-Администраторы могут управлять логотипом на лету без необходимости деплоя:
-1. Перейдите в раздел **Admin** -> вкладка **Настройки приложения** -> блок **Корпоративный брендинг и логотип компании**.
-2. В блоке доступен интерактивный предпросмотр текущего логотипа с переключателем светлого и тёмного фона.
-3. Перетащите новый файл в Drag-and-Drop область (SVG, PNG, JPEG, WebP до 1 МБ) или выберите его с локального диска.
-4. Нажмите кнопку **Загрузить и применить логотип**.
-5. Для возврата к дефолтному судовому логотипу используйте кнопку **Сбросить к дефолтному**.
+To comply with strict security baselines (CIS Kubernetes Benchmark, DevSecOps), delivery of the initial admin password via an isolated RAM tmpfs volume is supported:
+- **No `/proc` exposure:** Avoids leaking credentials in `/proc/$PID/environ`.
+- **In-memory tmpfs (`medium: Memory`):** Password resides purely in RAM, never flushed to node disks.
+- **No leak in dumps/logs:** Excluded from crash dumps, container engine logs, and `kubectl describe pod` outputs.
 
-#### Централизованное хранение и отказоустойчивость:
-* **Kubernetes ConfigMap:** Логотип сохраняется в выделенном ресурсе `ConfigMap` (`kncc-logo`), создаваемом Helm-чартом и обновляемом бэкендом через Kubernetes API (`client-go`).
-* **SQLite Store:** Данные логотипа кэшируются в локальной таблице `app_settings`, обеспечивая мгновенный отклик веб-интерфейса и полную работоспособность в автономном/mock режиме без Kubernetes API.
-
-### Настройка фавикона сайта (Favicon)
-
-kncc поддерживает гибкую кастомизацию фавикона (`favicon.ico` / веб-иконки во вкладке браузера):
-* **По умолчанию (Fallback):** фавикон автоматически формируется как **миниатюра активного корпоративного логотипа** (либо кастомного корпоративного лого, либо встроенного векторного судостроительного знака).
-* **Кастомный фавикон:** администраторы могут переопределить иконку отдельно от логотипа через Helm-чарт или в панели администратора.
-
-#### Способ 1: Передача фавикона через Helm Chart (Base64 или SVG)
-1. Сконвертируйте фавикон в Base64:
-   ```bash
-   base64 -w 0 favicon.png > favicon.b64
-   # или для Windows PowerShell:
-   # [Convert]::ToBase64String([IO.File]::ReadAllBytes('favicon.ico')) | Out-File -NoNewline -Encoding ascii favicon.b64
-   ```
-2. Передайте в Helm:
-   ```bash
-   helm upgrade --install kncc ./deploy/helm/kncc \
-     --namespace kncc \
-     --set-file favicon.data=favicon.b64 \
-     --set favicon.mimeType="image/x-icon"
-   ```
-   Или напрямую через `--set favicon.data="<base64_string>"`.
-
-#### Способ 2: Загрузка через веб-интерфейс
-1. Откройте **Admin** -> вкладка **Настройки** -> блок **Фавикон сайта (Favicon)**.
-2. Доступен предпросмотр в макете вкладки браузера (16×16) и в увеличенном виде (32×32, 48×48) на светлом и тёмном фонах.
-3. Загрузите файл (ICO, SVG, PNG, WebP до 512 КБ) через Drag-and-Drop или кнопку выбора.
-4. Кнопка **Сбросить на логотип компании** мгновенно возвращает фавикон к миниатюре корпоративного логотипа.
-* **Синхронизация:** Кастомный фавикон сохраняется в базе SQLite и ConfigMap `kncc-favicon`.
-
-### 6.14. Доставка пароля администратора через volume emptyDir (режим medium)
-
-Для соответствия жестким требованиям безопасности контейнеров (CIS Kubernetes Benchmark, DevSecOps практики) поддерживается режим доставки пароля администратора в контейнер в виде файла на изолированном томе `emptyDir` вместо переменной окружения `ADMIN_INITIAL_PASSWORD`.
-
-#### Преимущества перед переменными окружения:
-1. **Защита от утечки в `/proc`:** Переменные окружения доступны в файловой системе процессов `/proc/$PID/environ` и могут утечь при локальном повышении привилегий или отладке.
-2. **Изоляция в оперативной памяти (режим `medium: Memory`):** При монтировании `emptyDir` с `medium: Memory` файл размещается в RAM (tmpfs) и никогда не сохраняется на физический диск ноды.
-3. **Безопасность дампов и логов:** Исключается попадание пароля в краш-дампы, логи среды исполнения контейнеров и вывод команд `kubectl describe pod` / `crictl inspect`.
-
-#### Пример включения в Helm Values:
+Configure in Helm `values.yaml`:
 ```yaml
 auth:
-  # Переключение режима доставки с "env" на "volume"
   deliveryMode: "volume"
-
   volume:
-    # Использование tmpfs в RAM (режим Memory)
     medium: "Memory"
-    # Лимит объема памяти для тома
     sizeLimit: "64Mi"
-    # Путь монтирования в контейнер kncc
     mountPath: "/etc/kncc-auth"
-    # Имя файла с паролем
     fileName: "admin-password"
-    # Автоматическое наполнение из секрета через initContainer
     populateFromSecret: true
 ```
 
-#### Запуск через Helm CLI:
-```bash
-helm upgrade --install kncc ./deploy/helm/kncc \
-  --namespace kncc \
-  --set auth.deliveryMode="volume" \
-  --set auth.volume.medium="Memory"
-```
+### 6.15. LDAP / Active Directory Access Methods
 
-При этом `kncc` считывает пароль из файла, указанного в переменной окружения `ADMIN_INITIAL_PASSWORD_FILE` (или параметре `auth.admin_initial_password_file` конфигурационного YAML), а открытый пароль полностью удаляется из переменных окружения основного контейнера.
+1. **Search-and-Bind (Default):** Pre-queries user DN via service account (`auth.ldap.bindDN` / `auth.ldap.bindPassword`), followed by user credential bind.
+2. **Existing Secret (`existingSecret`):** Securely injects LDAP service credentials from Kubernetes Secret (`auth.ldap.existingSecret`).
+3. **Direct Bind / User Bind Pattern:** Binds directly under user credentials using a DN template (`auth.ldap.userDNTemplate: "uid=%s,ou=users,dc=example,dc=com"`), requiring no service account.
+4. **Anonymous Search (RFC 4513):** Executes unauthenticated directory queries (`auth.ldap.anonymousSearch: true`).
 
-### 6.15. Методы доступа и аутентификации в LDAP / Active Directory
-
-`kncc` поддерживает несколько режимов интеграции с корпоративными каталогами пользователей:
-
-1. **Search-and-Bind (Классический режим по умолчанию):**
-   - Сервер выполняет предварительный поиск пользователя под сервисной учетной записью (`auth.ldap.bindDN` и `auth.ldap.bindPassword`).
-   - После нахождения DN пользователя выполняет попытку связывания (bind) с введенным паролем.
-2. **Получение учетных данных из существующего секрета (`existingSecret`):**
-   - Учетные данные сервисной записи безопасно подтягиваются из уже созданного секрета Kubernetes через `auth.ldap.existingSecret` (с ключами `auth.ldap.existingSecretBindDNKey` и `auth.ldap.existingSecretBindPasswordKey`), исключая хранение паролей в Helm Values.
-   - Поддерживается также доставка через монтируемые файлы (`LDAP_BIND_DN_FILE` и `LDAP_BIND_PASSWORD_FILE`).
-3. **Прямое связывание пользователя по шаблону DN (Direct Bind / User Bind Pattern):**
-   - Не требует выделенной сервисной учетной записи (`bindDN` / `bindPassword` остаются пустыми).
-   - Имя пользователя подставляется в шаблон DN через `auth.ldap.userDNTemplate` (например, `uid=%s,ou=users,dc=kncc,dc=local`), после чего связывание с каталогом выполняется напрямую с введенным пользователем паролем.
-   - Профиль пользователя (`mail`, `cn`, `memberOf`) запрашивается через точечный поиск `ScopeBaseObject` по DN самого пользователя.
-4. **Анонимный доступ (Anonymous Search / RFC 4513):**
-   - При установке флага `auth.ldap.anonymousSearch: true` (или пустых `bindDN` и `userDNTemplate`) поиск пользователя выполняется через анонимное связывание (`l.UnauthenticatedBind("")`), после чего вход подтверждается паролем найденного пользователя.
 ---
 
-## 7. Параметры Helm Values
+## 7. Helm Values Reference
 
 > [!TIP]
-> Все параметры чарта подробно задокументированы непосредственно в файле [`deploy/helm/kncc/values.yaml`](deploy/helm/kncc/values.yaml) с детальным описанием назначения, рекомендаций по изменению, влияния на поведение сервиса и практик безопасности (Zero-Docs Onboarding). Ниже приведена сводная таблица ключевых параметров:
+> All chart parameters are thoroughly documented inside [`deploy/helm/kncc/values.yaml`](deploy/helm/kncc/values.yaml) with explanations of runtime impacts and security recommendations (Zero-Docs Onboarding). Russian reference comments are preserved in [`deploy/helm/kncc/values_ru.yaml`](deploy/helm/kncc/values_ru.yaml).
 
-| Параметр | Описание | По умолчанию |
+| Parameter | Description | Default |
 | :--- | :--- | :--- |
-| `replicaCount` | Количество реплик kncc сервера | `1` |
-| `image.repository` | Docker-образ backend-сервера | `kncc/kncc` |
-| `image.tag` | Тег образа (по умолчанию `appVersion`) | `""` |
-| `image.pullPolicy` | Политика загрузки образа (`Always`, `IfNotPresent`) | `IfNotPresent` |
-| `server.port` | Порт HTTP API | `8080` |
-| `server.tokenTTL` | Время жизни JWT сессии | `24h` |
-| `server.tls.enabled` | Включение защищенного сервера HTTPS/TLS на выделенном порту | `false` |
-| `server.tls.port` | Выделенный порт HTTPS внутри контейнера | `8443` |
-| `server.tls.autoGenerate` | Автоматическая генерация самоподписанного сертификата ECDSA P-256 при отсутствии сертификатов | `true` |
-| `server.tls.certFile` | Путь к файлу сертификата внутри контейнера | `""` |
-| `server.tls.keyFile` | Путь к файлу приватного ключа внутри контейнера | `""` |
-| `server.tls.certPem` | Inline PEM блок сертификата | `""` |
-| `server.tls.keyPem` | Inline PEM блок приватного ключа | `""` |
-| `server.tls.minVersion` | Минимальная версия TLS (`1.2` или `1.3`) | `"1.2"` |
-| `server.tls.existingSecret` | Имя существующего Kubernetes Secret с `tls.crt` и `tls.key` | `""` |
-| `server.tls.mountPath` | Путь монтирования секрета сертификата в контейнере | `/etc/kncc-tls` |
-| `server.tls.certManager.enabled` | Использовать cert-manager для автоматического выпуска серверного сертификата | `false` |
-| `server.tls.certManager.issuerRef.name` | Имя ClusterIssuer/Issuer для выпуска серверного TLS-сертификата | `""` |
-| `server.tls.certManager.issuerRef.kind` | Тип эмитента cert-manager (`ClusterIssuer` или `Issuer`) | `ClusterIssuer` |
-| `server.openapi.enabled` | Включение эндпоинтов OpenAPI 3.x и интерфейса Swagger UI (`/api/docs`) | `true` |
-| `server.openapi.public` | Доступ к документации API без аутентификации (для DAST-сканеров и стендов) | `false` |
-| `service.tlsPort` | Внешний HTTPS порт сервиса Kubernetes (направляется на `server.tls.port`) | `443` |
-| `k8s.probeImage` | Сетевой образ для ephemeral probe подов (`kncc-agent`, `wbitt/network-multitool:alpine-extra`, `netshoot`) | `wbitt/network-multitool:alpine-extra` |
-| `k8s.probeTimeoutSeconds` | Таймаут одной сетевой проверки | `30` |
-| `k8s.probeActiveDeadlineSeconds` | Жесткий дедлайн жизни probe-пода | `60` |
-| `k8s.gcInterval` | Интервал фоновой очистки завершившихся подов | `2m` |
-| `k8s.gcStaleThreshold` | Минимальный возраст осиротевших подов для удаления GC (защита от race condition) | `3m` |
-| `k8s.namespaceListEnabled` | Включение выпадающего списка доступных namespace для пользователей | `false` |
-| `k8s.namespaceExcludeList` | Список неймспейсов, исключенных из выбора и проверки | `["kube-system", "kube-public", "kube-node-lease"]` |
-| `k8s.namespaceExcludeSelector` | LabelSelector для исключения маркированных системных неймспейсов | `"kncc.io/exclude=true"` |
-| `rbac.create` | Создавать ли RBAC ресурсы | `true` |
-| `rbac.multiNamespace` | Разрешить запуск зондов в любых неймспейсах кластера (ClusterRole) | `false` |
-| `security.rateLimitPerMinute` | Максимальное число проверок в минуту на пользователя | `30` |
-| `security.blacklistCIDRs` | Список запрещенных подсетей (Anti-SSRF) | `["169.254.169.254/32", "127.0.0.0/8", "::1/128"]` |
-| `security.blacklistDomains` | Список запрещенных доменных шаблонов | `["metadata.google.internal", "instance-data"]` |
-| `security.whitelistCIDRs` | Белый список подсетей (если не пуст, разрешены только они) | `[]` |
-| `persistence.enabled` | Использовать PVC для сохранения базы SQLite между перезапусками | `false` (по умолчанию `emptyDir`) |
-| `persistence.size` | Размер PVC | `2Gi` |
-| `auth.adminUsername` | Логин начального администратора | `admin` |
-| `auth.adminInitialPassword` | Пароль начального администратора (если не задан и не указан `auth.existingSecret`, генерируется автоматически при старте и выводится в логи пода) | `""` |
-| `auth.existingSecret` | Имя существующего секрета Kubernetes с паролем администратора | `""` |
-| `auth.existingSecretPasswordKey` | Ключ внутри существующего секрета с паролем администратора | `ADMIN_INITIAL_PASSWORD` |
-| `auth.deliveryMode` | Способ доставки пароля администратора в контейнер (`volume` или `env`) | `volume` |
-| `auth.volume.medium` | Режим тома emptyDir (`Memory` для tmpfs в RAM или `""` для диска ноды) | `Memory` |
-| `auth.volume.sizeLimit` | Лимит размера памяти тома emptyDir | `64Mi` |
-| `auth.volume.mountPath` | Путь монтирования тома в контейнере kncc | `/etc/kncc-auth` |
-| `auth.volume.fileName` | Имя файла с паролем внутри тома | `admin-password` |
-| `auth.volume.populateFromSecret` | Использовать ли initContainer для копирования пароля из секрета в volume | `true` |
-| `auth.localEnabled` | Включение локальной аутентификации | `true` |
-| `auth.ldapEnabled` | Включение LDAP / Active Directory | `false` |
-| `auth.ldap.existingSecret` | Имя существующего Kubernetes Secret с учетными данными LDAP (`bindDN` / `bindPassword`) | `""` |
-| `auth.ldap.existingSecretBindDNKey` | Ключ в существующем Secret с `bindDN` | `"LDAP_BIND_DN"` |
-| `auth.ldap.existingSecretBindPasswordKey` | Ключ в существующем Secret с `bindPassword` | `"LDAP_BIND_PASSWORD"` |
-| `auth.ldap.userDNTemplate` | Шаблон DN для прямого связывания (Direct Bind) без сервисного аккаунта (например, `uid=%s,ou=users,dc=kncc,dc=local`) | `""` |
-| `auth.ldap.anonymousSearch` | Режим анонимного доступа (RFC 4513 Unauthenticated Bind) без сервисных учетных данных | `false` |
-| `auth.ldap.adminGroup` | Группа LDAP, назначающая пользователю роль `admin` (динамический пересчет при каждом входе) | `""` |
-| `auth.ldap.groupFilter` | Поисковый LDAP-фильтр для выборки групп приложения (например, `(cn=RBAC_KNCC_*)`) | `""` |
-| `auth.ldap.groupBaseDN` | Базовый DN для поиска групп (по умолчанию равен `auth.ldap.baseDN`) | `""` |
-| `auth.oidcEnabled` | Включение Single Sign-On (OIDC) | `false` |
-| `auth.oidc.issuerURL` | URL провайдера OIDC / Identity Provider (Keycloak, Dex, Okta) | `"https://auth.corp.example.com/realms/corp"` |
-| `auth.oidc.clientID` | Client ID для подключения к OIDC (используется, если не задан в existingSecret) | `"kncc"` |
-| `auth.oidc.clientSecret` | Client Secret в открытом виде (используется только если existingSecret пуст) | `""` |
-| `auth.oidc.redirectURL` | URL обратного вызова для завершения авторизации OIDC | `"https://kncc.corp.example.com/api/auth/oidc/callback"` |
-| `auth.oidc.existingSecret` | Имя существующего Kubernetes Secret с учетными данными OIDC (`clientID` и/или `clientSecret`) | `""` |
-| `auth.oidc.existingSecretClientIDKey` | Ключ в `existingSecret` с clientID (опционально, если пусто — берется из `auth.oidc.clientID`) | `""` |
-| `auth.oidc.existingSecretClientSecretKey` | Ключ в `existingSecret` с clientSecret | `OIDC_CLIENT_SECRET` |
-| `caCerts.enabled` | Включение поддержки дополнительных корпоративных CA сертификатов | `false` |
-| `caCerts.pem` | Inline PEM цепочка сертификатов (Root CA + Intermediate) | `""` |
-| `caCerts.existingConfigMap` | Имя существующего ConfigMap с CA сертификатом | `""` |
-| `caCerts.existingSecret` | Имя существующего Secret с CA сертификатом | `""` |
-| `caCerts.certKey` | Ключ в Secret/ConfigMap с файлом сертификата | `ca.crt` |
-| `caCerts.certManager.enabled` | Использовать cert-manager для выпуска и управления CA секретом | `false` |
-| `caCerts.certManager.issuerRef.name` | Имя ClusterIssuer или Issuer в cert-manager | `""` |
-| `caCerts.certManager.issuerRef.kind` | Тип эмитента cert-manager (`ClusterIssuer` или `Issuer`) | `ClusterIssuer` |
-| `theme.appName` | Название сервиса в шапке UI | `Kubernetes Network Connectivity Checker` |
-| `theme.primaryColor` | Основной цвет темы | `#ffffff` |
-| `theme.accentColor` | Акцентный цвет кнопок и статусов | `#dc2626` |
-| `theme.defaultTheme` | Тема оформления по умолчанию (`light` или `dark`) | `light` |
-| `theme.defaultLanguage` | Язык интерфейса по умолчанию (`en` или `ru`) | `en` |
-| `logo.enabled` | Включение генерации ConfigMap с логотипом компании | `true` |
-| `logo.data` | Изображение логотипа в Base64 или raw SVG (по умолчанию судостроительное векторное лого) | `""` |
-| `logo.mimeType` | MIME-тип логотипа (`image/svg+xml`, `image/png`, `image/jpeg`, `image/webp`) | `"image/svg+xml"` |
-| `favicon.enabled` | Включение генерации ConfigMap с фавиконом сайта | `true` |
-| `favicon.data` | Фавикон в Base64 или raw SVG (по умолчанию миниатюра корпоративного логотипа) | `""` |
-| `favicon.mimeType` | MIME-тип фавикона (`image/svg+xml`, `image/png`, `image/x-icon`, `image/vnd.microsoft.icon`, `image/webp`) | `"image/svg+xml"` |
-| `quickAdd.presets` | Список от 1 до 3 подсказок по умолчанию для формы создания проверки | `[{name: "K8s API", ...}, {name: "Google DNS", ...}]` |
-| `ingress.enabled` | Создавать ли ресурс Ingress | `false` |
-| `ingress.className` | Класс Ingress контроллера (например `traefik` или `nginx`) | `traefik` |
-| `ingress.hosts` | Список правил хостов и путей для Ingress | `[{host: kncc.example.com, paths: [...]}]` |
-| `gateway.enabled` | Создавать ли ресурс HTTPRoute (Gateway API) | `false` |
-| `gateway.parentRefs` | Ссылки на родительские ресурсы Gateway | `[{name: default-gateway}]` |
-| `gateway.hostnames` | Список сопоставляемых доменных имён | `["kncc.example.com"]` |
-| `gateway.rules` | Кастомные правила маршрутизации и фильтры HTTPRoute | `[]` (по умолчанию `PathPrefix: /`) |
-| `gateway.createGateway` | Создавать ли выделенный ресурс Gateway чартом | `false` |
-| `gateway.gatewayClassName` | Класс Gateway (traefik, cilium, envoy и др.) | `"traefik"` |
-| `gateway.listeners` | Слушатели входящего трафика для создаваемого Gateway | `[{name: http, protocol: HTTP, port: 80, ...}]` |
-| `probes.startup.enabled` | Включение Startup-пробы Kubernetes | `true` |
-| `probes.startup.path` | URL-путь для Startup-пробы | `/api/startupz` |
-| `probes.startup.initialDelaySeconds` | Задержка перед первой проверкой старта (сек) | `2` |
-| `probes.startup.periodSeconds` | Интервал проверки старта (сек) | `5` |
-| `probes.startup.timeoutSeconds` | Таймаут проверки старта (сек) | `2` |
-| `probes.startup.failureThreshold` | Количество неудачных попыток до перезапуска | `12` |
-| `probes.liveness.enabled` | Включение Liveness-пробы Kubernetes | `true` |
-| `probes.liveness.path` | URL-путь для Liveness-пробы | `/api/livez` |
-| `probes.liveness.initialDelaySeconds` | Задержка перед первой проверкой живучести (сек) | `5` |
-| `probes.liveness.periodSeconds` | Интервал проверки живучести (сек) | `10` |
-| `probes.liveness.timeoutSeconds` | Таймаут проверки живучести (сек) | `2` |
-| `probes.liveness.failureThreshold` | Порог неудач до перезапуска контейнера | `3` |
-| `probes.readiness.enabled` | Включение Readiness-пробы Kubernetes | `true` |
-| `probes.readiness.path` | URL-путь для Readiness-пробы (проверка базы данных) | `/api/readyz` |
-| `probes.readiness.initialDelaySeconds` | Задержка перед первой проверкой готовности (сек) | `3` |
-| `probes.readiness.periodSeconds` | Интервал проверки готовности (сек) | `5` |
-| `probes.readiness.timeoutSeconds` | Таймаут проверки готовности (сек) | `2` |
-| `probes.readiness.failureThreshold` | Порог неудач до исключения пода из балансировки | `3` |
+| `replicaCount` | kncc server pod replicas (Single-Writer SQLite constraint) | `1` |
+| `image.repository` | Container image repository | `ghcr.io/aleksandrsumkin/kncc` |
+| `image.tag` | Image tag override (defaults to `appVersion`) | `""` |
+| `image.pullPolicy` | Image pull policy (`Always`, `IfNotPresent`) | `IfNotPresent` |
+| `server.port` | HTTP API and UI port inside container | `8080` |
+| `server.tokenTTL` | JWT session lifetime | `24h` |
+| `server.tls.enabled` | Enable HTTPS/TLS server on dedicated port | `true` |
+| `server.tls.port` | Dedicated HTTPS port inside container | `8443` |
+| `server.tls.autoGenerate` | Auto-generate self-signed ECDSA P-256 certificate | `true` |
+| `server.tls.certFile` | Path to certificate file inside container | `""` |
+| `server.tls.keyFile` | Path to private key file inside container | `""` |
+| `server.tls.certPem` | Inline PEM certificate string | `""` |
+| `server.tls.keyPem` | Inline PEM private key string | `""` |
+| `server.tls.minVersion` | Minimum TLS version (`1.2` or `1.3`) | `"1.2"` |
+| `server.tls.existingSecret` | Existing Kubernetes Secret containing `tls.crt` and `tls.key` | `""` |
+| `server.tls.mountPath` | Secret mount path inside container | `/etc/kncc-tls` |
+| `server.tls.certManager.enabled` | Use cert-manager for automated server TLS certificates | `false` |
+| `server.openapi.enabled` | Enable OpenAPI 3.x and Swagger UI (`/api/docs`) | `true` |
+| `server.openapi.public` | Anonymous API documentation access (for DAST scanners) | `false` |
+| `service.tlsPort` | External HTTPS service port (mapped to `server.tls.port`) | `443` |
+| `k8s.probeImage` | Image for ephemeral diagnostic probe pods | `ghcr.io/aleksandrsumkin/kncc-agent:latest` |
+| `k8s.probeTimeoutSeconds` | Individual probe network operation timeout | `30` |
+| `k8s.probeActiveDeadlineSeconds` | Probe pod hard execution deadline | `60` |
+| `k8s.gcInterval` | Garbage collection sweep interval | `2m` |
+| `k8s.gcStaleThreshold` | Minimum pod age threshold before GC removal | `3m` |
+| `k8s.namespaceListEnabled` | Interactive namespace dropdown in UI | `true` |
+| `k8s.namespaceExcludeList` | Namespaces excluded from UI and API execution | `["kube-system", "kube-public", "kube-node-lease"]` |
+| `k8s.namespaceExcludeSelector` | LabelSelector for dynamic namespace exclusion | `"kncc.io/exclude=true"` |
+| `rbac.create` | Provision ServiceAccount, Roles, and RoleBindings | `true` |
+| `rbac.multiNamespace` | Permit scheduling probes across any namespace (ClusterRole) | `true` |
+| `security.rateLimitPerMinute` | Maximum allowed check requests per minute per user | `30` |
+| `security.blacklistCIDRs` | Prohibited IP subnets (Anti-SSRF) | `["169.254.169.254/32", "127.0.0.0/8", "::1/128"]` |
+| `security.blacklistDomains` | Prohibited domain patterns | `["metadata.google.internal", "instance-data"]` |
+| `security.whitelistCIDRs` | Allowed IP subnets (Strict Allowlist mode) | `[]` |
+| `persistence.enabled` | Use PVC for SQLite persistence across pod restarts | `false` |
+| `persistence.size` | PVC capacity | `2Gi` |
+| `auth.adminUsername` | Initial administrator username | `admin` |
+| `auth.adminInitialPassword` | Initial admin password (auto-generated if empty) | `""` |
+| `auth.existingSecret` | Existing Kubernetes Secret containing admin password | `""` |
+| `auth.existingSecretPasswordKey` | Secret key for admin password | `ADMIN_INITIAL_PASSWORD` |
+| `auth.deliveryMode` | Password delivery mechanism (`volume` or `env`) | `volume` |
+| `auth.volume.medium` | Volume medium (`Memory` for RAM tmpfs or `""` for disk) | `Memory` |
+| `auth.localEnabled` | Enable local SQLite username/password authentication | `true` |
+| `auth.ldapEnabled` | Enable LDAP / Active Directory authentication | `false` |
+| `auth.ldap.existingSecret` | Existing Secret containing LDAP credentials | `""` |
+| `auth.ldap.userDNTemplate` | Direct Bind DN template (e.g. `uid=%s,ou=users,dc=example,dc=com`) | `""` |
+| `auth.ldap.anonymousSearch` | Anonymous directory search mode (RFC 4513) | `false` |
+| `auth.ldap.adminGroup` | LDAP group dynamically mapped to `admin` role | `""` |
+| `auth.oidcEnabled` | Enable OpenID Connect SSO | `false` |
+| `auth.oidc.issuerURL` | OIDC Identity Provider Discovery URL | `"https://auth.corp.example.com/realms/corp"` |
+| `auth.oidc.clientID` | OIDC Client ID | `"kncc"` |
+| `auth.oidc.existingSecret` | Existing Secret containing OIDC client credentials | `""` |
+| `caCerts.enabled` | Enable mounting custom enterprise CA certificates | `false` |
+| `caCerts.pem` | Inline PEM corporate CA bundle | `""` |
+| `theme.appName` | Application title in UI header | `Kubernetes Network Connectivity Checker` |
+| `theme.primaryColor` | Base background color | `#ffffff` |
+| `theme.accentColor` | Accent brand color for buttons and badges | `#dc2626` |
+| `theme.defaultTheme` | Default theme for new sessions (`light` or `dark`) | `light` |
+| `theme.defaultLanguage` | Default UI language (`en` or `ru`) | `en` |
+| `logo.enabled` | Enable corporate logo ConfigMap | `true` |
+| `favicon.enabled` | Enable custom favicon ConfigMap | `true` |
+| `quickAdd.presets` | Quick-add diagnostic target presets | `[{name: "K8s API", ...}, {name: "Google DNS", ...}]` |
+| `ingress.enabled` | Provision Ingress resource | `false` |
+| `gateway.enabled` | Provision Gateway API HTTPRoute | `false` |
+| `probes.startup.enabled` | Enable Startup Probe | `true` |
+| `probes.liveness.enabled` | Enable Liveness Probe | `true` |
+| `probes.readiness.enabled`| Enable Readiness Probe | `true` |
 
 ---
 
 ## 8. REST API Reference
 
-| Метод | Эндпоинт | Доступ | Описание |
+| Method | Endpoint | Access | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/livez` | Публичный | Liveness-проба Kubernetes: проверка жизнеспособности HTTP-сервера и рантайма Go |
-| `GET` | `/api/readyz` | Публичный | Readiness-проба Kubernetes: проверка готовности пода и доступности базы данных SQLite |
-| `GET` | `/api/startupz` | Публичный | Startup-проба Kubernetes: проверка завершения начальной инициализации сервиса и миграций |
-| `GET` | `/api/healthz` | Публичный | Обратная совместимость: проверка здоровья сервиса (алиас к `/api/readyz`) |
-| `GET` | `/api/system/config` | Публичный | Получение параметров темы, провайдеров авторизации и флагов кластера |
-| `GET` | `/api/system/logo` | Публичный | Получение активного корпоративного логотипа (SVG/PNG с кэшированием и ETag) |
-| `GET` | `/api/system/favicon` | Публичный | Получение активного фавикона сайта (кастомный или миниатюра корпоративного лого) |
-| `GET` | `/favicon.ico` | Публичный | Стандартный путь фавикона для браузеров (отдает активный фавикон сайта) |
-| `GET` | `/api/auth/providers` | Публичный | Список доступных провайдеров входа (local, ldap, oidc) |
-| `POST` | `/api/auth/login` | Публичный | Аутентификация пользователя и получение JWT-токена |
-| `GET` | `/api/auth/oidc/login` | Публичный | Инициация входа через OIDC / SSO (редирект на IdP провайдера) |
-| `GET` | `/api/auth/oidc/callback`| Публичный | Обработка OAuth2/OIDC редиректа от IdP, выпуск JWT-токена и переход в интерфейс |
-| `POST` | `/api/auth/oidc/callback`| Публичный | Программный обмен кода авторизации OIDC на JWT-токен |
-| `POST` | `/api/auth/logout` | Авторизованный | Завершение сессии и очистка cookie |
-| `GET` | `/api/auth/me` | Авторизованный | Профиль и роль текущего пользователя |
-| `GET` | `/api/k8s/namespaces` | Авторизованный | Список разрешённых неймспейсов кластера (403, если листинг выключен) |
-| `GET` | `/api/checks/quick-add`| Авторизованный | Динамический список быстрых подсказок для текущего пользователя (топ-3 частых сервисов) |
-| `POST` | `/api/checks` | Авторизованный | Запуск новой сетевой проверки (валидация SSRF и namespace) |
-| `GET` | `/api/reports` | Авторизованный | Список отчетов проверок с пагинацией |
-| `GET` | `/api/reports/{id}` | Авторизованный | Детальный отчет проверки с матрицей доступности по узлам |
-| `POST` | `/api/reports/{id}/rerun`| Авторизованный | Повторный запуск проверки на основе существующего отчета |
-| `GET` | `/api/admin/users` | Администратор | Просмотр списка зарегистрированных пользователей |
-| `POST` | `/api/admin/users` | Администратор | Создание новой локальной учётной записи пользователя |
-| `GET` | `/api/admin/stats/users` | Администратор | Просмотр сводной статистики сетевых проверок по пользователям и временным диапазонам |
-| `GET` | `/api/admin/rbac` | Администратор | Получение результирующих прав SA на Kubernetes API (формат rbac-tool policy-rules) |
-| `POST` | `/api/admin/settings/logo` | Администратор | Загрузка и установка корпоративного логотипа (multipart или base64 JSON) |
-| `DELETE` | `/api/admin/settings/logo`| Администратор | Сброс логотипа компании на первичное судостроительное лого по умолчанию |
-| `POST` | `/api/admin/settings/favicon`| Администратор | Загрузка и установка кастомного фавикона (ICO, SVG, PNG, WebP) |
-| `DELETE` | `/api/admin/settings/favicon`| Администратор | Сброс фавикона на автоматическую миниатюру корпоративного логотипа |
-| `GET` | `/api/openapi.json` | Настраиваемый (`public: false`/`true`) | Машиночитаемая спецификация OpenAPI 3.x в формате JSON (для DAST-сканеров и интеграций) |
-| `GET` | `/api/openapi.yaml` | Настраиваемый (`public: false`/`true`) | Машиночитаемая спецификация OpenAPI 3.x в формате YAML |
-| `GET` | `/api/docs` | Настраиваемый (`public: false`/`true`) | Интерактивный веб-интерфейс Swagger UI для тестирования и документации API |
+| `GET` | `/api/livez` | Public | Kubernetes Liveness Probe: Go runtime health |
+| `GET` | `/api/readyz` | Public | Kubernetes Readiness Probe: Active SQLite database validation |
+| `GET` | `/api/startupz` | Public | Kubernetes Startup Probe: Schema migrations and initialization check |
+| `GET` | `/api/healthz` | Public | Backward compatibility alias for `/api/readyz` |
+| `GET` | `/api/system/config` | Public | System configuration, theme parameters, and auth providers |
+| `GET` | `/api/system/logo` | Public | Active corporate logo (SVG/PNG with ETag caching) |
+| `GET` | `/api/system/favicon` | Public | Active favicon (custom or corporate logo thumbnail) |
+| `GET` | `/favicon.ico` | Public | Standard browser favicon route |
+| `GET` | `/api/auth/providers` | Public | Available authentication providers (local, ldap, oidc) |
+| `POST` | `/api/auth/login` | Public | User authentication returning JWT token |
+| `GET` | `/api/auth/oidc/login` | Public | Initiate OIDC / SSO authentication flow |
+| `GET` | `/api/auth/oidc/callback`| Public | Handle OAuth2/OIDC redirect, issue JWT, and transition to UI |
+| `POST` | `/api/auth/oidc/callback`| Public | Exchange OIDC authorization code for JWT token |
+| `POST` | `/api/auth/logout` | Authenticated | Terminate session and clear cookies |
+| `GET` | `/api/auth/me` | Authenticated | Profile and role of authenticated user |
+| `GET` | `/api/k8s/namespaces` | Authenticated | List allowed cluster namespaces (403 if disabled) |
+| `GET` | `/api/checks/quick-add`| Authenticated | Dynamic target suggestions for user |
+| `POST` | `/api/checks` | Authenticated | Launch network diagnostic check across cluster nodes |
+| `GET` | `/api/reports` | Authenticated | Paginated connectivity report list |
+| `GET` | `/api/reports/{id}` | Authenticated | Diagnostic report with node reachability matrix |
+| `POST` | `/api/reports/{id}/rerun`| Authenticated | Rerun connectivity check from existing report |
+| `GET` | `/api/admin/users` | Administrator | List registered user accounts |
+| `POST` | `/api/admin/users` | Administrator | Create local user account |
+| `GET` | `/api/admin/stats/users` | Administrator | Query execution statistics across users and timeframes |
+| `GET` | `/api/admin/rbac` | Administrator | Effective ServiceAccount RBAC permissions on Kubernetes API |
+| `POST` | `/api/admin/settings/logo` | Administrator | Upload custom corporate logo |
+| `DELETE` | `/api/admin/settings/logo`| Administrator | Reset corporate logo to default |
+| `POST` | `/api/admin/settings/favicon`| Administrator | Upload custom site favicon |
+| `DELETE` | `/api/admin/settings/favicon`| Administrator | Reset favicon to corporate logo thumbnail |
+| `GET` | `/api/openapi.json` | Configurable (`public: false`/`true`) | Machine-readable OpenAPI 3.x specification in JSON |
+| `GET` | `/api/openapi.yaml` | Configurable (`public: false`/`true`) | Machine-readable OpenAPI 3.x specification in YAML |
+| `GET` | `/api/docs` | Configurable (`public: false`/`true`) | Interactive Swagger UI documentation |
 
 ---
 
-## 9. Лицензия
+## 9. License
 
-Проект распространяется под лицензией **Apache 2.0**.
+This project is licensed under the **Apache 2.0 License**.

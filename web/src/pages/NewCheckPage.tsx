@@ -201,7 +201,7 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
           {t('newCheck.title')}
@@ -402,104 +402,115 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
             {targets.map((target, idx) => (
               <div
                 key={idx}
-                className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3 bg-gray-50/70 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 rounded-xl"
+                className="p-3 bg-gray-50/70 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 rounded-xl"
               >
-                <div className="w-full md:w-28 flex-shrink-0">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.protocol')}</label>
-                  <select
-                    value={target.protocol}
-                    onChange={(e) => handleTargetChange(idx, 'protocol', e.target.value as Protocol)}
-                    className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-semibold text-gray-800 dark:text-slate-200 uppercase focus:ring-red-500 focus:border-red-500"
-                  >
-                    <option value="tcp">TCP</option>
-                    <option value="udp">UDP</option>
-                    <option value="http">HTTP</option>
-                    <option value="https">HTTPS</option>
-                    <option value="icmp">ICMP (Ping)</option>
-                  </select>
-                </div>
-
-                <div className="flex-1 w-full">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.host')}</label>
-                  <input
-                    type="text"
-                    required
-                    value={target.host}
-                    onChange={(e) => handleTargetChange(idx, 'host', e.target.value)}
-                    placeholder="e.g. postgres.internal, 192.168.1.10"
-                    className="block w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-mono text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
-                  />
-                </div>
-
-                {target.protocol !== 'icmp' && (
-                  <div className="w-full md:w-24 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.port')}</label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      max={65535}
-                      value={target.port || ''}
-                      onChange={(e) => handleTargetChange(idx, 'port', parseInt(e.target.value) || 0)}
-                      placeholder="80"
-                      className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-mono text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
-                    />
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-3">
+                  <div className="w-full md:w-28 flex-shrink-0">
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.protocol')}</label>
+                    <select
+                      value={target.protocol}
+                      onChange={(e) => handleTargetChange(idx, 'protocol', e.target.value as Protocol)}
+                      className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-semibold text-gray-800 dark:text-slate-200 uppercase focus:ring-red-500 focus:border-red-500"
+                    >
+                      <option value="tcp">TCP</option>
+                      <option value="udp">UDP</option>
+                      <option value="http">HTTP</option>
+                      <option value="https">HTTPS</option>
+                      <option value="icmp">ICMP (Ping)</option>
+                    </select>
                   </div>
-                )}
 
-                {(target.protocol === 'http' || target.protocol === 'https') && (
-                  <div className="w-full md:w-36 flex-shrink-0">
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.path')}</label>
+                  <div className="flex-1 w-full min-w-0">
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.host')}</label>
                     <input
                       type="text"
-                      value={target.path || '/'}
-                      onChange={(e) => handleTargetChange(idx, 'path', e.target.value)}
-                      placeholder="/healthz"
-                      className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
+                      required
+                      value={target.host}
+                      onChange={(e) => handleTargetChange(idx, 'host', e.target.value)}
+                      placeholder="e.g. postgres.internal, 192.168.1.10"
+                      className="block w-full px-3 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-mono text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
                     />
                   </div>
-                )}
+
+                  {target.protocol !== 'icmp' && (
+                    <div className="w-full md:w-24 flex-shrink-0">
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.port')}</label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        max={65535}
+                        value={target.port || ''}
+                        onChange={(e) => handleTargetChange(idx, 'port', parseInt(e.target.value) || 0)}
+                        placeholder="80"
+                        className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm font-mono text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
+                      />
+                    </div>
+                  )}
+
+                  {(target.protocol === 'http' || target.protocol === 'https') && (
+                    <div className="w-full md:w-36 flex-shrink-0">
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.path')}</label>
+                      <input
+                        type="text"
+                        value={target.path || '/'}
+                        onChange={(e) => handleTargetChange(idx, 'path', e.target.value)}
+                        placeholder="/healthz"
+                        className="block w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 focus:ring-red-500 focus:border-red-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="w-full md:w-20 flex-shrink-0">
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.timeout')}</label>
+                    <div className="flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={target.timeout_seconds || 5}
+                        onChange={(e) => handleTargetChange(idx, 'timeout_seconds', parseInt(e.target.value) || 5)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="no-spinner block w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm text-gray-900 dark:text-white focus:ring-red-500 focus:border-red-500 text-center"
+                      />
+                      <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">{t('newCheck.seconds')}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 md:pt-4 flex-shrink-0">
+                    <button
+                      type="button"
+                      disabled={targets.length <= 1}
+                      onClick={() => handleRemoveTarget(idx)}
+                      className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 rounded transition-colors"
+                      title={t('newCheck.removeTarget')}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
                 {target.protocol === 'https' && (
-                  <div className="flex items-center pt-4 md:pt-4">
-                    <label className="inline-flex items-center text-xs text-gray-600 dark:text-slate-300 cursor-pointer">
+                  <div className="mt-2.5 pt-2 border-t border-gray-200/60 dark:border-slate-700/60 flex items-center">
+                    <label className="inline-flex items-center text-xs text-gray-600 dark:text-slate-300 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={target.insecure_tls || false}
                         onChange={(e) => handleTargetChange(idx, 'insecure_tls', e.target.checked)}
-                        className="rounded text-red-600 focus:ring-red-500 mr-1.5"
+                        className="rounded text-red-600 focus:ring-red-500 mr-2 h-4 w-4"
                       />
-                      {t('newCheck.insecureTls')}
+                      <span className="font-medium">{t('newCheck.insecureTls')}</span>
+                      <span className="text-gray-400 dark:text-slate-500 ml-2 hidden sm:inline">
+                        ({t('newCheck.insecureTlsHelp')})
+                      </span>
                     </label>
                   </div>
                 )}
-
-                <div className="w-full md:w-20 flex-shrink-0">
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">{t('newCheck.timeout')}</label>
-                  <div className="flex items-center">
-                    <input
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={target.timeout_seconds || 5}
-                      onChange={(e) => handleTargetChange(idx, 'timeout_seconds', parseInt(e.target.value) || 5)}
-                      className="block w-full px-2 py-1.5 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-md text-sm text-gray-900 dark:text-white focus:ring-red-500 focus:border-red-500 text-center"
-                    />
-                    <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">{t('newCheck.seconds')}</span>
-                  </div>
-                </div>
-
-                <div className="pt-2 md:pt-4">
-                  <button
-                    type="button"
-                    disabled={targets.length <= 1}
-                    onClick={() => handleRemoveTarget(idx)}
-                    className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 disabled:opacity-20 rounded transition-colors"
-                    title={t('newCheck.removeTarget')}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
             ))}
           </div>

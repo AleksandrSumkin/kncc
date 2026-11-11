@@ -1,98 +1,100 @@
 # Kubernetes Network Connectivity Checker (kncc)
 
-## 1. Проблема и назначение проекта
-В enterprise-окружениях и многопользовательских кластерах Kubernetes со строгой сетевой сегментацией (Firewall, CNI NetworkPolicy, Calico/Cilium) у обычных разработчиков и инженеров поддержки нет прямого доступа к узлам (`node access`) и запрещён `kubectl exec` в контейнеры.
-При развертывании приложений часто возникает ситуация, когда внешний сервис (база данных, корпоративное API, внешний брокер) недоступен с определенных узлов или из конкретных неймспейсов. Приложение при старте падает с сетевыми ошибками, что затягивает отладку и несет риски для бизнеса.
+## 1. Problem Statement & Purpose
+In enterprise environments and multi-tenant Kubernetes clusters with strict network segmentation (Firewalls, CNI NetworkPolicies, Calico/Cilium), regular developers and support engineers lack direct node access (`node access`) and are prohibited from running `kubectl exec` into containers.
+During application deployment, scenarios frequently arise where an external service (database, corporate API, external message broker) is unreachable from specific cluster nodes or namespaces. Applications crash on startup with network connection errors, delaying troubleshooting and posing business risks.
 
-**kncc** — это легковесный, открытый, автономный инструмент диагностики сетевой доступности для Kubernetes. Он позволяет через удобный веб-интерфейс и API параллельно проверить достижимость внешних сервисов с каждого узла кластера как на уровне сети узла (хостовая сеть), так и изнутри pod-сети (с учетом NetworkPolicy).
+**kncc** is a lightweight, open-source, autonomous network connectivity diagnostic tool for Kubernetes. Via an intuitive web UI and REST API, it allows parallel validation of external service reachability from every cluster node, both at the node network layer (host network) and from inside the pod network (accounting for NetworkPolicies).
 
 ---
 
-## 2. Архитектура и ключевые компоненты
+## 2. Architecture & Key Components
 
 ### 2.1. Backend (Go)
-- **Модель выполнения:** On-demand Pods. При запросе проверки Backend через Kubernetes API создает кратковременные поды на каждом узле кластера параллельно (используя `nodeName` и системные `Tolerations` для обхода taints master/control-plane и кастомных узлов).
-- **Зонд-контейнер (Probe Image):** Используется готовый легковесный образ сетевых утилит (по умолчанию `wbitt/network-multitool` или `nicolaka/netshoot`, настраивается в `values.yaml`).
-- **Сбор результатов:** Зонд формирует структурированный JSON с результатами проверки (статус, latency, код ошибки, IP) и записывает в `/dev/termination-log` (`terminationMessagePolicy: FallbackToLogsOnError`). Backend считывает результат напрямую из статуса завершившегося пода без накладных расходов.
-- **Жизненный цикл подов и очистка:**
-  - Каждый зонд имеет жесткий таймаут (`activeDeadlineSeconds: 60`).
-  - Фоновый Garbage Collector (GC) в `kncc` периодически находит и удаляет любые зависшие/осиротевшие поды с лейблом `app.kubernetes.io/managed-by: kncc`.
-- **Поддерживаемые протоколы:**
-  - **TCP:** проверка установки соединения (SYN/ACK handshake).
-  - **UDP:** отправка дейтаграмм и ожидание ответа / проверка отсутствия ICMP Port Unreachable.
-  - **HTTP / HTTPS:** проверка HTTP-статуса (2xx/3xx), валидация TLS или опциональный skip-verify.
-  - **ICMP (ping):** замер RTT и потерь пакетов.
-- **Режимы сетевой проверки:**
-  - `Host Network`: запуск пода с `hostNetwork: true` для проверки физической маршрутизации узла и корпоративного Firewall.
-  - `Pod Network`: запуск пода в указанном пользователем `Namespace` для эмуляции сетевого контекста конкретного приложения и проверки `NetworkPolicy`.
-  - Возможность проверки из целевого неймспейса управляется параметром конфигурации / Helm values (включение расширенного RBAC).
-- **Безопасность и защита от злоупотреблений (Anti-SSRF & Rate Limiting):**
-  - Поддержка настраиваемых черных и белых списков IP/CIDR/доменов (например, запрет проверки `169.254.169.254/32`, internal k8s API).
-  - Встроенный Rate Limiter (по умолчанию 30 запросов в минуту на пользователя, настраивается в Helm values).
-- **Аутентификация и авторизация (Auth & RBAC):**
-  - Одновременная поддержка трех типов провайдеров:
-    1. Локальные пользователи (для dev/debug режима).
+- **Execution Model:** On-demand Pods. When a check is requested, the Backend leverages the Kubernetes API to create short-lived probe pods on each cluster node concurrently (utilizing `nodeName` and system `Tolerations` to bypass master/control-plane and custom node taints).
+- **Probe Image:** Utilizes a lightweight network diagnostic image (defaulting to `ghcr.io/aleksandrsumkin/kncc-agent` or `wbitt/network-multitool`, configured in `values.yaml`).
+- **Results Collection:** The probe writes structured diagnostic JSON (status, latency, error code, resolved IP) to `/dev/termination-log` (`terminationMessagePolicy: FallbackToLogsOnError`). The Backend extracts results directly from the completed pod status with zero network overhead.
+- **Pod Lifecycle & Cleanup:**
+  - Each probe has a hard execution deadline (`activeDeadlineSeconds: 60`).
+  - An internal background Garbage Collector (GC) in `kncc` periodically discovers and purges any orphaned or completed pods bearing the `app.kubernetes.io/managed-by: kncc` label.
+- **Supported Protocols:**
+  - **TCP:** Connection establishment verification (SYN/ACK handshake).
+  - **UDP:** Datagram transmission and response handling / verifying absence of ICMP Port Unreachable.
+  - **HTTP / HTTPS:** HTTP status code validation (2xx/3xx), TLS certificate validation, or optional skip-verify.
+  - **ICMP (ping):** Round-trip time (RTT) and packet loss measurement.
+- **Network Check Modes:**
+  - `Host Network`: Schedules probe pods with `hostNetwork: true` to test physical node routing, gateways, and corporate firewalls.
+  - `Pod Network`: Schedules probe pods inside a user-specified `Namespace` to emulate target application network context and evaluate `NetworkPolicy` restrictions.
+  - Namespaced execution is controlled via configuration / Helm values (enabling extended RBAC).
+- **Security & Abuse Prevention (Anti-SSRF & Rate Limiting):**
+  - Configurable IP/CIDR/domain blacklists and whitelists (e.g. blocking `169.254.169.254/32`, internal k8s API).
+  - Built-in Rate Limiter (default 30 requests per minute per user, configurable in Helm values).
+- **Authentication & Authorization (Auth & RBAC):**
+  - Simultaneous support for three provider types:
+    1. Local users (for dev/debug environments).
     2. LDAP / Active Directory.
-    3. SSO / OIDC (Keycloak, Dex, Okta).
-  - Ролевая модель:
-    - `Admin`: видит системные настройки, список пользователей, все отчеты кластера.
-    - `User`: может создавать проверки, видеть историю своих проверок.
-  - **Шаринг отчетов:** Отчет имеет уникальный UUID. Любой авторизованный пользователь по прямой ссылке может просмотреть отчет коллеги и нажать «Перезапустить» (создается новая проверка от имени текущего пользователя).
-- **Хранение данных:**
-  - Встроенная база данных SQLite, размещенная на примонтированном томе (`emptyDir` по умолчанию, опционально PVC в Helm).
-  - Автоматическая ротация и удаление устаревших отчетов по TTL.
+    3. SSO / OIDC (Keycloak, Dex, Okta, Azure AD).
+  - Role model:
+    - `Admin`: Access to system configuration, user management, and all cluster reports.
+    - `User`: Capability to initiate checks and inspect personal check history.
+  - **Report Sharing:** Each report has a unique UUID. Any authorized user with a direct link can view a colleague's report and trigger "Rerun" (initiating a new check on behalf of the current user).
+- **Data Persistence:**
+  - Embedded SQLite database mounted on a volume (`emptyDir` by default, optionally PersistentVolumeClaim in Helm).
+  - Automated report retention rotation and TTL cleanup.
 
 ### 2.2. Frontend (React + TypeScript + Tailwind CSS)
-- **Сборка и доставка:** Статический SPA на Vite, встраиваемый в исполняемый файл Go с помощью `embed.FS`.
-- **Темизация:** Минималистичный интерфейс на основе 2 основных цветов: основной фон (по умолчанию белый) и акцентный цвет (по умолчанию красный). Цвета настраиваются администратором через переменные окружения (`THEME_PRIMARY_COLOR`, `THEME_ACCENT_COLOR`) и применяются через CSS-переменные.
-- **Страницы и функционал:**
-  - Форма входа (с выбором провайдера при наличии нескольких) и кнопка выхода.
-  - Создание проверки: ввод одного или нескольких сервисов (`protocol`, `host`, `port`), выбор режима (`Host Network` или `Pod Network` с выбором неймспейса), запуск проверки лаконичной кнопкой **«Run Check»**.
-  - Интерактивный дашборд отчета:
-    - Два режима визуализации: **By Target** (сводная доступность сервиса по узлам, бейджи `ALL NODES REACHABLE` / `PARTIALLY REACHABLE` / `UNREACHABLE`, чипы узлов) и **By Node** (классический по узлам).
-    - Карточки целей свернуты по умолчанию, быстрые кнопки `Expand all` / `Collapse all`, фильтры `All`, `Issues Only`, `All Reachable`, поиск по хостам и узлам.
-    - Кнопка **«Back to Edit»** (возврат в форму создания проверки с предзаполненными значениями текущего отчёта для быстрого исправления опечаток).
-  - Кнопка «Поделиться ссылкой» и «Повторить проверку».
-  - Панель администратора (для пользователей с ролью Admin).
+- **Build & Delivery:** Static SPA bundled with Vite, embedded into the Go executable via `embed.FS`.
+- **Theming:** Clean interface styled around 2 configurable core colors: base background (default white) and brand accent (default red). Colors are customized by administrators via environment variables (`THEME_PRIMARY_COLOR`, `THEME_ACCENT_COLOR`) and applied dynamically via CSS variables.
+- **Pages & Features:**
+  - Login screen (with provider selection when multiple are active) and logout action.
+  - New check form: multi-target input (`protocol`, `host`, `port`), mode selector (`Host Network` or `Pod Network` with namespace selection), initiated via concise **"Run Check"** button.
+  - Interactive report dashboard:
+    - Two visualization perspectives: **By Target** (aggregated node reachability, status badges `ALL NODES REACHABLE` / `PARTIALLY REACHABLE` / `UNREACHABLE`, interactive node chips) and **By Node** (classic node-centric breakdown).
+    - Collapsible target cards, quick **Expand all** / **Collapse all** actions, status filters (`All`, `Issues Only`, `All Reachable`), search by host and node name.
+    - **"Back to Edit"** button (pre-populating the check creation form with parameters from the current report for quick fixes).
+  - "Share Link" and "Rerun Check" capabilities.
+  - Administrator panel (for users with Admin role).
 
 ### 2.3. Helm Chart (`deploy/helm/kncc`)
-- Готовый production-ready Helm-чарт:
-  - `Deployment` для kncc сервера.
-  - `Service` и `Ingress`.
-  - `ServiceAccount`, `ClusterRole`, `ClusterRoleBinding` (с переключателем `rbac.multiNamespace: true|false`).
-  - `ConfigMap` и `Secret` для настроек auth, rate limit, blacklist, theme colors.
-  - `PersistentVolumeClaim` / `emptyDir` для SQLite базы.
+- Production-ready Helm chart:
+  - `Deployment` for kncc server.
+  - `Service` and `Ingress` / `HTTPRoute` (Gateway API).
+  - `ServiceAccount`, `ClusterRole`, `ClusterRoleBinding` (with `rbac.multiNamespace: true|false` toggle).
+  - `ConfigMap` and `Secret` for auth, rate limiting, blacklists, and theme colors.
+  - `PersistentVolumeClaim` / `emptyDir` for SQLite database.
 
 ---
 
-## 3. Структура репозитория
+## 3. Repository Structure
 
 ```text
 kncc/
 ├── cmd/
-│   └── kncc/                   # Главная точка входа backend-сервера
+│   └── kncc/                   # Primary backend entrypoint
 │       └── main.go
 ├── internal/
-│   ├── api/                    # HTTP REST API хэндлеры и роутинг
-│   ├── auth/                   # Аутентификация (Local, LDAP, OIDC)
-│   ├── config/                 # Загрузка и валидация конфигурации (env, yaml)
-│   ├── k8s/                    # Клиент K8s, запуск probe-подов, GC
-│   ├── model/                  # Структуры данных (CheckRequest, Report, NodeResult)
-│   ├── ratelimit/              # Ограничение частоты запросов
-│   ├── security/               # Проверка Blacklist/Whitelist хостов
-│   └── store/                  # Хранилище SQLite (миграции, CRUD отчетов)
-├── web/                        # Исходный код React + Vite + Tailwind фронтенда
+│   ├── api/                    # HTTP REST API handlers and routing
+│   ├── auth/                   # Authentication providers (Local, LDAP, OIDC)
+│   ├── certutil/               # TLS & certificate generation utilities
+│   ├── config/                 # Configuration parsing and validation (env, YAML)
+│   ├── k8s/                    # Kubernetes client, probe launcher, GC
+│   ├── model/                  # Domain models (CheckRequest, Report, NodeResult)
+│   ├── ratelimit/              # Rate limiting middleware
+│   ├── security/               # Anti-SSRF CIDR/domain validation
+│   └── store/                  # SQLite store (migrations, CRUD operations)
+├── web/                        # React + Vite + Tailwind CSS frontend source
 │   ├── src/
 │   ├── package.json
 │   └── vite.config.ts
 ├── deploy/
 │   └── helm/
-│       └── kncc/               # Helm-чарт для установки в Kubernetes
+│       └── kncc/               # Helm chart for Kubernetes deployment
 │           ├── Chart.yaml
-│           ├── values.yaml
+│           ├── values.yaml     # English documentation comments
+│           ├── values_ru.yaml  # Russian documentation comments
 │           └── templates/
-├── docs/                       # Документация по установке и настройке
-├── Dockerfile                  # Multi-stage сборка (Frontend build -> Go build -> Minimal image)
+├── docs/                       # Architectural and deployment documentation
+├── Dockerfile                  # Multi-stage container build
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -100,9 +102,9 @@ kncc/
 
 ---
 
-## 4. Правила и соглашения для агентов разработки
-1. **Чистота и модульность:** Код Go пишется в соответствии со стандартным пакетированием (`internal/...`). Пакеты не должны циклически зависеть друг от друга.
-2. **Безопасность K8s:** Создаваемые probe-поды должны иметь минимально необходимые привилегии (`readOnlyRootFilesystem`, `drop capabilities`, кроме необходимых для ICMP).
-3. **Обработка ошибок:** Все ошибки K8s API и сетевых зондов должны возвращать понятные сообщения в отчет (например: *"DNS resolution failed"*, *"Connection timed out (SYN sent, no response - check Firewall/SecurityGroup)"*, *"Connection refused (RST received - port closed)"*).
-4. **Тестирование:** Бизнес-логика (валидация CIDR, парсинг termination-log, сборка манифестов подов) должна быть покрыта unit-тестами Go.
-5. **Фронтенд:** Никаких тяжелых неиспользуемых библиотек. Использовать Tailwind CSS и Lucide-иконки для легковесного и отзывчивого UI.
+## 4. Development Guidelines & Conventions
+1. **Clean Architecture & Modularity:** Go code follows standard packaging conventions (`internal/...`). Packages must avoid circular dependencies.
+2. **Kubernetes Security:** Probe pods must enforce least privilege (`readOnlyRootFilesystem`, `drop capabilities` except those necessary for ICMP).
+3. **Error Reporting:** All Kubernetes API and network probe errors must produce actionable messages in diagnostic reports (e.g., *"DNS resolution failed"*, *"Connection timed out (SYN sent, no response - check Firewall/SecurityGroup)"*, *"Connection refused (RST received - port closed)"*).
+4. **Testing:** Core business logic (CIDR validation, termination-log parsing, pod manifest assembly) must be covered with Go unit tests.
+5. **Frontend:** Avoid heavy, unnecessary dependencies. Utilize Tailwind CSS and Lucide icons for a responsive, lightweight UI.

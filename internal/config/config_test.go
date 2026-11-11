@@ -531,3 +531,53 @@ theme:
 		t.Errorf("expected env default language 'ru', got %s", cfgEnv.Theme.DefaultLanguage)
 	}
 }
+
+func TestLoad_ProbeAllowPrivilegeEscalation(t *testing.T) {
+	// 1. Default value should be true
+	defCfg := DefaultConfig()
+	if defCfg.K8s.ProbeAllowPrivilegeEscalation == nil || !*defCfg.K8s.ProbeAllowPrivilegeEscalation {
+		t.Errorf("expected default ProbeAllowPrivilegeEscalation to be true")
+	}
+
+	// 2. YAML override to false
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	content := `
+k8s:
+  probe_allow_privilege_escalation: false
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	loaded, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loaded.K8s.ProbeAllowPrivilegeEscalation == nil || *loaded.K8s.ProbeAllowPrivilegeEscalation != false {
+		t.Errorf("expected ProbeAllowPrivilegeEscalation to be false from YAML")
+	}
+
+	// 3. ENV override
+	os.Setenv("K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION", "false")
+	defer os.Unsetenv("K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION")
+
+	loadedEnv, err := Load("")
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loadedEnv.K8s.ProbeAllowPrivilegeEscalation == nil || *loadedEnv.K8s.ProbeAllowPrivilegeEscalation != false {
+		t.Errorf("expected ProbeAllowPrivilegeEscalation to be false from env")
+	}
+
+	os.Unsetenv("K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION")
+	os.Setenv("KNCC_K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION", "true")
+	defer os.Unsetenv("KNCC_K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION")
+
+	loadedEnv2, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loadedEnv2.K8s.ProbeAllowPrivilegeEscalation == nil || *loadedEnv2.K8s.ProbeAllowPrivilegeEscalation != true {
+		t.Errorf("expected ProbeAllowPrivilegeEscalation to be true from KNCC_ env overriding YAML")
+	}
+}
