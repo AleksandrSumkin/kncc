@@ -131,6 +131,8 @@ export const ru: TranslationSchema = {
     failedCheck: 'ОШИБКА',
     backToChecks: 'К новой проверке',
     duration: 'Длительность',
+    nodeProbeDuration: 'Время работы зонда',
+    nodeProbeDurationTooltip: 'Полное время жизненного цикла и выполнения пода-зонда на узле',
     finishedAt: 'Завершено в',
     diagnosticResults: 'Результаты опроса',
     noResults: 'Нет результатов опроса для данного узла',

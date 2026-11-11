@@ -131,6 +131,8 @@ export const en: TranslationSchema = {
     failedCheck: 'FAILED',
     backToChecks: 'Back to New Check',
     duration: 'Duration',
+    nodeProbeDuration: 'Probe runtime',
+    nodeProbeDurationTooltip: 'Total diagnostic pod lifecycle and probe execution time on this node',
     finishedAt: 'Finished At',
     diagnosticResults: 'Probe Results',
     noResults: 'No probe results recorded for this node',

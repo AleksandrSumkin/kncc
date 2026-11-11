@@ -3,6 +3,8 @@ import { api } from '../api';
 import { useTranslation } from '../context/LanguageContext';
 import { Report, NodeResult, ProbeOutput, TargetService, CheckMode } from '../types';
 import { copyToClipboard } from '../utils/clipboard';
+import { formatDuration } from '../utils/format';
+export { formatDuration };
 import {
   CheckCircle,
   XCircle,
@@ -1134,9 +1136,16 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
         </div>
 
         <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-400 dark:text-slate-500">
-            {node.duration_ms > 0 ? `${node.duration_ms} ms` : ''}
-          </span>
+          {node.duration_ms > 0 && (
+            <span
+              className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700/80 cursor-help"
+              title={t('report.nodeProbeDurationTooltip')}
+            >
+              <Clock className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 flex-shrink-0" />
+              <span className="text-[11px] text-gray-500 dark:text-slate-400 font-normal">{t('report.nodeProbeDuration')}:</span>
+              <span className="font-semibold text-gray-800 dark:text-slate-200 font-mono">{formatDuration(node.duration_ms)}</span>
+            </span>
+          )}
           <span
             className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
               node.status === 'completed'

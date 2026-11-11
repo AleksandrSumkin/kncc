@@ -2,8 +2,8 @@ apiVersion: v2
 name: kncc
 description: Kubernetes Network Connectivity Checker - On-demand cluster-wide network reachability diagnostic tool.
 type: application
-version: 1.13.0
-appVersion: "1.13.0"
+version: 1.14.0
+appVersion: "1.14.0"
 keywords:
   - kubernetes
   - networking

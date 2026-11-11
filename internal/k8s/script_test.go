@@ -1,4 +1,4 @@
-package k8s
+﻿package k8s
 
 import (
 	"strings"
@@ -94,5 +94,38 @@ func TestBuildProbeScriptWithCA(t *testing.T) {
 		if !strings.Contains(script, snippet) {
 			t.Errorf("expected script to contain %q, but it was missing", snippet)
 		}
+	}
+}
+
+func TestBuildProbeScriptIPResolutionOptimization(t *testing.T) {
+	// IP target should bypass getent hosts
+	ipTarget := []model.TargetService{
+		{Protocol: model.ProtocolTCP, Host: "10.96.0.10", Port: 80, TimeoutSeconds: 3},
+		{Protocol: model.ProtocolICMP, Host: "8.8.8.8", TimeoutSeconds: 2},
+	}
+	ipScript, err := BuildProbeScript(ipTarget)
+	if err != nil {
+		t.Fatalf("BuildProbeScript for IP target failed: %v", err)
+	}
+	if strings.Contains(ipScript, "getent hosts") {
+		t.Errorf("IP target script should NOT contain getent hosts lookup")
+	}
+	if !strings.Contains(ipScript, "RESOLVED_IP=\"$HOST\"") {
+		t.Errorf("IP target script must directly assign RESOLVED_IP=\"$HOST\"")
+	}
+
+	// Hostname target should include getent hosts and nslookup fallback
+	hostTarget := []model.TargetService{
+		{Protocol: model.ProtocolHTTP, Host: "dex.local.example.com", Port: 80, Path: "/healthz", TimeoutSeconds: 3},
+	}
+	hostScript, err := BuildProbeScript(hostTarget)
+	if err != nil {
+		t.Fatalf("BuildProbeScript for hostname target failed: %v", err)
+	}
+	if !strings.Contains(hostScript, "getent hosts \"$HOST\"") {
+		t.Errorf("Hostname target script must contain getent hosts lookup")
+	}
+	if !strings.Contains(hostScript, "nslookup \"$HOST\"") {
+		t.Errorf("Hostname target script must contain nslookup fallback")
 	}
 }

@@ -129,6 +129,8 @@ export interface TranslationSchema {
     failedCheck: string;
     backToChecks: string;
     duration: string;
+    nodeProbeDuration: string;
+    nodeProbeDurationTooltip: string;
     finishedAt: string;
     diagnosticResults: string;
     noResults: string;

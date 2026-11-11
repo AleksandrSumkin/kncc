@@ -26,7 +26,7 @@ image:
   # Репозиторий и имя Docker-образа backend-сервера kncc.
   # Измените при использовании корпоративного или закрытого (air-gapped) реестра:
   # например, "harbor.corp.example.com/kncc/kncc" или "ghcr.io/AleksandrSumkin/kncc".
-  repository: kncc/kncc
+  repository: ghcr.io/aleksandrsumkin/kncc
 
   # Политика загрузки образа Kubernetes (IfNotPresent, Always, Never).
   # Рекомендуется:
@@ -79,7 +79,7 @@ server:
     # Включение прямого TLS-сервера kncc.
     # Оставьте false, если TLS терминируется на внешнем Ingress контроллере или Gateway API.
     # Включите (true), если в кластере действует концепция Zero Trust и требуется End-to-End шифрование до пода.
-    enabled: false
+    enabled: true
 
     # Выделенный HTTPS-порт внутри контейнера kncc (по умолчанию: 8443).
     port: 8443
@@ -152,12 +152,11 @@ k8s:
   # Образ контейнера для эфемерных диагностических подов kncc-probe, создаваемых на узлах кластера.
   #
   # Поддерживаемые и протестированные образы:
-  #   - "ghcr.io/AleksandrSumkin/kncc-agent:latest" (или "homelab/kncc-agent:latest"):
+  #   - "ghcr.io/aleksandrsumkin/kncc-agent:latest
   #       НАИБОЛЕЕ РЕКОМЕНДУЕМЫЙ. Нативный сверхлегкий образ kncc (~15 МБ).
   #       Содержит строго необходимый набор утилит: curl, openssl, netcat, ping, ca-certificates, bind-tools.
   #       Нулевая поверхность атаки (Zero Attack Surface), моментальный холодный старт, 0 известных CVE.
   #   - "wbitt/network-multitool:alpine-extra":
-  #       ПУБЛИЧНЫЙ ДЕФОЛТ (~120 МБ). Универсальный образ сетевой диагностики с curl, nc, ping, nmap.
   #       Доступен напрямую из Docker Hub и не требует развертывания локального реестра.
   #   - "wbitt/network-multitool:minimal":
   #       Облегченная версия multitool (~40 МБ).
@@ -165,7 +164,7 @@ k8s:
   #       Мощный швейцарский нож сетевого траблшутинга (~400 МБ). Рекомендуется для ручной отладки через kubectl exec.
   #   - "curlimages/curl:latest":
   #       Минималистичный образ curl (~15 МБ). Поддерживает ТОЛЬКО HTTP/HTTPS (проверки TCP/UDP/ICMP завершатся ошибкой).
-  probeImage: "wbitt/network-multitool:alpine-extra"
+  probeImage: "ghcr.io/aleksandrsumkin/kncc-agent:latest"
 
   # Таймаут на одну сетевую операцию внутри пода-зонда (в секундах).
   # Применяется к TCP-хэндшейку, HTTP-запросу, UDP-тесту и ICMP-пингу.
@@ -191,7 +190,7 @@ k8s:
   #     вручную. Сервису kncc НЕ выдаются права на чтение пространств имён кластера.
   #   - true: В веб-интерфейсе появляется удобный выпадающий список неймспейсов кластера,
   #     а ClusterRole kncc получает права "namespaces: [get, list, watch]".
-  namespaceListEnabled: false
+  namespaceListEnabled: true
 
   # Черный список пространств имён, скрываемых из выпадающего списка в UI и навсегда
   # заблокированных от выполнения проверок на уровне API сервера (защита Anti-Bypass).
@@ -220,7 +219,7 @@ rbac:
   #   - true: kncc разрешено создавать поды-зонды в ЛЮБЫХ пользовательских пространствах имён кластера.
   #     Чарт создает ClusterRole и ClusterRoleBinding. Необходимо для тестирования CNI NetworkPolicies
   #     непосредственно из сетевого контекста конкретного приложения.
-  multiNamespace: false
+  multiNamespace: true
 
   serviceAccount:
     # Создавать ли объект ServiceAccount.

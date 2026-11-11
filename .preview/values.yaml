@@ -1,0 +1,19 @@
+# Default preview directives for kncc ephemeral stands
+auth:
+  adminUsername: "admin"
+  adminInitialPassword: "admin"
+
+server:
+  logLevel: "debug"
+  openapi:
+    enabled: true
+    public: true
+
+security:
+  rateLimitPerMinute: 10000
+
+theme:
+  defaultLanguage: "ru"
+
+k8s:
+  namespaceListEnabled: true

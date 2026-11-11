@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"text/template"
 
@@ -20,6 +21,7 @@ type TargetScriptData struct {
 	InsecureTLS    bool
 	TimeoutSeconds int
 	TargetJSON     string
+	IsIP           bool
 }
 
 const probeScriptTemplate = `#!/bin/sh
@@ -67,11 +69,19 @@ CERT_SUBJECT=""
 CERT_ISSUER=""
 
 # Resolve IP
-RESOLVED_IP=$(getent hosts "$HOST" 2>/dev/null | awk '{print $1; exit}')
-if [ -z "$RESOLVED_IP" ]; then
-  # Fallback to nslookup
-  RESOLVED_IP=$(nslookup "$HOST" 2>/dev/null | awk '/^Address: / {print $2; exit}')
+{{if .IsIP}}
+RESOLVED_IP="$HOST"
+{{else}}
+if echo "$HOST" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || (echo "$HOST" | grep -Eq '^[0-9a-fA-F:]+$' && echo "$HOST" | grep -q ':'); then
+  RESOLVED_IP="$HOST"
+else
+  RESOLVED_IP=$(getent hosts "$HOST" 2>/dev/null | awk '{print $1; exit}')
+  if [ -z "$RESOLVED_IP" ]; then
+    # Fallback to nslookup
+    RESOLVED_IP=$(nslookup "$HOST" 2>/dev/null | awk '/^Address: / {print $2; exit}')
+  fi
 fi
+{{end}}
 
 {{if eq .Protocol "tcp"}}
 # TCP Check
@@ -264,6 +274,7 @@ func BuildProbeScriptWithCA(targets []model.TargetService, customCAPEM string) (
 		if err != nil {
 			return "", fmt.Errorf("marshaling target %d: %w", i, err)
 		}
+		isIP := net.ParseIP(strings.TrimSpace(t.Host)) != nil
 		targetData = append(targetData, TargetScriptData{
 			Index:          i + 1,
 			Protocol:       string(t.Protocol),
@@ -273,6 +284,7 @@ func BuildProbeScriptWithCA(targets []model.TargetService, customCAPEM string) (
 			InsecureTLS:    t.InsecureTLS,
 			TimeoutSeconds: t.TimeoutSeconds,
 			TargetJSON:     string(tj),
+			IsIP:           isIP,
 		})
 	}
 

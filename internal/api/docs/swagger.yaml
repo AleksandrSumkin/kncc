@@ -484,7 +484,7 @@ info:
   license:
     name: Apache 2.0
   title: Kubernetes Network Connectivity Checker (kncc) API
-  version: 1.13.0
+  version: 1.14.0
 paths:
   /api/admin/rbac:
     get:

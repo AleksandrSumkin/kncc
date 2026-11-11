@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../context/LanguageContext';
 import { User, RBACReport, UserStats, UserStatsResponse } from '../types';
+import { copyToClipboard } from '../utils/clipboard';
 import {
   Shield,
   UserPlus,
@@ -354,7 +355,7 @@ export const AdminPage: React.FC = () => {
     return list;
   }, [statsData, statsSearch, sortField, sortDirection]);
 
-  const handleCopyStats = () => {
+  const handleCopyStats = async () => {
     if (!statsData) return;
     const headerRow = [
       t('admin.tsvHeaderUser'),
@@ -390,9 +391,11 @@ export const AdminPage: React.FC = () => {
       '-',
     ];
     const tsv = [headerRow.join('\t'), ...dataRows.map(r => r.join('\t')), summaryRow.join('\t')].join('\n');
-    navigator.clipboard.writeText(tsv);
-    setStatsCopiedNotice(true);
-    setTimeout(() => setStatsCopiedNotice(false), 2500);
+    const success = await copyToClipboard(tsv);
+    if (success) {
+      setStatsCopiedNotice(true);
+      setTimeout(() => setStatsCopiedNotice(false), 2500);
+    }
   };
 
   const formatLastActive = (dateStr?: string) => {
@@ -506,23 +509,27 @@ export const AdminPage: React.FC = () => {
     return true;
   });
 
-  const handleCopyJSON = () => {
+  const handleCopyJSON = async () => {
     if (!rbacReport) return;
-    navigator.clipboard.writeText(JSON.stringify(rbacReport, null, 2));
-    setCopiedNotice(t('admin.copiedJsonNotice'));
-    setTimeout(() => setCopiedNotice(null), 3000);
+    const success = await copyToClipboard(JSON.stringify(rbacReport, null, 2));
+    if (success) {
+      setCopiedNotice(t('admin.copiedJsonNotice'));
+      setTimeout(() => setCopiedNotice(null), 3000);
+    }
   };
 
-  const handleCopyTable = () => {
+  const handleCopyTable = async () => {
     if (!rbacReport || !rbacReport.rules.length) return;
     const header = `TYPE\tSUBJECT\tVERBS\tNAMESPACE\tAPI GROUP\tKIND\tNAMES\tNONRESOURCEURI\tORIGINATED FROM`;
     const rows = filteredRules.map(
       (r) =>
         `${r.type}\t${r.subject}\t${r.verbs.join(',')}\t${r.namespace}\t${r.api_group}\t${r.resource}\t${(r.resource_names || []).join(',') || '*'}\t${(r.non_resource_urls || []).join(',')}\t${r.originated_from || ''}`
     );
-    navigator.clipboard.writeText([header, ...rows].join('\n'));
-    setCopiedNotice(t('admin.copiedTableNotice'));
-    setTimeout(() => setCopiedNotice(null), 3000);
+    const success = await copyToClipboard([header, ...rows].join('\n'));
+    if (success) {
+      setCopiedNotice(t('admin.copiedTableNotice'));
+      setTimeout(() => setCopiedNotice(null), 3000);
+    }
   };
 
   const renderVerbBadge = (verb: string) => {
