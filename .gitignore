@@ -45,3 +45,5 @@ scratch/
 pr-description.md
 .preview/*
 !.preview/values.yaml
+
+graphify-out/
