@@ -69,6 +69,14 @@ server:
   # По умолчанию: 8080 (стандартный непривилегированный порт).
   port: 8080
 
+  # Уровень детализации журналов приложения (логирование backend).
+  # Применяется ко всем модулям системы, включая коннекторы аутентификации (LDAP, OIDC),
+  # сетевые зонды Kubernetes, сборщик мусора (GC) и обработчики HTTP API.
+  # Допустимые значения: "debug", "info", "warn", "error".
+  # По умолчанию: "info" (сбалансированный режим для промышленной эксплуатации).
+  # Используйте "debug" для детальной диагностики подключения к каталогам и отладки токенов.
+  logLevel: "info"
+
   # Время жизни пользовательского JWT-токена авторизации (формат времени Go: "8h", "24h", "7d").
   # По истечении срока сессия завершается, и пользователю требуется повторно войти в систему.
   # Рекомендация: "24h" для удобства операторов, либо "4h"-"8h" для повышенных требований ИБ.
@@ -176,6 +184,57 @@ k8s:
   # удалит под по истечении этого времени. Должен быть заведомо больше probeTimeoutSeconds.
   probeActiveDeadlineSeconds: 60
 
+  # Управление allowPrivilegeEscalation в SecurityContext пода-зонда.
+  # Если true (по умолчанию), непривилегированные контейнеры могут использовать SUID bit для NET_RAW.
+  probeAllowPrivilegeEscalation: true
+
+  # Метод загрузки образа контейнера зонда (Always, IfNotPresent, Never).
+  # Если не задан, используются стандартные правила Kubernetes.
+  probeImagePullPolicy: ""
+
+  # Секреты для доступа к приватным реестрам образов зонда.
+  # Администратор должен предварительно доставить эти секреты в опрашиваемые namespace.
+  probeImagePullSecrets: []
+    # - name: "my-registry-secret"
+
+  # Дополнительные метки (labels) для подов-зондов.
+  # При совпадении с системными метками kncc переопределяет их с логированием WARN.
+  probeExtraLabels: {}
+    # team: "network"
+
+  # Дополнительные аннотации для подов-зондов (например, для исключения Service Mesh).
+  probeExtraAnnotations: {}
+    # sidecar.istio.io/inject: "false"
+
+  # Имя класса приоритета для подов-зондов (например, "system-cluster-critical").
+  probePriorityClassName: ""
+
+  # Настройки ресурсов для контейнера зонда (запросы и лимиты).
+  # Если не заданы, применяются значения по умолчанию (10m/32Mi requests, 100m/128Mi limits).
+  probeResources: {}
+    # requests:
+    #   cpu: "10m"
+    #   memory: "32Mi"
+    # limits:
+    #   cpu: "100m"
+    #   memory: "128Mi"
+
+  # Дополнительные параметры PodSecurityContext для пода-зонда.
+  probePodSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 10001
+    # fsGroup: 10001
+
+  # Дополнительные параметры SecurityContext для контейнера зонда.
+  # Дополняют или переопределяют контекст по умолчанию с приоритетом и логированием WARN.
+  probeSecurityContext: {}
+    # readOnlyRootFilesystem: false
+    # capabilities:
+    #   drop:
+    #     - ALL
+    #   add:
+    #     - NET_RAW
+
   # Интервал запуска фонового сборщика мусора (Garbage Collector).
   # Периодически сканирует кластер и удаляет завершившиеся поды kncc-probe.
   gcInterval: "2m"
@@ -203,6 +262,17 @@ k8s:
   # Любое пространство имён с такой меткой будет скрыто из UI и заблокировано в API.
   namespaceExcludeSelector: "kncc.io/exclude=true"
 
+  # Черный список конкретных узлов по именам, навсегда исключаемых из запуска подов-зондов.
+  nodeExcludeList: []
+
+  # Kubernetes LabelSelector для динамического исключения узлов по меткам (узлы аудита, безопасности, master).
+  # Пример: "security.zone=audit" или "node-role.kubernetes.io/control-plane=true" или "kncc.io/exclude=true"
+  nodeExcludeSelector: ""
+
+  # Опциональный whitelist селектор узлов: планировать поды-зонды только на подходящих узлах.
+  # Пример: "node-role.kubernetes.io/worker=true"
+  nodeSelector: ""
+
 # ------------------------------------------------------------------------------
 # 4. Ролевая модель Kubernetes (RBAC & ServiceAccount)
 # ------------------------------------------------------------------------------
@@ -220,6 +290,11 @@ rbac:
   #     Чарт создает ClusterRole и ClusterRoleBinding. Необходимо для тестирования CNI NetworkPolicies
   #     непосредственно из сетевого контекста конкретного приложения.
   multiNamespace: true
+
+  # Вывод списка прав ServiceAccount к Kubernetes API (таблица RBAC policy rules) в лог контейнера при запуске.
+  # Если false (по умолчанию), логи запуска остаются чистыми и компактными.
+  # Если true, при старте выполняется инспекция прав и выводится полная ASCII-таблица в стиле 'rbac-tool policy-rules'.
+  printAccessList: false
 
   serviceAccount:
     # Создавать ли объект ServiceAccount.
@@ -269,8 +344,14 @@ security:
   whitelistDomains: []
 
 # ------------------------------------------------------------------------------
-# 6. Хранилище отчетов и базы данных SQLite (Persistence)
+# 6. Хранилище отчетов, время жизни и база данных SQLite (Storage & Persistence)
 # ------------------------------------------------------------------------------
+
+storage:
+  # Время хранения диагностических отчетов (формат time.Duration Go: "24h", "72h", "168h").
+  # Устаревшие отчеты автоматически удаляются фоновым процессом очистки (TTL cleaner).
+  # По умолчанию: "72h" (3 суток).
+  reportTTL: "72h"
 
 persistence:
   # Использование постоянного тома (PersistentVolumeClaim) для базы данных SQLite (/data/kncc.db).

@@ -289,3 +289,215 @@ func TestProcessCertInfo(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractNodeRoles(t *testing.T) {
+	tests := []struct {
+		name     string
+		labels   map[string]string
+		expected []string
+	}{
+		{
+			name:     "Nil labels",
+			labels:   nil,
+			expected: nil,
+		},
+		{
+			name:     "Empty labels",
+			labels:   map[string]string{},
+			expected: nil,
+		},
+		{
+			name: "Unrelated labels only",
+			labels: map[string]string{
+				"kubernetes.io/hostname": "node-1",
+				"beta.kubernetes.io/os":  "linux",
+			},
+			expected: nil,
+		},
+		{
+			name: "Single control-plane role",
+			labels: map[string]string{
+				"node-role.kubernetes.io/control-plane": "true",
+			},
+			expected: []string{"control-plane"},
+		},
+		{
+			name: "Multiple roles with sorting",
+			labels: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+				"node-role.kubernetes.io/infra":  "",
+			},
+			expected: []string{"infra", "worker"},
+		},
+		{
+			name: "Legacy kubernetes.io/role label",
+			labels: map[string]string{
+				"kubernetes.io/role": "master",
+			},
+			expected: []string{"master"},
+		},
+		{
+			name: "Deduplication of modern and legacy label",
+			labels: map[string]string{
+				"node-role.kubernetes.io/worker": "",
+				"kubernetes.io/role":            "worker",
+			},
+			expected: []string{"worker"},
+		},
+		{
+			name: "Combined modern prefix and legacy label",
+			labels: map[string]string{
+				"node-role.kubernetes.io/control-plane": "true",
+				"kubernetes.io/role":                    "master",
+			},
+			expected: []string{"control-plane", "master"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ExtractNodeRoles(tc.labels)
+			if len(got) != len(tc.expected) {
+				t.Fatalf("ExtractNodeRoles() = %v (len %d), want %v (len %d)", got, len(got), tc.expected, len(tc.expected))
+			}
+			for i := range got {
+				if got[i] != tc.expected[i] {
+					t.Errorf("ExtractNodeRoles()[%d] = %q, want %q", i, got[i], tc.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestRunner_ExecuteCheck_NodeExclude(t *testing.T) {
+	runner, fakeClient, s, cleanup := setupTestRunner(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Configure exclusion by selector and by name
+	runner.cfg.K8s.NodeExcludeSelector = "node-role.kubernetes.io/control-plane=true"
+	runner.cfg.K8s.NodeExcludeList = []string{"node-audit"}
+
+	node1 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "node-master",
+			Labels: map[string]string{"node-role.kubernetes.io/control-plane": "true"},
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.1.10"}},
+		},
+	}
+	node2 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "node-audit",
+			Labels: map[string]string{"node-role.kubernetes.io/worker": "true"},
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.1.11"}},
+		},
+	}
+	node3 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "node-worker",
+			Labels: map[string]string{"node-role.kubernetes.io/worker": "true"},
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{{Type: corev1.NodeInternalIP, Address: "192.168.1.12"}},
+		},
+	}
+	_, _ = fakeClient.CoreV1().Nodes().Create(ctx, node1, metav1.CreateOptions{})
+	_, _ = fakeClient.CoreV1().Nodes().Create(ctx, node2, metav1.CreateOptions{})
+	_, _ = fakeClient.CoreV1().Nodes().Create(ctx, node3, metav1.CreateOptions{})
+
+	report := &model.Report{
+		ID:        "rep-test-exclude",
+		UserID:    "user-1",
+		Username:  "tester",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Targets: []model.TargetService{
+			{Protocol: model.ProtocolTCP, Host: "10.0.0.1", Port: 80},
+		},
+		Status:    model.StatusPending,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(1 * time.Hour),
+	}
+	if err := s.CreateReport(ctx, report); err != nil {
+		t.Fatalf("CreateReport failed: %v", err)
+	}
+
+	stopSimulator := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(50 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stopSimulator:
+				return
+			case <-ticker.C:
+				pods, err := fakeClient.CoreV1().Pods("kncc").List(context.Background(), metav1.ListOptions{})
+				if err != nil {
+					continue
+				}
+				for _, p := range pods.Items {
+					if p.Status.Phase == "" || p.Status.Phase == corev1.PodPending {
+						probeOutputs := []model.ProbeOutput{
+							{
+								Target: model.TargetService{
+									Protocol: model.ProtocolTCP,
+									Host:     "10.0.0.1",
+									Port:     80,
+								},
+								Success:   true,
+								LatencyMs: 5,
+							},
+						}
+						outJSON, _ := json.Marshal(probeOutputs)
+						p.Status.Phase = corev1.PodSucceeded
+						p.Status.ContainerStatuses = []corev1.ContainerStatus{
+							{
+								Name: "kncc-probe",
+								State: corev1.ContainerState{
+									Terminated: &corev1.ContainerStateTerminated{
+										ExitCode: 0,
+										Message:  string(outJSON),
+									},
+								},
+							},
+						}
+						_, _ = fakeClient.CoreV1().Pods("kncc").UpdateStatus(context.Background(), &p, metav1.UpdateOptions{})
+					}
+				}
+			}
+		}
+	}()
+
+	runner.run(ctx, report)
+	close(stopSimulator)
+
+	updatedReport, err := s.GetReport(ctx, report.ID)
+	if err != nil {
+		t.Fatalf("GetReport failed: %v", err)
+	}
+
+	if updatedReport.Status != model.StatusCompleted {
+		t.Errorf("expected status completed, got %s", updatedReport.Status)
+	}
+	// TotalNodes should only be 1 (node-worker)
+	if updatedReport.TotalNodes != 1 {
+		t.Errorf("expected 1 total node, got %d", updatedReport.TotalNodes)
+	}
+	if updatedReport.CompletedNodes != 1 {
+		t.Errorf("expected 1 completed node, got %d", updatedReport.CompletedNodes)
+	}
+	if _, exists := updatedReport.NodeResults["node-worker"]; !exists {
+		t.Errorf("expected node-worker in node results")
+	}
+	if _, exists := updatedReport.NodeResults["node-master"]; exists {
+		t.Errorf("expected node-master to be excluded from results")
+	}
+	if _, exists := updatedReport.NodeResults["node-audit"]; exists {
+		t.Errorf("expected node-audit to be excluded from results")
+	}
+}

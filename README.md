@@ -98,6 +98,11 @@ The complete version history is documented in **[CHANGELOG.md](CHANGELOG.md)**.
   - Supports `namespace_exclude_selector` (LabelSelector): Administrators can tag sensitive or restricted namespaces (e.g. `kncc.io/exclude=true`) to hide them automatically.
   - **Anti-Bypass Protection:** Backend API (`POST /api/checks`) rejects any attempts to schedule probe pods in excluded namespaces, even if requests bypass the web UI.
 
+#### Node Blacklisting & Selection:
+- **Node Blacklist (`k8s.node_exclude_list` & `k8s.node_exclude_selector`):** Administrators can exclude specific nodes (e.g. control-plane, audit, or dedicated security infrastructure nodes) by exact name or using a Kubernetes `LabelSelector` (e.g. `node-role.kubernetes.io/control-plane=true` or `security.zone=audit`).
+- **Node Whitelist (`k8s.node_selector`):** Optionally restrict probe pod scheduling to nodes matching a specific label selector.
+- **Silent Exclusion:** During check execution, excluded nodes are omitted prior to probe pod creation. The report's node count accurately reflects only eligible nodes without alerting end-users or interrupting workflow.
+
 ---
 
 ### 3.3. Report Analysis (Target-Centric Reporting & Back to Edit)
@@ -111,13 +116,15 @@ Connectivity reports offer two complementary visualization modes:
     - **`PARTIALLY REACHABLE`** — partial network isolation (reachable from some nodes, blocked on others).
     - **`UNREACHABLE`** — completely unreachable across all nodes.
   - Interactive mini status chips (`✓ node`, `✗ node`) in the target card header.
+  - Detailed node breakdown displays node role badges (`control-plane`, `worker`, etc.) derived from node labels, matching `kubectl get nodes` conventions (omitted when no roles are assigned).
   - Target cards collapsed by default for compact navigation when checking dozens of endpoints.
   - Bulk actions: **Expand all** / **Collapse all**.
   - Quick status filters: `All`, `Issues Only` (focuses solely on problematic targets), and `All Reachable`.
-  - Full-text search across service names, IP addresses, and node names.
+  - Full-text search across service names, IP addresses, node names, and node roles.
 
 - **Grouped by Node (`By Node`):**
   - Classic node-oriented perspective auditing connectivity relative to physical cluster nodes.
+  - Node role badges (`control-plane`, `worker`, custom roles) displayed directly in the node card header (omitted when no roles are assigned).
   - Clear presentation of probe execution time (`Probe runtime`) in seconds (`X.Xs`) or milliseconds (`X ms`) with informative tooltips and timer icons, separated from target network latency (RTT).
   - Optimized IP probing bypassing reverse DNS PTR lookup timeouts.
 
@@ -249,12 +256,12 @@ Before deploying release artifacts to production clusters, verify digital signat
 ```bash
 # 1. Download release public key, checksum manifest, and signature from Forgejo Release page
 # 2. Verify digital signature of checksum manifest
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.15.0-checksums.txt.sig kncc-1.15.0-checksums.txt
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.16.0-checksums.txt.sig kncc-1.16.0-checksums.txt
 # Expected output: Verified OK
 
-# 3. Verify artifact checksums (Helm chart kncc-1.15.0.tgz, manifests, SBOM)
-sha256sum -c kncc-1.15.0-checksums.txt
-# Expected output: kncc-1.15.0.tgz: OK
+# 3. Verify artifact checksums (Helm chart kncc-1.16.0.tgz, manifests, SBOM)
+sha256sum -c kncc-1.16.0-checksums.txt
+# Expected output: kncc-1.16.0.tgz: OK
 ```
 
 ### 6.2. Standard Installation
@@ -362,7 +369,7 @@ helm upgrade --install kncc ./deploy/helm/kncc \
 ### 6.8. ServiceAccount Kubernetes API RBAC Permission Audit
 
 For transparent cluster governance, `kncc` audits effective RBAC permissions:
-1. **Startup Logging:** On boot, the service evaluates effective ServiceAccount rules (via `SelfSubjectRulesReview` or role binding traversal) and logs a formatted ASCII table matching the `rbac-tool policy-rules` standard (`TYPE | SUBJECT | VERBS | NAMESPACE | API GROUP | KIND | NAMES | NONRESOURCEURI | ORIGINATED FROM`).
+1. **Startup Logging (Optional via `rbac.printAccessList` / `k8s.print_access_list`):** When enabled (`printAccessList: true`), the service evaluates effective ServiceAccount rules on boot (via `SelfSubjectRulesReview` or role binding traversal) and logs a formatted ASCII table matching the `rbac-tool policy-rules` standard (`TYPE | SUBJECT | VERBS | NAMESPACE | API GROUP | KIND | NAMES | NONRESOURCEURI | ORIGINATED FROM`). By default (`false`), startup logs remain clean and concise.
 2. **Admin Dashboard (`/#/admin`):** The "Kubernetes SA Permissions (RBAC)" tab presents an interactive table with resource filters, verb badges, scope indicators, and copy actions (ASCII or JSON).
 3. **Endpoint Security:** The `GET /api/admin/rbac` endpoint is restricted strictly to users with the `admin` role.
 
@@ -474,6 +481,20 @@ auth:
 3. **Direct Bind / User Bind Pattern:** Binds directly under user credentials using a DN template (`auth.ldap.userDNTemplate: "uid=%s,ou=users,dc=example,dc=com"`), requiring no service account.
 4. **Anonymous Search (RFC 4513):** Executes unauthenticated directory queries (`auth.ldap.anonymousSearch: true`).
 
+### 6.16. Application Logging Level Configuration (`server.logLevel`)
+
+To control log verbosity across all backend modules (including LDAP/OIDC authentication connectors, K8s probe runners, garbage collection, and HTTP API access):
+
+```bash
+# Enable verbose debug logging for troubleshooting
+helm upgrade --install kncc ./deploy/helm/kncc \
+  --namespace kncc \
+  --create-namespace \
+  --set server.logLevel=debug
+```
+
+Supported values: `debug`, `info` (default), `warn`, `error`.
+
 ---
 
 ## 7. Helm Values Reference
@@ -488,6 +509,7 @@ auth:
 | `image.tag` | Image tag override (defaults to `appVersion`) | `""` |
 | `image.pullPolicy` | Image pull policy (`Always`, `IfNotPresent`) | `IfNotPresent` |
 | `server.port` | HTTP API and UI port inside container | `8080` |
+| `server.logLevel` | Application logging level (`debug`, `info`, `warn`, `error`) | `"info"` |
 | `server.tokenTTL` | JWT session lifetime | `24h` |
 | `server.tls.enabled` | Enable HTTPS/TLS server on dedicated port | `true` |
 | `server.tls.port` | Dedicated HTTPS port inside container | `8443` |
@@ -506,6 +528,14 @@ auth:
 | `k8s.probeImage` | Image for ephemeral diagnostic probe pods | `ghcr.io/aleksandrsumkin/kncc-agent:latest` |
 | `k8s.probeTimeoutSeconds` | Individual probe network operation timeout | `30` |
 | `k8s.probeActiveDeadlineSeconds` | Probe pod hard execution deadline | `60` |
+| `k8s.probeImagePullPolicy` | Container image pull policy for probe pods (`Always`, `IfNotPresent`, `Never`) | `""` |
+| `k8s.probeImagePullSecrets` | Registry credentials for private probe container images | `[]` |
+| `k8s.probeExtraLabels` | Additional labels attached to probe pods | `{}` |
+| `k8s.probeExtraAnnotations`| Additional annotations attached to probe pods (e.g. Service Mesh sidecar exclusion) | `{}` |
+| `k8s.probePriorityClassName`| PriorityClass name assigned to probe pods | `""` |
+| `k8s.probeResources` | Custom CPU and memory requests and limits for probe pods | `{}` |
+| `k8s.probePodSecurityContext` | PodSecurityContext configuration for probe pods | `{}` |
+| `k8s.probeSecurityContext` | Container SecurityContext configuration for probe pods | `{}` |
 | `k8s.gcInterval` | Garbage collection sweep interval | `2m` |
 | `k8s.gcStaleThreshold` | Minimum pod age threshold before GC removal | `3m` |
 | `k8s.namespaceListEnabled` | Interactive namespace dropdown in UI | `true` |
@@ -513,10 +543,12 @@ auth:
 | `k8s.namespaceExcludeSelector` | LabelSelector for dynamic namespace exclusion | `"kncc.io/exclude=true"` |
 | `rbac.create` | Provision ServiceAccount, Roles, and RoleBindings | `true` |
 | `rbac.multiNamespace` | Permit scheduling probes across any namespace (ClusterRole) | `true` |
+| `rbac.printAccessList` | Print effective ServiceAccount RBAC permissions table to startup logs | `false` |
 | `security.rateLimitPerMinute` | Maximum allowed check requests per minute per user | `30` |
 | `security.blacklistCIDRs` | Prohibited IP subnets (Anti-SSRF) | `["169.254.169.254/32", "127.0.0.0/8", "::1/128"]` |
 | `security.blacklistDomains` | Prohibited domain patterns | `["metadata.google.internal", "instance-data"]` |
 | `security.whitelistCIDRs` | Allowed IP subnets (Strict Allowlist mode) | `[]` |
+| `storage.reportTTL` | Retention duration / time-to-live for diagnostic reports | `72h` |
 | `persistence.enabled` | Use PVC for SQLite persistence across pod restarts | `false` |
 | `persistence.size` | PVC capacity | `2Gi` |
 | `auth.adminUsername` | Initial administrator username | `admin` |

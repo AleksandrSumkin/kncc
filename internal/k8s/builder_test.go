@@ -178,6 +178,152 @@ func TestBuildProbePod_AllowPrivilegeEscalationConfig(t *testing.T) {
 	}
 }
 
+func TestBuildProbePod_CustomAgentConfig(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.K8s.ProbeImagePullPolicy = "Always"
+	cfg.K8s.ProbeImagePullSecrets = []string{"regcred-1", "regcred-2"}
+	cfg.K8s.ProbePriorityClassName = "high-priority"
+	cfg.K8s.ProbeExtraLabels = map[string]string{
+		"team":        "netops",
+		"environment": "testing",
+	}
+	cfg.K8s.ProbeExtraAnnotations = map[string]string{
+		"sidecar.istio.io/inject": "false",
+	}
+	cfg.K8s.ProbeResources = &config.ProbeResourceRequirements{
+		Requests: map[string]string{"cpu": "20m", "memory": "64Mi"},
+		Limits:   map[string]string{"cpu": "200m", "memory": "256Mi"},
+	}
+	uid := int64(10001)
+	gid := int64(10001)
+	nonRoot := true
+	cfg.K8s.ProbePodSecurityContext = &config.ProbePodSecurityContextConfig{
+		RunAsUser:    &uid,
+		RunAsGroup:   &gid,
+		RunAsNonRoot: &nonRoot,
+		FSGroup:      &gid,
+	}
+	readOnly := true
+	priv := false
+	cfg.K8s.ProbeSecurityContext = &config.ProbeSecurityContextConfig{
+		ReadOnlyRootFilesystem: &readOnly,
+		Privileged:             &priv,
+	}
+
+	report := &model.Report{
+		ID:        "rep-custom-cfg",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Targets: []model.TargetService{
+			{Protocol: model.ProtocolTCP, Host: "10.0.0.1", Port: 80},
+		},
+	}
+
+	pod, err := BuildProbePod(report, "node-custom", "kncc", cfg)
+	if err != nil {
+		t.Fatalf("BuildProbePod failed: %v", err)
+	}
+
+	// 1. Labels
+	if pod.Labels["team"] != "netops" || pod.Labels["environment"] != "testing" {
+		t.Errorf("missing extra labels: %v", pod.Labels)
+	}
+	if pod.Labels["app.kubernetes.io/name"] != "kncc-probe" {
+		t.Errorf("expected default label to be preserved")
+	}
+
+	// 2. Annotations
+	if pod.Annotations["sidecar.istio.io/inject"] != "false" {
+		t.Errorf("missing extra annotation: %v", pod.Annotations)
+	}
+
+	// 3. PriorityClassName
+	if pod.Spec.PriorityClassName != "high-priority" {
+		t.Errorf("expected PriorityClassName high-priority, got %s", pod.Spec.PriorityClassName)
+	}
+
+	// 4. ImagePullSecrets
+	if len(pod.Spec.ImagePullSecrets) != 2 || pod.Spec.ImagePullSecrets[0].Name != "regcred-1" {
+		t.Errorf("expected ImagePullSecrets regcred-1, got %v", pod.Spec.ImagePullSecrets)
+	}
+
+	// 5. Pod SecurityContext
+	if pod.Spec.SecurityContext == nil || *pod.Spec.SecurityContext.RunAsUser != 10001 {
+		t.Errorf("expected PodSecurityContext RunAsUser 10001, got %v", pod.Spec.SecurityContext)
+	}
+
+	// 6. Container
+	c := pod.Spec.Containers[0]
+	if c.ImagePullPolicy != corev1.PullAlways {
+		t.Errorf("expected PullAlways, got %s", c.ImagePullPolicy)
+	}
+	if c.Resources.Requests.Cpu().String() != "20m" || c.Resources.Limits.Memory().String() != "256Mi" {
+		t.Errorf("expected custom resources 20m/256Mi, got %v", c.Resources)
+	}
+	if c.SecurityContext == nil || *c.SecurityContext.ReadOnlyRootFilesystem != true {
+		t.Errorf("expected ReadOnlyRootFilesystem true, got %v", c.SecurityContext)
+	}
+}
+
+func TestBuildProbePod_ConflictOverridesAndWarnings(t *testing.T) {
+	cfg := config.DefaultConfig()
+	// Override a default template label
+	cfg.K8s.ProbeExtraLabels = map[string]string{
+		"app.kubernetes.io/name": "custom-probe-agent",
+	}
+	// Override default resources
+	cfg.K8s.ProbeResources = &config.ProbeResourceRequirements{
+		Requests: map[string]string{"cpu": "50m"},
+		Limits:   map[string]string{"memory": "512Mi"},
+	}
+	// Override container SecurityContext
+	f := false
+	cfg.K8s.ProbeSecurityContext = &config.ProbeSecurityContextConfig{
+		AllowPrivilegeEscalation: &f,
+		Capabilities: &config.ProbeCapabilitiesConfig{
+			Add:  []string{"NET_ADMIN"},
+			Drop: []string{"KILL"},
+		},
+	}
+
+	report := &model.Report{
+		ID:        "rep-conflict-test",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+	}
+
+	pod, err := BuildProbePod(report, "node-conflict", "kncc", cfg)
+	if err != nil {
+		t.Fatalf("BuildProbePod failed: %v", err)
+	}
+
+	// Custom label overrides template label
+	if pod.Labels["app.kubernetes.io/name"] != "custom-probe-agent" {
+		t.Errorf("expected custom label to override template, got %s", pod.Labels["app.kubernetes.io/name"])
+	}
+
+	// Custom resources override default
+	c := pod.Spec.Containers[0]
+	if c.Resources.Requests.Cpu().String() != "50m" {
+		t.Errorf("expected cpu 50m, got %s", c.Resources.Requests.Cpu().String())
+	}
+	if c.Resources.Limits.Memory().String() != "512Mi" {
+		t.Errorf("expected memory 512Mi, got %s", c.Resources.Limits.Memory().String())
+	}
+	// Default memory request should remain intact (32Mi)
+	if c.Resources.Requests.Memory().String() != "32Mi" {
+		t.Errorf("expected default memory request 32Mi, got %s", c.Resources.Requests.Memory().String())
+	}
+
+	// SecurityContext overrides
+	if c.SecurityContext.AllowPrivilegeEscalation == nil || *c.SecurityContext.AllowPrivilegeEscalation != false {
+		t.Errorf("expected AllowPrivilegeEscalation false, got %v", c.SecurityContext.AllowPrivilegeEscalation)
+	}
+	if len(c.SecurityContext.Capabilities.Add) != 1 || c.SecurityContext.Capabilities.Add[0] != corev1.Capability("NET_ADMIN") {
+		t.Errorf("expected NET_ADMIN capability, got %v", c.SecurityContext.Capabilities.Add)
+	}
+}
+
 func corev1HasSubstring(s, sub string) bool {
 	for i := 0; i+len(sub) <= len(s); i++ {
 		if s[i:i+len(sub)] == sub {

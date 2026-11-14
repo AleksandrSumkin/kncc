@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,7 +56,7 @@ func (r *Runner) run(ctx context.Context, report *model.Report) {
 	// 1. List all nodes in cluster
 	nodeList, err := r.client.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		log.Printf("Failed to list nodes for report %s: %v", report.ID, err)
+		slog.Error("Failed to list nodes for report", "report_id", report.ID, "error", err)
 		now := time.Now().UTC()
 		_ = r.store.UpdateReportProgress(ctx, report.ID, 0, 0, model.StatusFailed, &now)
 		return
@@ -63,16 +64,26 @@ func (r *Runner) run(ctx context.Context, report *model.Report) {
 
 	nodes := nodeList.Items
 	if len(nodes) == 0 {
-		log.Printf("No nodes found in cluster for report %s", report.ID)
+		slog.Warn("No nodes found in cluster for report", "report_id", report.ID)
 		now := time.Now().UTC()
 		_ = r.store.UpdateReportProgress(ctx, report.ID, 0, 0, model.StatusFailed, &now)
 		return
 	}
 
-	totalNodes := len(nodes)
+	// Filter nodes based on administrator exclude list, exclude selector, and nodeSelector
+	eligibleNodes := FilterEligibleNodes(r.cfg, nodes)
+	if len(eligibleNodes) == 0 {
+		slog.Warn("No eligible nodes found in cluster for report (all nodes excluded by policy)", "report_id", report.ID)
+		now := time.Now().UTC()
+		_ = r.store.UpdateReportProgress(ctx, report.ID, 0, 0, model.StatusFailed, &now)
+		return
+	}
+
+	totalNodes := len(eligibleNodes)
 	report.TotalNodes = totalNodes
 	report.Status = model.StatusRunning
 	_ = r.store.UpdateReportProgress(ctx, report.ID, totalNodes, 0, model.StatusRunning, nil)
+	slog.Debug("Starting probe execution across nodes", "report_id", report.ID, "total_nodes", totalNodes)
 
 	// 2. Concurrency control: max 25 simultaneous pod creations to protect API server
 	concurrency := 25
@@ -80,7 +91,7 @@ func (r *Runner) run(ctx context.Context, report *model.Report) {
 	var wg sync.WaitGroup
 	var completedCount int32
 
-	for _, node := range nodes {
+	for _, node := range eligibleNodes {
 		wg.Add(1)
 		go func(n corev1.Node) {
 			defer wg.Done()
@@ -89,7 +100,7 @@ func (r *Runner) run(ctx context.Context, report *model.Report) {
 
 			nodeResult := r.probeNode(ctx, report, n)
 			if err := r.store.SaveNodeResult(ctx, report.ID, nodeResult); err != nil {
-				log.Printf("Failed to save node result for report %s node %s: %v", report.ID, n.Name, err)
+				slog.Warn("Failed to save node result for report", "report_id", report.ID, "node", n.Name, "error", err)
 			}
 
 			done := atomic.AddInt32(&completedCount, 1)
@@ -105,7 +116,7 @@ func (r *Runner) run(ctx context.Context, report *model.Report) {
 		finalStatus = model.StatusFailed
 	}
 	_ = r.store.UpdateReportProgress(context.Background(), report.ID, totalNodes, int(completedCount), finalStatus, &now)
-	log.Printf("Report %s finished: %d/%d nodes completed", report.ID, completedCount, totalNodes)
+	slog.Info("Report finished", "report_id", report.ID, "completed", completedCount, "total", totalNodes, "status", finalStatus)
 }
 
 func (r *Runner) probeNode(ctx context.Context, report *model.Report, node corev1.Node) model.NodeResult {
@@ -113,6 +124,7 @@ func (r *Runner) probeNode(ctx context.Context, report *model.Report, node corev
 	nodeResult := model.NodeResult{
 		NodeName:   node.Name,
 		NodeIP:     getNodeInternalIP(node),
+		NodeRoles:  ExtractNodeRoles(node.Labels),
 		Status:     "running",
 		FinishedAt: start,
 	}
@@ -335,4 +347,41 @@ func getNodeInternalIP(node corev1.Node) string {
 		return node.Status.Addresses[0].Address
 	}
 	return ""
+}
+
+const (
+	labelNodeRolePrefix = "node-role.kubernetes.io/"
+	nodeLabelRole       = "kubernetes.io/role"
+)
+
+// ExtractNodeRoles extracts node roles from node labels following the kubectl convention.
+// Roles are discovered from labels starting with "node-role.kubernetes.io/" and the legacy
+// "kubernetes.io/role" label. The returned list contains unique role names sorted alphabetically.
+func ExtractNodeRoles(labels map[string]string) []string {
+	if len(labels) == 0 {
+		return nil
+	}
+
+	roleSet := make(map[string]struct{})
+	for k, v := range labels {
+		switch {
+		case strings.HasPrefix(k, labelNodeRolePrefix):
+			if role := strings.TrimPrefix(k, labelNodeRolePrefix); len(role) > 0 {
+				roleSet[role] = struct{}{}
+			}
+		case k == nodeLabelRole && len(v) > 0:
+			roleSet[v] = struct{}{}
+		}
+	}
+
+	if len(roleSet) == 0 {
+		return nil
+	}
+
+	roles := make([]string, 0, len(roleSet))
+	for role := range roleSet {
+		roles = append(roles, role)
+	}
+	sort.Strings(roles)
+	return roles
 }

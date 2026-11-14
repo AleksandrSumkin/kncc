@@ -94,11 +94,12 @@ func SetupRouter(h *Handler, authSvc *auth.AuthService, limiter *ratelimit.Limit
 		})
 	}
 
-	// Apply global middleware: SecurityHeaders -> CORS -> Auth extraction
+	// Apply global middleware: Logging -> SecurityHeaders -> CORS -> Auth extraction
 	var rootHandler http.Handler = mux
 	rootHandler = AuthMiddleware(authSvc)(rootHandler)
 	rootHandler = CORSMiddleware(rootHandler)
 	rootHandler = SecurityHeadersMiddleware(rootHandler)
+	rootHandler = LoggingMiddleware(rootHandler)
 
 	return rootHandler
 }

@@ -10,6 +10,7 @@ data:
     server:
       host: "{{ .Values.server.host }}"
       port: {{ .Values.server.port }}
+      log_level: "{{ .Values.server.logLevel | default .Values.logLevel | default "info" }}"
       token_ttl: "{{ .Values.server.tokenTTL }}"
       {{- if and .Values.server.tls .Values.server.tls.enabled }}
       tls:
@@ -52,13 +53,62 @@ data:
       {{- if .Values.k8s.namespaceExcludeSelector }}
       namespace_exclude_selector: "{{ .Values.k8s.namespaceExcludeSelector }}"
       {{- end }}
+      {{- if .Values.k8s.nodeExcludeList }}
+      node_exclude_list:
+        {{- toYaml .Values.k8s.nodeExcludeList | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.nodeExcludeSelector }}
+      node_exclude_selector: "{{ .Values.k8s.nodeExcludeSelector }}"
+      {{- end }}
+      {{- if .Values.k8s.nodeSelector }}
+      node_selector: "{{ .Values.k8s.nodeSelector }}"
+      {{- end }}
       probe_timeout_seconds: {{ .Values.k8s.probeTimeoutSeconds }}
       probe_active_deadline_seconds: {{ .Values.k8s.probeActiveDeadlineSeconds }}
       {{- if hasKey .Values.k8s "probeAllowPrivilegeEscalation" }}
       probe_allow_privilege_escalation: {{ .Values.k8s.probeAllowPrivilegeEscalation }}
       {{- end }}
+      {{- if .Values.k8s.probeImagePullPolicy }}
+      probe_image_pull_policy: "{{ .Values.k8s.probeImagePullPolicy }}"
+      {{- end }}
+      {{- if .Values.k8s.probeImagePullSecrets }}
+      probe_image_pull_secrets:
+        {{- range .Values.k8s.probeImagePullSecrets }}
+        - {{ if kindIs "map" . }}{{ .name | quote }}{{ else }}{{ . | quote }}{{ end }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.k8s.probeExtraLabels }}
+      probe_extra_labels:
+        {{- toYaml .Values.k8s.probeExtraLabels | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.probeExtraAnnotations }}
+      probe_extra_annotations:
+        {{- toYaml .Values.k8s.probeExtraAnnotations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.probePriorityClassName }}
+      probe_priority_class_name: "{{ .Values.k8s.probePriorityClassName }}"
+      {{- end }}
+      {{- if .Values.k8s.probeResources }}
+      probe_resources:
+        {{- toYaml .Values.k8s.probeResources | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.probePodSecurityContext }}
+      probe_pod_security_context:
+        {{- toYaml .Values.k8s.probePodSecurityContext | nindent 8 }}
+      {{- end }}
+      {{- if .Values.k8s.probeSecurityContext }}
+      probe_security_context:
+        {{- toYaml .Values.k8s.probeSecurityContext | nindent 8 }}
+      {{- end }}
       gc_interval: "{{ .Values.k8s.gcInterval }}"
       gc_stale_threshold: "{{ default "3m" .Values.k8s.gcStaleThreshold }}"
+      {{- if hasKey .Values.rbac "printAccessList" }}
+      print_access_list: {{ .Values.rbac.printAccessList }}
+      {{- else if and (hasKey .Values "k8s") (hasKey .Values.k8s "printAccessList") }}
+      print_access_list: {{ .Values.k8s.printAccessList }}
+      {{- else }}
+      print_access_list: false
+      {{- end }}
 
     security:
       rate_limit_per_minute: {{ .Values.security.rateLimitPerMinute }}
@@ -73,7 +123,7 @@ data:
 
     storage:
       db_path: "{{ .Values.persistence.mountPath }}/kncc.db"
-      report_ttl: "72h"
+      report_ttl: "{{ if .Values.storage }}{{ default "72h" .Values.storage.reportTTL }}{{ else }}72h{{ end }}"
 
     auth:
       admin_username: "{{ .Values.auth.adminUsername }}"

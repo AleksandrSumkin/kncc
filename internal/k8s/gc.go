@@ -2,7 +2,7 @@ package k8s
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,7 +22,11 @@ func StartGarbageCollector(ctx context.Context, client kubernetes.Interface, nam
 	if multiNamespace {
 		scopeMsg = "all namespaces (multi-namespace enabled)"
 	}
-	log.Printf("Starting Kubernetes probe garbage collector (interval: %v, stale threshold: %v, scope: %s)", interval, staleThreshold, scopeMsg)
+	slog.Info("Starting Kubernetes probe garbage collector",
+		"interval", interval.String(),
+		"stale_threshold", staleThreshold.String(),
+		"scope", scopeMsg,
+	)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -32,7 +36,7 @@ func StartGarbageCollector(ctx context.Context, client kubernetes.Interface, nam
 		case <-ticker.C:
 			cleanStalePods(ctx, client, namespace, multiNamespace, staleThreshold)
 		case <-stopCh:
-			log.Println("Stopping Kubernetes probe garbage collector")
+			slog.Info("Stopping Kubernetes probe garbage collector")
 			return
 		case <-ctx.Done():
 			return
@@ -57,9 +61,10 @@ func cleanStalePods(ctx context.Context, client kubernetes.Interface, namespace 
 		listNamespace = metav1.NamespaceAll // query across all namespaces in cluster
 	}
 
+	slog.Debug("GC: scanning for stale kncc probe pods", "namespace", listNamespace)
 	pods, err := client.CoreV1().Pods(listNamespace).List(cCtx, listOpts)
 	if err != nil {
-		log.Printf("GC: failed to list kncc pods: %v", err)
+		slog.Warn("GC: failed to list kncc pods", "error", err)
 		return
 	}
 
@@ -80,17 +85,20 @@ func cleanStalePods(ctx context.Context, client kubernetes.Interface, namespace 
 		}
 
 		// Pod has exceeded the stale threshold: safe to delete orphaned or hung zombie pod.
+		slog.Debug("GC: deleting stale pod", "namespace", pod.Namespace, "pod", pod.Name, "age", age.String())
 		err := client.CoreV1().Pods(pod.Namespace).Delete(cCtx, pod.Name, metav1.DeleteOptions{
 			GracePeriodSeconds: &graceZero,
 		})
 		if err != nil {
-			log.Printf("GC: failed to delete stale pod %s/%s: %v", pod.Namespace, pod.Name, err)
+			slog.Warn("GC: failed to delete stale pod", "namespace", pod.Namespace, "pod", pod.Name, "error", err)
 		} else {
 			deleted++
 		}
 	}
 
 	if deleted > 0 {
-		log.Printf("GC: removed %d stale kncc probe pods", deleted)
+		slog.Info("GC: removed stale kncc probe pods", "deleted", deleted)
+	} else {
+		slog.Debug("GC: scan complete, no stale pods found")
 	}
 }

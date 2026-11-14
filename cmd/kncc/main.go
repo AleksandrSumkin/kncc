@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,6 +22,7 @@ import (
 	"kncc/internal/config"
 	"kncc/internal/k8s"
 	"kncc/internal/k8s/rbac"
+	"kncc/internal/logger"
 	"kncc/internal/ratelimit"
 	"kncc/internal/security"
 	"kncc/internal/store"
@@ -30,7 +32,7 @@ import (
 )
 
 // @title Kubernetes Network Connectivity Checker (kncc) API
-// @version 1.15.0
+// @version 1.16.0
 // @description kncc server REST API for network connectivity diagnostics in Kubernetes clusters.
 // @contact.name kncc Maintainers
 // @license.name Apache 2.0
@@ -41,7 +43,7 @@ import (
 // @description Enter 'Bearer <JWT_TOKEN>' to authenticate protected requests.
 
 var (
-	version = "1.15.0"
+	version = "1.16.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -49,7 +51,11 @@ var (
 func main() {
 	configPath := flag.String("config", "", "Path to configuration YAML file")
 	mockMode := flag.Bool("mock", false, "Run in mock/demo mode with simulated cluster nodes and sample reports")
+	logLevelFlag := flag.String("log-level", "", "Logging level (debug, info, warn, error)")
 	flag.Parse()
+
+	// Initial logger bootstrap from environment
+	logger.Init(os.Getenv("LOG_LEVEL"))
 
 	if envVer := os.Getenv("APP_VERSION"); envVer != "" {
 		version = envVer
@@ -57,13 +63,21 @@ func main() {
 		version = envVer
 	}
 
-	log.Printf("Starting kncc (%s, commit: %s, built: %s)", version, commit, date)
-
 	// 1. Load configuration
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	// Override log level from CLI flag if specified
+	if *logLevelFlag != "" {
+		cfg.Server.LogLevel = *logLevelFlag
+		cfg.LogLevel = *logLevelFlag
+	}
+
+	// Reconfigure logger with final effective log level
+	logger.Init(cfg.Server.LogLevel)
+	slog.Info("Starting kncc", "version", version, "commit", commit, "built", date, "log_level", cfg.Server.LogLevel)
 
 	// 1b. Load custom trusted CA certificates (if configured)
 	certPool, customCABundle, err := certutil.LoadCertPool(cfg.CACerts.Path, cfg.CACerts.PEM)
@@ -173,14 +187,18 @@ func main() {
 		}
 	}
 
-	// 6b. Evaluate and log Kubernetes ServiceAccount RBAC permissions
-	inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	rbacReport := rbac.InspectCurrentPermissions(inspectCtx, k8sClient, cfg.K8s.Namespace, *mockMode || k8sClient == nil)
-	inspectCancel()
+	// 6b. Evaluate and log Kubernetes ServiceAccount RBAC permissions (if enabled)
+	if cfg.K8s.PrintAccessList {
+		inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		rbacReport := rbac.InspectCurrentPermissions(inspectCtx, k8sClient, cfg.K8s.Namespace, *mockMode || k8sClient == nil)
+		inspectCancel()
 
-	log.Printf("Kubernetes ServiceAccount RBAC inspection complete (subject: %s %s, source: %s, rules: %d)",
-		rbacReport.Subject.Kind, rbacReport.Subject.Name, rbacReport.Source, len(rbacReport.Rules))
-	log.Printf("Resulting RBAC policy rules:\n%s", rbac.FormatPolicyRulesTable(rbacReport))
+		log.Printf("Kubernetes ServiceAccount RBAC inspection complete (subject: %s %s, source: %s, rules: %d)",
+			rbacReport.Subject.Kind, rbacReport.Subject.Name, rbacReport.Source, len(rbacReport.Rules))
+		log.Printf("Resulting RBAC policy rules:\n%s", rbac.FormatPolicyRulesTable(rbacReport))
+	} else {
+		log.Printf("Kubernetes ServiceAccount RBAC startup logging is disabled (toggle with k8s.print_access_list / rbac.printAccessList)")
+	}
 
 	// 7. Setup HTTP API Router with embedded frontend UI
 	webFS, err := web.GetFS()

@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-14
+
+### Added
+- **UI: Show node role in report ([#113](https://github.com/AleksandrSumkin/kncc/issues/113)):**
+  - Added node role extraction in backend (`internal/k8s/runner.go`) based on Kubernetes node labels (`node-role.kubernetes.io/<role>` and legacy `kubernetes.io/role`) conforming to `kubectl get nodes` behavior.
+  - Extended `NodeResult` data model with `node_roles` field across backend Go structs and frontend TypeScript definitions.
+  - Added visual role badges next to node names in report views: By Target (`TargetNodeDetailRow`) and By Node (`NodeCard`).
+  - Implemented requirement to omit role badges when a node has no roles assigned.
+  - Added support for filtering and searching nodes by role in target and node search filters.
+- **Node black list and node selector filtering ([#112](https://github.com/AleksandrSumkin/kncc/issues/112)):**
+  - Added node exclusion parameters to `K8sConfig`: `node_exclude_list` (slice of explicit node names), `node_exclude_selector` (Kubernetes LabelSelector for dynamic node exclusion, e.g. for audit/security/control-plane nodes), and `node_selector` (optional whitelist selector).
+  - Added environment variable overrides: `K8S_NODE_EXCLUDE_LIST`, `K8S_NODE_EXCLUDE_SELECTOR`, and `K8S_NODE_SELECTOR`.
+  - Implemented node filtering in `internal/k8s/nodes.go` and integrated it with `Runner.run` and `MockRunner.ExecuteCheck`.
+  - Excluded nodes are silently eliminated during check planning without raising user warnings, accurately adjusting `TotalNodes` to only reflect active, allowed nodes.
+  - Exposed configuration options in Helm chart (`deploy/helm/kncc/values.yaml`, `values_ru.yaml`, `configmap.yaml`) and `kncc.example.yaml`.
+- **Custom agent pod configuration for network diagnostic probes ([#110](https://github.com/AleksandrSumkin/kncc/issues/110)):**
+  - Added support for configuring ephemeral `kncc-probe` pods through Helm chart (`k8s.probe*`), configuration file (`config.yaml`), and environment variables (`K8S_PROBE_*`).
+  - Added `probeImagePullPolicy` (`image_pull_policy`) to control container image pull behavior (`Always`, `IfNotPresent`, `Never`).
+  - Added `probeImagePullSecrets` (`image_pull_secrets`) for pulling probe images from private container registries.
+  - Added `probeExtraLabels` (`probe_extra_labels`) and `probeExtraAnnotations` (`probe_extra_annotations`) for corporate audit metadata, custom scheduling, and Service Mesh sidecar exclusion (e.g. `sidecar.istio.io/inject: "false"`).
+  - Added `probePriorityClassName` (`probe_priority_class_name`) to assign custom Kubernetes priority classes to probe pods.
+  - Added `probeResources` (`probe_resources`) for customizable CPU and memory `requests` and `limits`.
+  - Added `probePodSecurityContext` (`probe_pod_security_context`) and `probeSecurityContext` (`probe_security_context`) for fine-grained Pod Security Standards (PSS) compliance (`runAsUser`, `runAsNonRoot`, `readOnlyRootFilesystem`, `capabilities`).
+  - Implemented merging logic with precedence and `[WARN]` logging for any conflicting overrides of default kncc probe templates.
+- **Storage TTL parametrization in Helm chart ([#111](https://github.com/AleksandrSumkin/kncc/issues/111)):**
+  - Added `storage.reportTTL` configuration parameter (default `"72h"`) to [deploy/helm/kncc/values.yaml](deploy/helm/kncc/values.yaml) and [deploy/helm/kncc/values_ru.yaml](deploy/helm/kncc/values_ru.yaml) for configuring diagnostic report retention duration.
+  - Updated [deploy/helm/kncc/templates/configmap.yaml](deploy/helm/kncc/templates/configmap.yaml) to dynamically inject `storage.report_ttl` into the application configuration ConfigMap.
+- **Toggle to print access list to kubernetes api ([#106](https://github.com/AleksandrSumkin/kncc/issues/106)):**
+  - Added `k8s.print_access_list` / `rbac.printAccessList` configuration option (default `false`) across configuration structs, environment variables (`K8S_PRINT_ACCESS_LIST`, `KNCC_K8S_PRINT_ACCESS_LIST`, `RBAC_PRINT_ACCESS_LIST`), and Helm chart (`deploy/helm/kncc/values.yaml`, `values_ru.yaml`, `templates/configmap.yaml`).
+  - Made the ServiceAccount RBAC permissions inspection and ASCII table printing in startup logs optional, keeping default startup logs clean and reducing boot time and cluster API calls.
+- **Configurable application logging level across chart and backend modules ([#107](https://github.com/AleksandrSumkin/kncc/issues/107)):**
+  - Integrated standard library structured logging (`log/slog`) with level filtering (`debug`, `info`, `warn`, `error`) and automated redirect of standard `log.Printf` calls.
+  - Added `server.log_level` / `log_level` configuration parameter, environment variables (`LOG_LEVEL`, `KNCC_LOG_LEVEL`, `SERVER_LOG_LEVEL`), and `-log-level` CLI flag.
+  - Extended leveled logging to all core modules: authentication service (verbose tracing of LDAP connect, bind, search, groups, and OIDC discovery/token exchange without leaking passwords or secrets), K8s probe runners, garbage collection, and HTTP API request logging.
+  - Added `server.logLevel: "info"` setting to Helm chart (`values.yaml`, `values_ru.yaml`, `configmap.yaml`, `deployment.yaml`).
+
 ## [1.15.0] - 2026-11-11
 
 ### Added

@@ -39,6 +39,7 @@ export interface ProbeOutput {
 export interface NodeResult {
   node_name: string;
   node_ip?: string;
+  node_roles?: string[];
   status: string; // 'completed' | 'failed' | 'timeout' | 'running'
   service_results: ProbeOutput[];
   error?: string;

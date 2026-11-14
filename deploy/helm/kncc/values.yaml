@@ -69,6 +69,14 @@ server:
   # Default: 8080 (standard non-privileged port).
   port: 8080
 
+  # Application logging level.
+  # Controls log verbosity across all backend modules, including authentication connectors (LDAP, OIDC),
+  # Kubernetes probe runners, garbage collection, and HTTP API endpoints.
+  # Supported values: "debug", "info", "warn", "error".
+  # Default: "info" (production-safe default balancing visibility and log volume).
+  # Set to "debug" for troubleshooting connection issues, directory searches, or token exchanges.
+  logLevel: "info"
+
   # User authorization JWT token time-to-live (Go duration format: "8h", "24h", "7d").
   # When expired, user session ends and re-authentication is required.
   # Recommended: "24h" for operator convenience, or "4h"-"8h" for high-security environments.
@@ -182,6 +190,55 @@ k8s:
   # enabling ICMP checks in HostNetwork mode without granting any extra capabilities.
   probeAllowPrivilegeEscalation: true
 
+  # Image pull policy for ephemeral probe pods (Always, IfNotPresent, Never).
+  # If empty, Kubernetes defaults are used.
+  probeImagePullPolicy: ""
+
+  # Pre-existing ImagePullSecrets for probe pods pulling from private registries.
+  # The cluster administrator must ensure these secrets exist in all probed namespaces.
+  probeImagePullSecrets: []
+    # - name: "my-registry-secret"
+
+  # Additional labels applied to ephemeral probe pods.
+  # If a key conflicts with default kncc labels, the custom label takes precedence and a warning is logged.
+  probeExtraLabels: {}
+    # team: "network"
+
+  # Additional annotations applied to ephemeral probe pods.
+  # Useful for corporate auditing, custom schedulers, or disabling Service Mesh sidecars (e.g. Istio / Linkerd).
+  probeExtraAnnotations: {}
+    # sidecar.istio.io/inject: "false"
+
+  # Optional PriorityClass name for probe pods (e.g. "system-cluster-critical").
+  probePriorityClassName: ""
+
+  # Custom CPU and Memory resource requirements for probe pods.
+  # If not specified, default template values apply (requests: 10m/32Mi, limits: 100m/128Mi).
+  # Conflicts with default quantities take precedence and trigger a server WARN log.
+  probeResources: {}
+    # requests:
+    #   cpu: "10m"
+    #   memory: "32Mi"
+    # limits:
+    #   cpu: "100m"
+    #   memory: "128Mi"
+
+  # Additional PodSecurityContext settings for probe pods.
+  probePodSecurityContext: {}
+    # runAsNonRoot: true
+    # runAsUser: 10001
+    # fsGroup: 10001
+
+  # Additional SecurityContext settings for probe container.
+  # Extends/overrides template container security context with precedence and WARN logging.
+  probeSecurityContext: {}
+    # readOnlyRootFilesystem: false
+    # capabilities:
+    #   drop:
+    #     - ALL
+    #   add:
+    #     - NET_RAW
+
   # Background Garbage Collector execution interval.
   # Periodically inspects cluster and cleans up completed kncc-probe pods.
   gcInterval: "2m"
@@ -209,6 +266,19 @@ k8s:
   # Any namespace carrying this label is hidden in UI and blocked in API.
   namespaceExcludeSelector: "kncc.io/exclude=true"
 
+  # Blacklist of node names permanently excluded from probe pod execution.
+  # Probes will never be scheduled on these nodes.
+  nodeExcludeList: []
+
+  # Kubernetes LabelSelector to dynamically exclude nodes from probe execution.
+  # Nodes carrying matching labels (e.g., audit/security nodes) are skipped during check planning.
+  # Example: "security.zone=audit" or "node-role.kubernetes.io/control-plane=true" or "kncc.io/exclude=true"
+  nodeExcludeSelector: ""
+
+  # Optional whitelist LabelSelector: only schedule probe pods on nodes matching this selector.
+  # Example: "node-role.kubernetes.io/worker=true"
+  nodeSelector: ""
+
 # ------------------------------------------------------------------------------
 # 4. Role-Based Access Control (RBAC & ServiceAccount)
 # ------------------------------------------------------------------------------
@@ -226,6 +296,11 @@ rbac:
   #     Chart creates ClusterRole and ClusterRoleBinding. Required for evaluating CNI
   #     NetworkPolicies directly from target application pod network contexts.
   multiNamespace: true
+
+  # Toggle printing effective ServiceAccount RBAC permissions (access list) to container logs on startup.
+  # When false (default), startup logs remain concise and startup does not query cluster RBAC bindings.
+  # Set to true to inspect effective permissions table directly in 'kubectl logs' on boot.
+  printAccessList: false
 
   serviceAccount:
     # Whether to create ServiceAccount resource.
@@ -275,8 +350,14 @@ security:
   whitelistDomains: []
 
 # ------------------------------------------------------------------------------
-# 6. Report Storage and SQLite Persistence
+# 6. Report Storage, Retention and SQLite Persistence
 # ------------------------------------------------------------------------------
+
+storage:
+  # Retention duration / time-to-live for diagnostic reports (Go duration format: e.g. "24h", "72h", "168h").
+  # Reports older than this retention period are automatically removed by the background cleaner routine.
+  # Default: "72h" (3 days).
+  reportTTL: "72h"
 
 persistence:
   # Use PersistentVolumeClaim for SQLite database storage (/data/kncc.db).

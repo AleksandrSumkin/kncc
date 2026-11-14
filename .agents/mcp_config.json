@@ -3,7 +3,7 @@
                        "graphify":  {
                                         "command":  "C:\\Users\\admin\\.local\\bin\\graphify-mcp.exe",
                                         "args":  [
-                                                     "C:\\Projects\\kncc-public\\graphify-out\\graph.json"
+                                                     "C:\\Projects\\kncc\\graphify-out\\graph.json"
                                                  ]
                                     }
                    }

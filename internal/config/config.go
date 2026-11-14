@@ -17,6 +17,7 @@ import (
 
 // Config holds all configuration settings for kncc.
 type Config struct {
+	LogLevel string         `yaml:"log_level"`
 	Server   ServerConfig   `yaml:"server"`
 	K8s      K8sConfig      `yaml:"k8s"`
 	Security SecurityConfig `yaml:"security"`
@@ -51,28 +52,68 @@ type OpenAPIConfig struct {
 type ServerConfig struct {
 	Host      string          `yaml:"host"`
 	Port      int             `yaml:"port"`
+	LogLevel  string          `yaml:"log_level"`
 	JWTSecret string          `yaml:"jwt_secret"`
 	TokenTTL  time.Duration   `yaml:"token_ttl"`
 	TLS       ServerTLSConfig `yaml:"tls"`
 	OpenAPI   OpenAPIConfig   `yaml:"openapi"`
 }
 
+type ProbeResourceRequirements struct {
+	Requests map[string]string `yaml:"requests"`
+	Limits   map[string]string `yaml:"limits"`
+}
+
+type ProbeCapabilitiesConfig struct {
+	Add  []string `yaml:"add"`
+	Drop []string `yaml:"drop"`
+}
+
+type ProbeSecurityContextConfig struct {
+	AllowPrivilegeEscalation *bool                    `yaml:"allow_privilege_escalation"`
+	ReadOnlyRootFilesystem   *bool                    `yaml:"read_only_root_filesystem"`
+	RunAsUser                *int64                   `yaml:"run_as_user"`
+	RunAsGroup               *int64                   `yaml:"run_as_group"`
+	RunAsNonRoot             *bool                    `yaml:"run_as_non_root"`
+	Privileged               *bool                    `yaml:"privileged"`
+	Capabilities             *ProbeCapabilitiesConfig `yaml:"capabilities"`
+}
+
+type ProbePodSecurityContextConfig struct {
+	RunAsUser    *int64 `yaml:"run_as_user"`
+	RunAsGroup   *int64 `yaml:"run_as_group"`
+	RunAsNonRoot *bool  `yaml:"run_as_non_root"`
+	FSGroup      *int64 `yaml:"fs_group"`
+}
+
 type K8sConfig struct {
-	Kubeconfig                 string        `yaml:"kubeconfig"`
-	Namespace                  string        `yaml:"namespace"`
-	ProbeImage                 string        `yaml:"probe_image"`
-	MultiNamespaceAllowed      bool          `yaml:"multi_namespace_allowed"`
-	NamespaceListEnabled       bool          `yaml:"namespace_list_enabled"`
-	NamespaceExcludeList       []string      `yaml:"namespace_exclude_list"`
-	NamespaceExcludeSelector   string        `yaml:"namespace_exclude_selector"`
-	ProbeTimeoutSeconds           int           `yaml:"probe_timeout_seconds"`
-	ProbeActiveDeadlineSeconds    int64         `yaml:"probe_active_deadline_seconds"`
-	ProbeAllowPrivilegeEscalation *bool         `yaml:"probe_allow_privilege_escalation"`
-	GCInterval                    time.Duration `yaml:"gc_interval"`
-	GCStaleThreshold           time.Duration `yaml:"gc_stale_threshold"`
-	LogoConfigMapName          string        `yaml:"logo_configmap_name"`
-	FaviconConfigMapName       string        `yaml:"favicon_configmap_name"`
-	CustomCABundle             string        `yaml:"custom_ca_bundle"`
+	Kubeconfig                    string                         `yaml:"kubeconfig"`
+	Namespace                     string                         `yaml:"namespace"`
+	ProbeImage                    string                         `yaml:"probe_image"`
+	MultiNamespaceAllowed         bool                           `yaml:"multi_namespace_allowed"`
+	NamespaceListEnabled          bool                           `yaml:"namespace_list_enabled"`
+	NamespaceExcludeList          []string                       `yaml:"namespace_exclude_list"`
+	NamespaceExcludeSelector      string                         `yaml:"namespace_exclude_selector"`
+	NodeExcludeList               []string                       `yaml:"node_exclude_list"`
+	NodeExcludeSelector           string                         `yaml:"node_exclude_selector"`
+	NodeSelector                  string                         `yaml:"node_selector"`
+	ProbeTimeoutSeconds           int                            `yaml:"probe_timeout_seconds"`
+	ProbeActiveDeadlineSeconds    int64                          `yaml:"probe_active_deadline_seconds"`
+	ProbeAllowPrivilegeEscalation *bool                          `yaml:"probe_allow_privilege_escalation"`
+	ProbeImagePullPolicy          string                         `yaml:"probe_image_pull_policy"`
+	ProbeImagePullSecrets         []string                       `yaml:"probe_image_pull_secrets"`
+	ProbeExtraLabels              map[string]string              `yaml:"probe_extra_labels"`
+	ProbeExtraAnnotations         map[string]string              `yaml:"probe_extra_annotations"`
+	ProbePriorityClassName        string                         `yaml:"probe_priority_class_name"`
+	ProbeResources                *ProbeResourceRequirements     `yaml:"probe_resources"`
+	ProbePodSecurityContext       *ProbePodSecurityContextConfig `yaml:"probe_pod_security_context"`
+	ProbeSecurityContext          *ProbeSecurityContextConfig    `yaml:"probe_security_context"`
+	GCInterval                    time.Duration                  `yaml:"gc_interval"`
+	GCStaleThreshold              time.Duration                  `yaml:"gc_stale_threshold"`
+	LogoConfigMapName             string                         `yaml:"logo_configmap_name"`
+	FaviconConfigMapName          string                         `yaml:"favicon_configmap_name"`
+	CustomCABundle                string                         `yaml:"custom_ca_bundle"`
+	PrintAccessList               bool                           `yaml:"print_access_list"`
 }
 
 type SecurityConfig struct {
@@ -151,9 +192,11 @@ type QuickAddConfig struct {
 // DefaultConfig returns safe defaults.
 func DefaultConfig() *Config {
 	return &Config{
+		LogLevel: "info",
 		Server: ServerConfig{
 			Host:      "0.0.0.0",
 			Port:      8080,
+			LogLevel:  "info",
 			JWTSecret: generateRandomSecret(32),
 			TokenTTL:  24 * time.Hour,
 			TLS: ServerTLSConfig{
@@ -182,6 +225,9 @@ func DefaultConfig() *Config {
 				"kube-node-lease",
 			},
 			NamespaceExcludeSelector:   "",
+			NodeExcludeList:            []string{},
+			NodeExcludeSelector:        "",
+			NodeSelector:               "",
 			ProbeTimeoutSeconds:           30,
 			ProbeActiveDeadlineSeconds:    60,
 			ProbeAllowPrivilegeEscalation: boolPtr(true),
@@ -189,6 +235,7 @@ func DefaultConfig() *Config {
 			GCStaleThreshold:           3 * time.Minute,
 			LogoConfigMapName:          "kncc-logo",
 			FaviconConfigMapName:       "kncc-favicon",
+			PrintAccessList:            false,
 		},
 		Security: SecurityConfig{
 			BlacklistCIDRs: []string{
@@ -263,6 +310,19 @@ func Load(configPath string) (*Config, error) {
 
 	cfg.loadFromEnv()
 
+	// Synchronize root log_level and server.log_level
+	if cfg.LogLevel != "" && (cfg.Server.LogLevel == "" || cfg.Server.LogLevel == "info") {
+		cfg.Server.LogLevel = cfg.LogLevel
+	}
+	if cfg.Server.LogLevel != "" {
+		cfg.LogLevel = cfg.Server.LogLevel
+	}
+	cfg.Server.LogLevel = strings.ToLower(strings.TrimSpace(cfg.Server.LogLevel))
+	if cfg.Server.LogLevel == "" {
+		cfg.Server.LogLevel = "info"
+	}
+	cfg.LogLevel = cfg.Server.LogLevel
+
 	// If AdminInitialPasswordFile is specified (via YAML or env ADMIN_INITIAL_PASSWORD_FILE), read password from file
 	if cfg.Auth.AdminInitialPasswordFile != "" {
 		data, err := os.ReadFile(cfg.Auth.AdminInitialPasswordFile)
@@ -331,6 +391,17 @@ func Load(configPath string) (*Config, error) {
 
 func (c *Config) loadFromEnv() {
 	// Server
+	if v := os.Getenv("SERVER_LOG_LEVEL"); v != "" {
+		c.Server.LogLevel = strings.ToLower(strings.TrimSpace(v))
+		c.LogLevel = c.Server.LogLevel
+	} else if v := os.Getenv("LOG_LEVEL"); v != "" {
+		c.Server.LogLevel = strings.ToLower(strings.TrimSpace(v))
+		c.LogLevel = c.Server.LogLevel
+	} else if v := os.Getenv("KNCC_LOG_LEVEL"); v != "" {
+		c.Server.LogLevel = strings.ToLower(strings.TrimSpace(v))
+		c.LogLevel = c.Server.LogLevel
+	}
+
 	if v := os.Getenv("SERVER_HOST"); v != "" {
 		c.Server.Host = v
 	}
@@ -420,6 +491,15 @@ func (c *Config) loadFromEnv() {
 	if v := os.Getenv("K8S_NAMESPACE_EXCLUDE_SELECTOR"); v != "" {
 		c.K8s.NamespaceExcludeSelector = strings.TrimSpace(v)
 	}
+	if v := os.Getenv("K8S_NODE_EXCLUDE_LIST"); v != "" {
+		c.K8s.NodeExcludeList = splitAndTrim(v, ",")
+	}
+	if v := os.Getenv("K8S_NODE_EXCLUDE_SELECTOR"); v != "" {
+		c.K8s.NodeExcludeSelector = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("K8S_NODE_SELECTOR"); v != "" {
+		c.K8s.NodeSelector = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("K8S_PROBE_TIMEOUT_SECONDS"); v != "" {
 		if t, err := strconv.Atoi(v); err == nil && t > 0 {
 			c.K8s.ProbeTimeoutSeconds = t
@@ -429,6 +509,21 @@ func (c *Config) loadFromEnv() {
 		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
 	} else if v := os.Getenv("KNCC_K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION"); v != "" {
 		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
+	}
+	if v := os.Getenv("K8S_PROBE_IMAGE_PULL_POLICY"); v != "" {
+		c.K8s.ProbeImagePullPolicy = strings.TrimSpace(v)
+	} else if v := os.Getenv("KNCC_K8S_PROBE_IMAGE_PULL_POLICY"); v != "" {
+		c.K8s.ProbeImagePullPolicy = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("K8S_PROBE_IMAGE_PULL_SECRETS"); v != "" {
+		c.K8s.ProbeImagePullSecrets = splitAndTrim(v, ",")
+	} else if v := os.Getenv("KNCC_K8S_PROBE_IMAGE_PULL_SECRETS"); v != "" {
+		c.K8s.ProbeImagePullSecrets = splitAndTrim(v, ",")
+	}
+	if v := os.Getenv("K8S_PROBE_PRIORITY_CLASS_NAME"); v != "" {
+		c.K8s.ProbePriorityClassName = strings.TrimSpace(v)
+	} else if v := os.Getenv("KNCC_K8S_PROBE_PRIORITY_CLASS_NAME"); v != "" {
+		c.K8s.ProbePriorityClassName = strings.TrimSpace(v)
 	}
 	if v := os.Getenv("K8S_GC_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -445,6 +540,13 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("K8S_FAVICON_CONFIGMAP_NAME"); v != "" {
 		c.K8s.FaviconConfigMapName = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("K8S_PRINT_ACCESS_LIST"); v != "" {
+		c.K8s.PrintAccessList = parseBool(v)
+	} else if v := os.Getenv("KNCC_K8S_PRINT_ACCESS_LIST"); v != "" {
+		c.K8s.PrintAccessList = parseBool(v)
+	} else if v := os.Getenv("RBAC_PRINT_ACCESS_LIST"); v != "" {
+		c.K8s.PrintAccessList = parseBool(v)
 	}
 
 	// Security

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -390,5 +391,39 @@ func TestAuthService_DirectBind_DNFormatting(t *testing.T) {
 		if got != c.expected {
 			t.Errorf("formatting (%q, %q) = %q, expected %q", c.template, c.username, got, c.expected)
 		}
+	}
+}
+
+func TestAuthService_Logger(t *testing.T) {
+	var buf strings.Builder
+	h := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	testLogger := slog.New(h)
+
+	cfg := &config.AuthConfig{
+		LocalEnabled:  true,
+		AdminUsername: "admin",
+	}
+	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("failed to create sqlite store: %v", err)
+	}
+	defer s.Close()
+	jwtMgr := NewJWTManager("secret12345678901234567890123456", 1*time.Hour)
+
+	authSvc, err := NewAuthService(context.Background(), cfg, s, jwtMgr)
+	if err != nil {
+		t.Fatalf("NewAuthService failed: %v", err)
+	}
+	authSvc.SetLogger(testLogger)
+
+	// Attempt local authentication (will fail since user not found)
+	_, _, _ = authSvc.AuthenticateLocal(context.Background(), "unknown-user", "password")
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "Local authentication attempt") {
+		t.Errorf("expected debug log 'Local authentication attempt' in output, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "Local authentication failed: user not found") {
+		t.Errorf("expected warning log 'Local authentication failed: user not found' in output, got: %s", logOutput)
 	}
 }

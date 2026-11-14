@@ -3,6 +3,7 @@
 server:
   host: "0.0.0.0"
   port: 8080
+  log_level: "info" # Logging verbosity: "debug", "info", "warn", "error"
   jwt_secret: "" # auto-generated random secret if empty
   token_ttl: "24h"
   tls:
@@ -58,6 +59,18 @@ k8s:
   # Example: "kncc.io/exclude=true" or "security.tier in (restricted, infra)"
   namespace_exclude_selector: "kncc.io/exclude=true"
 
+  # Blacklist of nodes permanently excluded from probe pod scheduling.
+  # Example: ["k3s-master", "audit-node-01"]
+  node_exclude_list: []
+
+  # Kubernetes LabelSelector to dynamically exclude nodes (e.g. security/audit/control-plane nodes).
+  # Example: "security.zone=audit" or "node-role.kubernetes.io/control-plane=true" or "kncc.io/exclude=true"
+  node_exclude_selector: ""
+
+  # Optional whitelist LabelSelector: only schedule probe pods on matching nodes.
+  # Example: "node-role.kubernetes.io/worker=true"
+  node_selector: ""
+
   probe_timeout_seconds: 30
   probe_active_deadline_seconds: 60
   # Controls allowPrivilegeEscalation in probe pod SecurityContext.
@@ -65,12 +78,39 @@ k8s:
   # are permitted to utilize the SUID bit on /bin/ping to acquire the NET_RAW capability,
   # enabling ICMP checks in HostNetwork mode without granting any extra capabilities.
   probe_allow_privilege_escalation: true
+
+  # Custom probe pod configuration (Issue #110)
+  probe_image_pull_policy: "" # "Always", "IfNotPresent", or "Never"
+  probe_image_pull_secrets: [] # ["my-registry-secret"]
+  probe_extra_labels: {} # { team: "network" }
+  probe_extra_annotations: {} # { "sidecar.istio.io/inject": "false" }
+  probe_priority_class_name: "" # "system-cluster-critical"
+  probe_resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+  probe_pod_security_context: {}
+    # run_as_non_root: true
+    # run_as_user: 10001
+    # fs_group: 10001
+  probe_security_context: {}
+    # read_only_root_filesystem: false
+    # capabilities:
+    #   drop: ["ALL"]
+    #   add: ["NET_RAW"]
   gc_interval: "2m"
   # Minimum age before an orphaned or zombie probe pod is deleted by GC.
   # Prevents race conditions with actively running or just completed checks.
   gc_stale_threshold: "3m"
   logo_configmap_name: "kncc-logo" # Name of Kubernetes ConfigMap containing corporate branding logo
   favicon_configmap_name: "kncc-favicon" # Name of Kubernetes ConfigMap containing custom favicon
+  # Toggle printing the effective Kubernetes API ServiceAccount RBAC permissions (access list)
+  # to the server log during startup. When false (default), startup logs remain concise.
+  # Permissions can always be inspected on demand via the Admin UI or GET /api/admin/rbac.
+  print_access_list: false
 
 security:
   # Block checks targeting sensitive metadata and internal infrastructure

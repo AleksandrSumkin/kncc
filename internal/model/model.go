@@ -189,6 +189,7 @@ type ProbeOutput struct {
 type NodeResult struct {
 	NodeName       string        `json:"node_name"`
 	NodeIP         string        `json:"node_ip,omitempty"`
+	NodeRoles      []string      `json:"node_roles,omitempty"`
 	Status         string        `json:"status"` // "completed", "failed", "timeout", "running"
 	ServiceResults []ProbeOutput `json:"service_results"`
 	Error          string        `json:"error,omitempty"`

@@ -10,6 +10,9 @@ import (
 
 func TestConfig_Defaults(t *testing.T) {
 	cfg := DefaultConfig()
+	if cfg.Server.LogLevel != "info" || cfg.LogLevel != "info" {
+		t.Errorf("expected default log level 'info', got server=%q root=%q", cfg.Server.LogLevel, cfg.LogLevel)
+	}
 	if cfg.Server.Port != 8080 {
 		t.Errorf("expected port 8080, got %d", cfg.Server.Port)
 	}
@@ -27,6 +30,9 @@ func TestConfig_Defaults(t *testing.T) {
 	}
 	if cfg.K8s.FaviconConfigMapName != "kncc-favicon" {
 		t.Errorf("expected favicon configmap kncc-favicon, got %s", cfg.K8s.FaviconConfigMapName)
+	}
+	if cfg.K8s.PrintAccessList {
+		t.Errorf("expected PrintAccessList to be false by default")
 	}
 	if cfg.Security.RateLimitPerMinute != 30 {
 		t.Errorf("expected rate limit 30, got %d", cfg.Security.RateLimitPerMinute)
@@ -58,11 +64,15 @@ func TestConfig_Defaults(t *testing.T) {
 }
 
 func TestConfig_EnvOverride(t *testing.T) {
+	os.Setenv("LOG_LEVEL", "debug")
 	os.Setenv("SERVER_PORT", "9090")
 	os.Setenv("K8S_MULTI_NAMESPACE_ALLOWED", "true")
 	os.Setenv("K8S_NAMESPACE_LIST_ENABLED", "true")
 	os.Setenv("K8S_NAMESPACE_EXCLUDE_LIST", "kube-system,custom-ns")
 	os.Setenv("K8S_NAMESPACE_EXCLUDE_SELECTOR", "kncc.io/exclude=true")
+	os.Setenv("K8S_NODE_EXCLUDE_LIST", "k3s-master,node-audit-01")
+	os.Setenv("K8S_NODE_EXCLUDE_SELECTOR", "security.zone=audit")
+	os.Setenv("K8S_NODE_SELECTOR", "node-role.kubernetes.io/worker=true")
 	os.Setenv("K8S_GC_INTERVAL", "5m")
 	os.Setenv("K8S_GC_STALE_THRESHOLD", "7m")
 	os.Setenv("K8S_LOGO_CONFIGMAP_NAME", "custom-logo-cm")
@@ -72,7 +82,10 @@ func TestConfig_EnvOverride(t *testing.T) {
 	os.Setenv("SERVER_OPENAPI_ENABLED", "false")
 	os.Setenv("SERVER_OPENAPI_PUBLIC", "true")
 	os.Setenv("STORAGE_REPORT_TTL", "48h")
+	os.Setenv("K8S_PRINT_ACCESS_LIST", "true")
 	defer func() {
+		os.Unsetenv("K8S_PRINT_ACCESS_LIST")
+		os.Unsetenv("LOG_LEVEL")
 		os.Unsetenv("SERVER_OPENAPI_ENABLED")
 		os.Unsetenv("SERVER_OPENAPI_PUBLIC")
 		os.Unsetenv("SERVER_PORT")
@@ -80,6 +93,9 @@ func TestConfig_EnvOverride(t *testing.T) {
 		os.Unsetenv("K8S_NAMESPACE_LIST_ENABLED")
 		os.Unsetenv("K8S_NAMESPACE_EXCLUDE_LIST")
 		os.Unsetenv("K8S_NAMESPACE_EXCLUDE_SELECTOR")
+		os.Unsetenv("K8S_NODE_EXCLUDE_LIST")
+		os.Unsetenv("K8S_NODE_EXCLUDE_SELECTOR")
+		os.Unsetenv("K8S_NODE_SELECTOR")
 		os.Unsetenv("K8S_GC_INTERVAL")
 		os.Unsetenv("K8S_GC_STALE_THRESHOLD")
 		os.Unsetenv("K8S_LOGO_CONFIGMAP_NAME")
@@ -94,11 +110,17 @@ func TestConfig_EnvOverride(t *testing.T) {
 		t.Fatalf("Load error: %v", err)
 	}
 
+	if cfg.Server.LogLevel != "debug" || cfg.LogLevel != "debug" {
+		t.Errorf("expected log level debug from env, got server=%q root=%q", cfg.Server.LogLevel, cfg.LogLevel)
+	}
 	if cfg.Server.Port != 9090 {
 		t.Errorf("expected port 9090 from env, got %d", cfg.Server.Port)
 	}
 	if !cfg.K8s.MultiNamespaceAllowed {
 		t.Errorf("expected multi-namespace allowed to be true")
+	}
+	if !cfg.K8s.PrintAccessList {
+		t.Errorf("expected PrintAccessList to be true from env")
 	}
 	if !cfg.K8s.NamespaceListEnabled {
 		t.Errorf("expected namespace-list-enabled to be true")
@@ -108,6 +130,15 @@ func TestConfig_EnvOverride(t *testing.T) {
 	}
 	if cfg.K8s.NamespaceExcludeSelector != "kncc.io/exclude=true" {
 		t.Errorf("expected selector 'kncc.io/exclude=true', got %s", cfg.K8s.NamespaceExcludeSelector)
+	}
+	if len(cfg.K8s.NodeExcludeList) != 2 || cfg.K8s.NodeExcludeList[0] != "k3s-master" || cfg.K8s.NodeExcludeList[1] != "node-audit-01" {
+		t.Errorf("expected node exclude list [k3s-master node-audit-01], got %v", cfg.K8s.NodeExcludeList)
+	}
+	if cfg.K8s.NodeExcludeSelector != "security.zone=audit" {
+		t.Errorf("expected node exclude selector 'security.zone=audit', got %s", cfg.K8s.NodeExcludeSelector)
+	}
+	if cfg.K8s.NodeSelector != "node-role.kubernetes.io/worker=true" {
+		t.Errorf("expected node selector 'node-role.kubernetes.io/worker=true', got %s", cfg.K8s.NodeSelector)
 	}
 	if cfg.K8s.GCInterval != 5*time.Minute {
 		t.Errorf("expected gc interval 5m, got %v", cfg.K8s.GCInterval)
@@ -579,5 +610,132 @@ k8s:
 	}
 	if loadedEnv2.K8s.ProbeAllowPrivilegeEscalation == nil || *loadedEnv2.K8s.ProbeAllowPrivilegeEscalation != true {
 		t.Errorf("expected ProbeAllowPrivilegeEscalation to be true from KNCC_ env overriding YAML")
+	}
+}
+
+func TestLoad_ProbeCustomAgentConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "custom_probe.yaml")
+	content := `
+k8s:
+  probe_image_pull_policy: "Always"
+  probe_image_pull_secrets:
+    - "my-regcred"
+    - "corp-secret"
+  probe_extra_labels:
+    tier: "diagnostics"
+    team: "netops"
+  probe_extra_annotations:
+    sidecar.istio.io/inject: "false"
+  probe_priority_class_name: "system-cluster-critical"
+  probe_resources:
+    requests:
+      cpu: "25m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  probe_pod_security_context:
+    run_as_user: 10001
+    run_as_non_root: true
+    fs_group: 10001
+  probe_security_context:
+    read_only_root_filesystem: true
+    allow_privilege_escalation: false
+    capabilities:
+      add:
+        - "NET_RAW"
+        - "NET_ADMIN"
+      drop:
+        - "ALL"
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	loaded, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	if loaded.K8s.ProbeImagePullPolicy != "Always" {
+		t.Errorf("expected ProbeImagePullPolicy Always, got %s", loaded.K8s.ProbeImagePullPolicy)
+	}
+	if len(loaded.K8s.ProbeImagePullSecrets) != 2 || loaded.K8s.ProbeImagePullSecrets[0] != "my-regcred" {
+		t.Errorf("unexpected ProbeImagePullSecrets: %v", loaded.K8s.ProbeImagePullSecrets)
+	}
+	if loaded.K8s.ProbeExtraLabels["tier"] != "diagnostics" {
+		t.Errorf("expected extra label tier=diagnostics, got %v", loaded.K8s.ProbeExtraLabels)
+	}
+	if loaded.K8s.ProbeExtraAnnotations["sidecar.istio.io/inject"] != "false" {
+		t.Errorf("expected extra annotation, got %v", loaded.K8s.ProbeExtraAnnotations)
+	}
+	if loaded.K8s.ProbePriorityClassName != "system-cluster-critical" {
+		t.Errorf("expected priority class system-cluster-critical, got %s", loaded.K8s.ProbePriorityClassName)
+	}
+	if loaded.K8s.ProbeResources == nil || loaded.K8s.ProbeResources.Requests["cpu"] != "25m" {
+		t.Errorf("expected custom requests.cpu 25m, got %v", loaded.K8s.ProbeResources)
+	}
+	if loaded.K8s.ProbePodSecurityContext == nil || *loaded.K8s.ProbePodSecurityContext.RunAsUser != 10001 {
+		t.Errorf("expected custom run_as_user 10001, got %v", loaded.K8s.ProbePodSecurityContext)
+	}
+	if loaded.K8s.ProbeSecurityContext == nil || *loaded.K8s.ProbeSecurityContext.ReadOnlyRootFilesystem != true {
+		t.Errorf("expected custom read_only_root_filesystem true, got %v", loaded.K8s.ProbeSecurityContext)
+	}
+
+	// Test Env Overrides
+	os.Setenv("K8S_PROBE_IMAGE_PULL_POLICY", "Never")
+	os.Setenv("K8S_PROBE_IMAGE_PULL_SECRETS", "env-secret-1, env-secret-2")
+	os.Setenv("K8S_PROBE_PRIORITY_CLASS_NAME", "low-priority")
+	defer func() {
+		os.Unsetenv("K8S_PROBE_IMAGE_PULL_POLICY")
+		os.Unsetenv("K8S_PROBE_IMAGE_PULL_SECRETS")
+		os.Unsetenv("K8S_PROBE_PRIORITY_CLASS_NAME")
+	}()
+
+	loadedEnv, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load with env error: %v", err)
+	}
+	if loadedEnv.K8s.ProbeImagePullPolicy != "Never" {
+		t.Errorf("expected env override ProbeImagePullPolicy Never, got %s", loadedEnv.K8s.ProbeImagePullPolicy)
+	}
+	if len(loadedEnv.K8s.ProbeImagePullSecrets) != 2 || loadedEnv.K8s.ProbeImagePullSecrets[0] != "env-secret-1" {
+		t.Errorf("expected env override ProbeImagePullSecrets, got %v", loadedEnv.K8s.ProbeImagePullSecrets)
+	}
+	if loadedEnv.K8s.ProbePriorityClassName != "low-priority" {
+		t.Errorf("expected env override ProbePriorityClassName low-priority, got %s", loadedEnv.K8s.ProbePriorityClassName)
+	}
+}
+
+func TestConfig_LogLevelYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// 1. Test server.log_level in YAML
+	cfgPath1 := filepath.Join(tmpDir, "config1.yaml")
+	if err := os.WriteFile(cfgPath1, []byte("server:\n  log_level: \"warn\"\n"), 0600); err != nil {
+		t.Fatalf("failed to write config1: %v", err)
+	}
+
+	cfg1, err := Load(cfgPath1)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfg1.Server.LogLevel != "warn" || cfg1.LogLevel != "warn" {
+		t.Errorf("expected warn, got server=%q root=%q", cfg1.Server.LogLevel, cfg1.LogLevel)
+	}
+
+	// 2. Test root log_level in YAML
+	cfgPath2 := filepath.Join(tmpDir, "config2.yaml")
+	if err := os.WriteFile(cfgPath2, []byte("log_level: \"debug\"\n"), 0600); err != nil {
+		t.Fatalf("failed to write config2: %v", err)
+	}
+
+	cfg2, err := Load(cfgPath2)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if cfg2.Server.LogLevel != "debug" || cfg2.LogLevel != "debug" {
+		t.Errorf("expected debug, got server=%q root=%q", cfg2.Server.LogLevel, cfg2.LogLevel)
 	}
 }

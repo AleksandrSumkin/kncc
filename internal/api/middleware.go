@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"kncc/internal/auth"
 	"kncc/internal/model"
@@ -159,5 +161,33 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{
 		"error": message,
+	})
+}
+
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *statusResponseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// LoggingMiddleware logs incoming HTTP requests with latency, method, path, and status code.
+func LoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(rw, r)
+
+		slog.Debug("HTTP request completed",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rw.statusCode,
+			"duration", time.Since(start).String(),
+			"remote_addr", r.RemoteAddr,
+		)
 	})
 }

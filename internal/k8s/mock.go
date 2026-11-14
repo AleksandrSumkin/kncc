@@ -28,21 +28,49 @@ func NewMockRunner(s store.Store, cfg *config.Config) *MockRunner {
 
 // MockNode holds mock node metadata.
 type MockNode struct {
-	Name string
-	IP   string
+	Name   string
+	IP     string
+	Labels map[string]string
+	Roles  []string
 }
 
 var defaultMockNodes = []MockNode{
-	{Name: "k8s-control-plane-01", IP: "10.0.0.1"},
-	{Name: "k8s-worker-01", IP: "10.0.0.1"},
-	{Name: "k8s-worker-02", IP: "10.0.0.1"},
-	{Name: "k8s-worker-03", IP: "10.0.0.1"},
+	{
+		Name:   "k8s-control-plane-01",
+		IP:     "10.0.0.1",
+		Labels: map[string]string{"node-role.kubernetes.io/control-plane": "true"},
+		Roles:  []string{"control-plane"},
+	},
+	{
+		Name:   "k8s-worker-01",
+		IP:     "10.0.0.1",
+		Labels: map[string]string{"node-role.kubernetes.io/worker": "true"},
+		Roles:  []string{"worker"},
+	},
+	{
+		Name:   "k8s-worker-02",
+		IP:     "10.0.0.1",
+		Labels: map[string]string{"node-role.kubernetes.io/worker": "true"},
+		Roles:  []string{"worker"},
+	},
+	{
+		Name:   "k8s-worker-03",
+		IP:     "10.0.0.1",
+		Labels: map[string]string{"node-role.kubernetes.io/worker": "true", "security.zone": "audit"},
+		Roles:  []string{"worker"},
+	},
 }
 
 // ExecuteCheck simulates asynchronous probe execution across mock cluster nodes.
 func (m *MockRunner) ExecuteCheck(ctx context.Context, report *model.Report) {
 	go func() {
-		nodes := defaultMockNodes
+		nodes := FilterMockNodes(m.cfg, defaultMockNodes)
+		if len(nodes) == 0 {
+			now := time.Now().UTC()
+			_ = m.store.UpdateReportProgress(context.Background(), report.ID, 0, 0, model.StatusFailed, &now)
+			return
+		}
+
 		totalNodes := len(nodes)
 		report.TotalNodes = totalNodes
 		report.Status = model.StatusRunning
@@ -104,6 +132,7 @@ func (m *MockRunner) simulateNode(node MockNode, report *model.Report) model.Nod
 	return model.NodeResult{
 		NodeName:       node.Name,
 		NodeIP:         node.IP,
+		NodeRoles:      node.Roles,
 		Status:         "completed",
 		ServiceResults: serviceResults,
 		DurationMs:     time.Since(start).Milliseconds(),
@@ -135,28 +164,28 @@ func SeedDemoData(s store.Store, cfg *config.Config) error {
 			CompletedNodes: 4,
 			NodeResults: map[string]model.NodeResult{
 				"k8s-control-plane-01": {
-					NodeName: "k8s-control-plane-01", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 140, FinishedAt: comp,
+					NodeName: "k8s-control-plane-01", NodeIP: "10.0.0.1", NodeRoles: []string{"control-plane"}, Status: "completed", DurationMs: 140, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolHTTPS, Host: "api.github.com", Port: 443, Path: "/healthz"}, Success: true, LatencyMs: 24, ResolvedIP: "140.82.121.4", HTTPStatusCode: 200, Details: "HTTP 200 OK"},
 						{Target: model.TargetService{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}, Success: true, LatencyMs: 12, ResolvedIP: "8.8.8.8", Details: "ICMP Echo Reply"},
 					},
 				},
 				"k8s-worker-01": {
-					NodeName: "k8s-worker-01", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 110, FinishedAt: comp,
+					NodeName: "k8s-worker-01", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 110, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolHTTPS, Host: "api.github.com", Port: 443, Path: "/healthz"}, Success: true, LatencyMs: 18, ResolvedIP: "140.82.121.4", HTTPStatusCode: 200, Details: "HTTP 200 OK"},
 						{Target: model.TargetService{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}, Success: true, LatencyMs: 9, ResolvedIP: "8.8.8.8", Details: "ICMP Echo Reply"},
 					},
 				},
 				"k8s-worker-02": {
-					NodeName: "k8s-worker-02", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 115, FinishedAt: comp,
+					NodeName: "k8s-worker-02", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 115, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolHTTPS, Host: "api.github.com", Port: 443, Path: "/healthz"}, Success: true, LatencyMs: 21, ResolvedIP: "140.82.121.4", HTTPStatusCode: 200, Details: "HTTP 200 OK"},
 						{Target: model.TargetService{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}, Success: true, LatencyMs: 11, ResolvedIP: "8.8.8.8", Details: "ICMP Echo Reply"},
 					},
 				},
 				"k8s-worker-03": {
-					NodeName: "k8s-worker-03", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 125, FinishedAt: comp,
+					NodeName: "k8s-worker-03", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 125, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolHTTPS, Host: "api.github.com", Port: 443, Path: "/healthz"}, Success: true, LatencyMs: 25, ResolvedIP: "140.82.121.4", HTTPStatusCode: 200, Details: "HTTP 200 OK"},
 						{Target: model.TargetService{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}, Success: true, LatencyMs: 14, ResolvedIP: "8.8.8.8", Details: "ICMP Echo Reply"},
@@ -190,28 +219,28 @@ func SeedDemoData(s store.Store, cfg *config.Config) error {
 			CompletedNodes: 4,
 			NodeResults: map[string]model.NodeResult{
 				"k8s-control-plane-01": {
-					NodeName: "k8s-control-plane-01", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 95, FinishedAt: comp,
+					NodeName: "k8s-control-plane-01", NodeIP: "10.0.0.1", NodeRoles: []string{"control-plane"}, Status: "completed", DurationMs: 95, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "postgres.corp.internal", Port: 5432}, Success: true, LatencyMs: 8, ResolvedIP: "10.50.1.20", Details: "TCP connection established"},
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "redis.corp.internal", Port: 6379}, Success: true, LatencyMs: 6, ResolvedIP: "10.50.1.30", Details: "TCP connection established"},
 					},
 				},
 				"k8s-worker-01": {
-					NodeName: "k8s-worker-01", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 80, FinishedAt: comp,
+					NodeName: "k8s-worker-01", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 80, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "postgres.corp.internal", Port: 5432}, Success: true, LatencyMs: 12, ResolvedIP: "10.50.1.20", Details: "TCP connection established"},
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "redis.corp.internal", Port: 6379}, Success: true, LatencyMs: 7, ResolvedIP: "10.50.1.30", Details: "TCP connection established"},
 					},
 				},
 				"k8s-worker-02": {
-					NodeName: "k8s-worker-02", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 85, FinishedAt: comp,
+					NodeName: "k8s-worker-02", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 85, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "postgres.corp.internal", Port: 5432}, Success: true, LatencyMs: 10, ResolvedIP: "10.50.1.20", Details: "TCP connection established"},
 						{Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "redis.corp.internal", Port: 6379}, Success: true, LatencyMs: 9, ResolvedIP: "10.50.1.30", Details: "TCP connection established"},
 					},
 				},
 				"k8s-worker-03": {
-					NodeName: "k8s-worker-03", NodeIP: "10.0.0.1", Status: "completed", DurationMs: 3100, FinishedAt: comp,
+					NodeName: "k8s-worker-03", NodeIP: "10.0.0.1", NodeRoles: []string{"worker"}, Status: "completed", DurationMs: 3100, FinishedAt: comp,
 					ServiceResults: []model.ProbeOutput{
 						{
 							Target: model.TargetService{Protocol: model.ProtocolTCP, Host: "postgres.corp.internal", Port: 5432},

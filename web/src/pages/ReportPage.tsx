@@ -43,6 +43,7 @@ interface ReportPageProps {
 export interface TargetNodeStatus {
   node_name: string;
   node_ip?: string;
+  node_roles?: string[];
   node_status: string; // 'completed' | 'failed' | 'timeout' | 'running'
   node_error?: string;
   probe?: ProbeOutput;
@@ -209,6 +210,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
           nodes.push({
             node_name: nr.node_name,
             node_ip: nr.node_ip,
+            node_roles: nr.node_roles,
             node_status: 'running',
             success: false,
             latency_ms: 0,
@@ -237,6 +239,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
           nodes.push({
             node_name: nr.node_name,
             node_ip: nr.node_ip,
+            node_roles: nr.node_roles,
             node_status: nr.status,
             node_error: nodeError,
             probe: matchingProbe,
@@ -260,6 +263,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
           nodes.push({
             node_name: nr.node_name,
             node_ip: nr.node_ip,
+            node_roles: nr.node_roles,
             node_status: nr.status,
             node_error: nodeErr,
             success: false,
@@ -344,6 +348,7 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
           (n) =>
             n.node_name.toLowerCase().includes(query) ||
             (n.node_ip && n.node_ip.includes(query)) ||
+            (n.node_roles && n.node_roles.some((r) => r.toLowerCase().includes(query))) ||
             (n.error && n.error.toLowerCase().includes(query))
         );
         if (!matchesTarget && !matchesNode) return false;
@@ -362,8 +367,13 @@ export const ReportPage: React.FC<ReportPageProps> = ({ reportId, onRerunCreated
   // By-node filtering
   const filteredNodes = useMemo(() => {
     return nodeResultsList.filter((n) => {
-      if (searchTerm && !n.node_name.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
+      if (searchTerm) {
+        const query = searchTerm.toLowerCase();
+        const matchesName = n.node_name.toLowerCase().includes(query);
+        const matchesRole = n.node_roles?.some((r) => r.toLowerCase().includes(query));
+        if (!matchesName && !matchesRole) {
+          return false;
+        }
       }
       const hasFailures = n.service_results?.some((s) => !s.success) || n.status !== 'completed';
       if (nodeFilter === 'failed') return hasFailures;
@@ -975,6 +985,39 @@ const TargetCard: React.FC<TargetCardProps> = ({ group, isExpanded, onToggleExpa
 };
 
 // ==========================================
+// NODE ROLE BADGE HELPER
+// ==========================================
+const renderNodeRoleBadges = (roles?: string[]) => {
+  // При отсутствии ролей ничего не выводить
+  if (!roles || roles.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {roles.map((role) => {
+        let badgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+        if (role === 'control-plane' || role === 'master') {
+          badgeColor = 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+        } else if (role === 'worker') {
+          badgeColor = 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+        }
+
+        return (
+          <span
+            key={role}
+            className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-medium border ${badgeColor}`}
+            title={`Role: ${role}`}
+          >
+            {role}
+          </span>
+        );
+      })}
+    </span>
+  );
+};
+
+// ==========================================
 // TARGET NODE DETAIL ROW COMPONENT
 // ==========================================
 const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => {
@@ -1002,11 +1045,12 @@ const TargetNodeDetailRow: React.FC<{ node: TargetNodeStatus }> = ({ node }) => 
             <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
           )}
 
-          <div className="flex items-baseline space-x-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-bold text-gray-900 dark:text-white font-mono">{node.node_name}</span>
             {node.node_ip && (
               <span className="text-[11px] text-gray-400 dark:text-slate-500">({node.node_ip})</span>
             )}
+            {renderNodeRoleBadges(node.node_roles)}
           </div>
         </div>
 
@@ -1123,7 +1167,7 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
     >
       {/* Node Header */}
       <div className="flex justify-between items-center mb-3 pb-2.5 border-b border-gray-100 dark:border-slate-800">
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {isFailed ? (
             <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
           ) : (
@@ -1133,6 +1177,7 @@ const NodeCard: React.FC<{ node: NodeResult }> = ({ node }) => {
           {node.node_ip && (
             <span className="text-xs text-gray-400 dark:text-slate-500">({node.node_ip})</span>
           )}
+          {renderNodeRoleBadges(node.node_roles)}
         </div>
 
         <div className="flex items-center space-x-2">
