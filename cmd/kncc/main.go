@@ -23,7 +23,9 @@ import (
 	"kncc/internal/k8s"
 	"kncc/internal/k8s/rbac"
 	"kncc/internal/logger"
+	"kncc/internal/metrics"
 	"kncc/internal/ratelimit"
+	"kncc/internal/scheduler"
 	"kncc/internal/security"
 	"kncc/internal/store"
 	"kncc/web"
@@ -32,7 +34,7 @@ import (
 )
 
 // @title Kubernetes Network Connectivity Checker (kncc) API
-// @version 1.16.0
+// @version 1.17.0
 // @description kncc server REST API for network connectivity diagnostics in Kubernetes clusters.
 // @contact.name kncc Maintainers
 // @license.name Apache 2.0
@@ -43,7 +45,7 @@ import (
 // @description Enter 'Bearer <JWT_TOKEN>' to authenticate protected requests.
 
 var (
-	version = "1.16.0"
+	version = "1.17.0"
 	commit  = "none"
 	date    = "unknown"
 )
@@ -208,7 +210,19 @@ func main() {
 		log.Printf("Embedded frontend UI loaded successfully")
 	}
 
-	handler := api.NewHandler(cfg, dbStore, authSvc, validator, limiter, runner, k8sClient, version)
+	// 7b. Initialize Prometheus metrics & Scheduler
+	metricsMgr := metrics.NewMetrics(dbStore)
+	sched := scheduler.NewScheduler(cfg, dbStore, runner, metricsMgr)
+	if err := sched.Start(context.Background()); err != nil {
+		log.Printf("Warning: failed to start background scheduler: %v", err)
+	}
+
+	var metricsServer *http.Server
+	if cfg.Metrics.Enabled {
+		metricsServer = metrics.StartMetricsServer(context.Background(), &cfg.Metrics, metricsMgr.Registry)
+	}
+
+	handler := api.NewHandler(cfg, dbStore, authSvc, validator, limiter, runner, k8sClient, sched, metricsMgr, version)
 	router := api.SetupRouter(handler, authSvc, limiter, webFS)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -299,6 +313,9 @@ func main() {
 	sig := <-sigCh
 	log.Printf("Received signal %v, initiating graceful shutdown...", sig)
 	close(stopCh)
+	if sched != nil {
+		sched.Stop()
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -311,6 +328,15 @@ func main() {
 			log.Printf("HTTP server shutdown error: %v", err)
 		}
 	}()
+	if metricsServer != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+				log.Printf("Metrics server shutdown error: %v", err)
+			}
+		}()
+	}
 	if tlsServer != nil {
 		wg.Add(1)
 		go func() {

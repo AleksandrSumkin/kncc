@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-16
+
+### Security
+- **Disable AutomountServiceAccountToken on agent probe pods ([#132](https://github.com/AleksandrSumkin/kncc/issues/132)):**
+  - Updated probe pod manifest builder (`internal/k8s/builder.go`) to explicitly set `AutomountServiceAccountToken: false` by default, preventing Kubernetes from automatically mounting ServiceAccount tokens (`/var/run/secrets/kubernetes.io/serviceaccount`) into ephemeral probe pods (`kncc-agent`).
+  - Added `k8s.probe_automount_service_account_token` configuration parameter to `K8sConfig` (`internal/config/config.go`) with default `false`.
+  - Added environment variable overrides: `K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN` and `KNCC_K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN`.
+  - Exposed `k8s.probeAutomountServiceAccountToken` in Helm chart (`deploy/helm/kncc/values.yaml`, `values_ru.yaml`, `templates/configmap.yaml`) and `kncc.example.yaml`.
+  - Added comprehensive test coverage in `internal/config/config_test.go` and `internal/k8s/builder_test.go`.
+
+### Fixed
+- **RFC 1123 DNS Label sanitization for probe pod names ([#129](https://github.com/AleksandrSumkin/kncc/issues/129)):**
+  - Resolved Kubernetes API validation failure (`metadata.name: a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-'`) when executing network probe pods on nodes with FQDN names (containing dots, e.g. `worker-01.us-east-1.compute.internal`).
+  - Updated `generateProbePodName` in `internal/k8s/builder.go` to sanitize node names against RFC 1123 DNS Label specifications: replacing dots, underscores, and unsupported characters with hyphens, deduplicating consecutive hyphens, and trimming trailing hyphens while safely preserving the original FQDN node name in `spec.NodeName`.
+  - Added unit test coverage for various FQDN formats, special characters, and boundary edge cases with `validation.IsDNS1123Label`.
+- **Deduplication of CA Certificates and respect `certKey` in Helm ([#128](https://github.com/AleksandrSumkin/kncc/issues/128)):**
+  - **Helm Chart Key Projection:** Updated `deploy/helm/kncc/templates/deployment.yaml` to project only the specific `.Values.caCerts.certKey` via volume `items` for both Secret and ConfigMap sources, avoiding mounting unrelated or duplicate certificate files (e.g. `tls.crt`, `tls.key`) present in the secret.
+  - **Precise Path Variable:** Configured `CA_CERTS_PATH` environment variable in `deployment.yaml` to point directly to the mounted certificate file (`{{ .Values.caCerts.mountPath }}/{{ .Values.caCerts.certKey }}`) when `certKey` is specified, allowing direct file reading rather than scanning the directory.
+  - **In-Memory X.509 Deduplication:** Added deduplication in `internal/certutil/certutil.go` (`LoadCertPool`) using SHA-256 fingerprinting of raw certificate DER bytes (`cert.Raw`). Duplicate certificates within bundles, across mounted files, or between path and inline PEM definitions are detected and skipped, preventing duplicate entries in `x509.CertPool` and bloated probe pod agent scripts.
+
+### Added
+- **Support readOnlyRootFilesystem by default for server and agent ([#131](https://github.com/AleksandrSumkin/kncc/issues/131)):**
+  - **Probe Agent Container:** Enforced `readOnlyRootFilesystem: true` by default in `BuildProbePod` (`internal/k8s/builder.go`). Added an `emptyDir` volume `kncc-probe-tmp` mounted at `/tmp` to allow diagnostic utilities and custom CA certificate bundle generation to write safely without requiring a writable root filesystem.
+  - **Server Container:** Enabled `readOnlyRootFilesystem: true`, `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, and `capabilities: drop: [ALL]` by default for the `kncc` server container in Helm Deployment template (`deploy/helm/kncc/templates/deployment.yaml`).
+  - **Server Tmp Volume:** Mounted an `emptyDir` volume `tmp-volume` at `/tmp` for the server container to support SQLite temporary tables and runtime temporary files.
+  - **Hardened Init Container:** Configured strict SecurityContext (`readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, `capabilities: drop: [ALL]`) for the `init-admin-password` initContainer.
+  - **Helm Values Configuration:** Exposed `securityContext` and `podSecurityContext` in `values.yaml` and `values_ru.yaml` with safe production defaults conforming to Kubernetes Pod Security Standards (PSS) **Restricted** profile.
+- **Container Image Digest Support ([#130](https://github.com/AleksandrSumkin/kncc/issues/130)):**
+  - **Server Image Digest:** Added `image.digest` parameter to Helm values (`deploy/helm/kncc/values.yaml` and `values_ru.yaml`). When specified, pins backend server and `initContainers` to an immutable cryptographic image digest (`repository@digest`).
+  - **Agent / Probe Image Digest:** Added `k8s.probeImageDigest` (and structured `agent.image.digest` alias) to Helm chart and backend configuration (`probe_image_digest` in `config.yaml` / `kncc.example.yaml`).
+  - **Dynamic Probe Builder Resolution:** Extended `K8sConfig` with `GetEffectiveProbeImage()`, automatically attaching the image digest and stripping floating tags (`:latest`) when constructing ephemeral diagnostic probe pods on Kubernetes nodes.
+  - **Environment Variable Overrides:** Added `K8S_PROBE_IMAGE_DIGEST` and `KNCC_K8S_PROBE_IMAGE_DIGEST` environment variables for probe pod digest pinning.
+- **Pod and Container SecurityContext configuration for server and agent ([#125](https://github.com/AleksandrSumkin/kncc/issues/125)):**
+  - Added configurable `podSecurityContext` and `securityContext` for the kncc backend server pod and container in Helm chart (`templates/deployment.yaml`, `values.yaml`, `values_ru.yaml`).
+  - Fixed issue where ephemeral probe pods (`kncc-probe`) failed to pick up security context settings due to camelCase vs snake_case YAML key mismatch.
+  - Implemented dual-case YAML unmarshaler (`camelCase` and `snake_case`) for `probe_pod_security_context` and `probe_security_context` in Go configuration (`internal/config/config.go`).
+  - Added `seccompProfile` and `fsGroupChangePolicy` support for probe pods and containers to comply with strict Pod Security Standards (PSS Restricted).
+  - Added `agent.podSecurityContext` and `agent.securityContext` alias support in Helm chart `configmap.yaml`.
+- **Support Secure Ingress Backend ([#126](https://github.com/AleksandrSumkin/kncc/issues/126)):**
+  - **Configurable Ingress Backend Port:** Added `ingress.servicePort` and per-path `paths[].servicePort` supporting both numeric (`8443`, `443`, `80`) and named (`https`, `http`) ports conforming to Kubernetes `networking.k8s.io/v1` Ingress specifications.
+  - **Backend Protocol & Traefik Integration:** Added `ingress.backendProtocol` scheme option and `ingress.traefik.insecureSkipVerify` option with automated generation of Traefik `ServersTransport` (`traefik.io/v1alpha1`) resource and annotation linking.
+  - **Service Dual-Port TLS Alignment:** Enhanced `templates/service.yaml` to seamlessly support port 8443 for HTTPS traffic when `ingress.servicePort: 8443` is selected.
+  - **Values Documentation:** Added detailed configuration examples and documentation for End-to-End TLS / Zero Trust ingress backends for Traefik and NGINX Ingress controllers in `values.yaml` and `values_ru.yaml`.
+- **Support priorityClassName for kncc server deployment ([#124](https://github.com/AleksandrSumkin/kncc/issues/124)):** Added `priorityClassName` value to Helm chart (`deploy/helm/kncc/values.yaml`, `values_ru.yaml`) and Deployment template to assign custom Kubernetes priority class to the kncc server pod.
+- **Helm Chart: Support `extraObjects` for Auxiliary Kubernetes Resources ([#123](https://github.com/AleksandrSumkin/kncc/issues/123)):**
+  - Added `deploy/helm/kncc/templates/extra-objects.yaml` template supporting deployment of arbitrary Kubernetes resources (Secret Operators such as External Secrets Operator, Vault, Sealed Secrets, NetworkPolicies, custom ConfigMaps/ServiceMonitors).
+  - Supports lists of manifests, named maps of resources, raw YAML blocks (`|`), and dynamic Helm templating (`tpl`) with access to the root release context (`$`).
+  - Added configuration keys and documentation in `deploy/helm/kncc/values.yaml` and `deploy/helm/kncc/values_ru.yaml` (Section 14).
+- **Periodic Network Checks and Prometheus Exporter ([#120](https://github.com/AleksandrSumkin/kncc/issues/120)):**
+  - **Prometheus Metrics Exporter:** Dedicated HTTP metrics server on port 9090 (`/metrics`) exposing `kncc_check_total`, `kncc_check_duration_seconds`, `kncc_active_jobs`, `kncc_database_size_bytes`, `kncc_manual_checks_total`, and probe reachability gauges `kncc_probe_reachability` and `kncc_probe_latency_seconds`.
+  - **Metrics Authentication:** Support for Basic Authentication and Bearer Token authentication via configuration file, environment variables (`METRICS_AUTH_*`), or Kubernetes Secret references.
+  - **Background Scheduler:** In-memory cron-like job scheduler with atomic overlap protection (skips executions if a prior run is still in progress), interval validation (`monitoring.min_interval` and `monitoring.allowed_intervals`), and on-demand trigger capability (`POST /api/scheduled-checks/{id}/run`).
+  - **Declarative System Checks & Ephemeral UI Checks:** Declarative configuration of system checks via `config.yaml` / Helm values (`scheduled_checks`), protected against deletion and modification via REST API. Dynamic ephemeral checks created via Web UI/API marked with `is_ephemeral=true` and purged on application startup to preserve declarative state.
+  - **Last Report Retention:** Scheduled checks retain only their latest execution report, cleaning up historical periodic runs to prevent database bloating.
+  - **Web UI Monitoring Page:** Dedicated `/monitoring` page with exporter status indicator, ephemeral check warning banners, real-time job reachability badges, run-now triggers, pause/resume toggles, and check creation modal.
+  - **Helm Chart Integration:** Added `metrics`, `monitoring`, and `scheduledChecks` configurations, dedicated port 9090 in Service and Deployment, and Prometheus Operator `ServiceMonitor` (`monitoring.coreos.com/v1`) resource template.
+
+
 ## [1.16.0] - 2026-11-14
 
 ### Added

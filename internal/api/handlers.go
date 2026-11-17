@@ -15,8 +15,10 @@ import (
 	"kncc/internal/config"
 	"kncc/internal/k8s"
 	"kncc/internal/k8s/rbac"
+	"kncc/internal/metrics"
 	"kncc/internal/model"
 	"kncc/internal/ratelimit"
+	"kncc/internal/scheduler"
 	"kncc/internal/security"
 	"kncc/internal/store"
 
@@ -40,6 +42,8 @@ type Handler struct {
 	limiter   *ratelimit.Limiter
 	runner    CheckRunner
 	k8sClient kubernetes.Interface
+	scheduler *scheduler.Scheduler
+	metrics   *metrics.Metrics
 }
 
 // NewHandler creates a new Handler.
@@ -51,6 +55,8 @@ func NewHandler(
 	limiter *ratelimit.Limiter,
 	runner CheckRunner,
 	k8sClient kubernetes.Interface,
+	sched *scheduler.Scheduler,
+	m *metrics.Metrics,
 	version string,
 ) *Handler {
 	return &Handler{
@@ -62,6 +68,8 @@ func NewHandler(
 		limiter:   limiter,
 		runner:    runner,
 		k8sClient: k8sClient,
+		scheduler: sched,
+		metrics:   m,
 	}
 }
 
@@ -126,6 +134,16 @@ func (h *Handler) GetSystemConfig(w http.ResponseWriter, r *http.Request) {
 		"logo_url":                "/api/system/logo?v=" + trimmedEtag,
 		"has_custom_favicon":      isCustomFavicon,
 		"favicon_url":             "/api/system/favicon?v=" + trimmedFaviconEtag,
+		"monitoring": map[string]any{
+			"min_interval":      h.cfg.Monitoring.MinInterval,
+			"allowed_intervals": h.cfg.Monitoring.AllowedIntervals,
+		},
+		"metrics": map[string]any{
+			"enabled":      h.cfg.Metrics.Enabled,
+			"port":         h.cfg.Metrics.Port,
+			"path":         h.cfg.Metrics.Path,
+			"auth_enabled": h.cfg.Metrics.Auth.Enabled,
+		},
 	})
 }
 
@@ -569,6 +587,10 @@ func (h *Handler) CreateCheck(w http.ResponseWriter, r *http.Request) {
 		h.runner.ExecuteCheck(r.Context(), report)
 	}
 
+	if h.metrics != nil {
+		h.metrics.RecordManualCheck()
+	}
+
 	writeJSON(w, http.StatusCreated, report)
 }
 
@@ -1007,3 +1029,293 @@ func (h *Handler) Startupz(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
 	h.Readyz(w, r)
 }
+
+// ListScheduledChecks returns all scheduled checks with last report and next run times.
+func (h *Handler) ListScheduledChecks(w http.ResponseWriter, r *http.Request) {
+	checks, err := h.store.ListScheduledChecks(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to list scheduled checks: %v", err))
+		return
+	}
+
+	if h.scheduler != nil {
+		for _, c := range checks {
+			c.NextRunAt = h.scheduler.GetJobNextRun(c.ID)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scheduled_checks": checks,
+		"total":            len(checks),
+	})
+}
+
+// GetScheduledCheck returns a single scheduled check by ID.
+func (h *Handler) GetScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "Check ID is required")
+		return
+	}
+
+	check, err := h.store.GetScheduledCheck(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSONError(w, http.StatusNotFound, "Scheduled check not found")
+		return
+	}
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if h.scheduler != nil {
+		check.NextRunAt = h.scheduler.GetJobNextRun(check.ID)
+	}
+
+	writeJSON(w, http.StatusOK, check)
+}
+
+// CreateScheduledCheck creates a dynamic ephemeral scheduled check.
+func (h *Handler) CreateScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	claims := UserFromContext(r.Context())
+
+	var req model.CreateScheduledCheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeJSONError(w, http.StatusBadRequest, "Name is required")
+		return
+	}
+
+	dur, err := scheduler.ValidateInterval(req.Interval, &h.cfg.Monitoring)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	checkReq := model.CheckRequest{
+		Targets:   req.Targets,
+		Mode:      req.Mode,
+		Namespace: req.Namespace,
+	}
+	if err := checkReq.Validate(h.cfg.K8s.MultiNamespaceAllowed, h.cfg.K8s.Namespace); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	for i, target := range checkReq.Targets {
+		if err := h.validator.ValidateTarget(r.Context(), target); err != nil {
+			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Target #%d (%s) blocked: %v", i+1, target.TargetIdentifier(), err))
+			return
+		}
+	}
+
+	check := &model.ScheduledCheck{
+		ID:                uuid.NewString(),
+		Name:              req.Name,
+		IntervalStr:       req.Interval,
+		Mode:              checkReq.Mode,
+		Namespace:         checkReq.Namespace,
+		Targets:           checkReq.Targets,
+		Enabled:           true,
+		CreatedByUserID:   claims.UserID,
+		CreatedByUsername: claims.Username,
+		IsSystem:          false,
+		IsEphemeral:       true,
+		CreatedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
+	}
+
+	if err := h.store.CreateScheduledCheck(r.Context(), check); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to create scheduled check: %v", err))
+		return
+	}
+
+	if h.scheduler != nil {
+		h.scheduler.AddOrUpdateJob(check)
+		nextRun := time.Now().Add(dur)
+		check.NextRunAt = &nextRun
+	}
+
+	writeJSON(w, http.StatusCreated, check)
+}
+
+// UpdateScheduledCheck modifies an existing scheduled check.
+func (h *Handler) UpdateScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "Check ID is required")
+		return
+	}
+
+	check, err := h.store.GetScheduledCheck(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSONError(w, http.StatusNotFound, "Scheduled check not found")
+		return
+	}
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if check.IsSystem {
+		writeJSONError(w, http.StatusForbidden, "System checks cannot be modified via API")
+		return
+	}
+
+	var req model.UpdateScheduledCheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
+
+	if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+		check.Name = strings.TrimSpace(*req.Name)
+	}
+
+	if req.Interval != nil && *req.Interval != "" {
+		if _, err := scheduler.ValidateInterval(*req.Interval, &h.cfg.Monitoring); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		check.IntervalStr = *req.Interval
+	}
+
+	if req.Mode != nil {
+		check.Mode = *req.Mode
+	}
+	if req.Namespace != nil {
+		check.Namespace = *req.Namespace
+	}
+
+	if len(req.Targets) > 0 {
+		checkReq := model.CheckRequest{
+			Targets:   req.Targets,
+			Mode:      check.Mode,
+			Namespace: check.Namespace,
+		}
+		if err := checkReq.Validate(h.cfg.K8s.MultiNamespaceAllowed, h.cfg.K8s.Namespace); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		for i, target := range checkReq.Targets {
+			if err := h.validator.ValidateTarget(r.Context(), target); err != nil {
+				writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Target #%d (%s) blocked: %v", i+1, target.TargetIdentifier(), err))
+				return
+			}
+		}
+		check.Targets = checkReq.Targets
+	}
+
+	if req.Enabled != nil {
+		check.Enabled = *req.Enabled
+	}
+
+	check.UpdatedAt = time.Now().UTC()
+	if err := h.store.UpdateScheduledCheck(r.Context(), check); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if h.scheduler != nil {
+		h.scheduler.AddOrUpdateJob(check)
+		check.NextRunAt = h.scheduler.GetJobNextRun(check.ID)
+	}
+
+	writeJSON(w, http.StatusOK, check)
+}
+
+// DeleteScheduledCheck removes a scheduled check.
+func (h *Handler) DeleteScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "Check ID is required")
+		return
+	}
+
+	check, err := h.store.GetScheduledCheck(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSONError(w, http.StatusNotFound, "Scheduled check not found")
+		return
+	}
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if check.IsSystem {
+		writeJSONError(w, http.StatusForbidden, "System checks cannot be deleted via API")
+		return
+	}
+
+	if err := h.store.DeleteScheduledCheck(r.Context(), id); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if h.scheduler != nil {
+		h.scheduler.RemoveJob(id)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Scheduled check deleted successfully"})
+}
+
+// RunScheduledCheck triggers an immediate run of a scheduled check.
+func (h *Handler) RunScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "Check ID is required")
+		return
+	}
+
+	if h.scheduler == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "Scheduler is not available")
+		return
+	}
+
+	report, err := h.scheduler.TriggerJobNow(r.Context(), id)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, fmt.Sprintf("Failed to run scheduled check: %v", err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, report)
+}
+
+// ToggleScheduledCheck pauses or resumes a scheduled check.
+func (h *Handler) ToggleScheduledCheck(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSONError(w, http.StatusBadRequest, "Check ID is required")
+		return
+	}
+
+	check, err := h.store.GetScheduledCheck(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSONError(w, http.StatusNotFound, "Scheduled check not found")
+		return
+	}
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	check.Enabled = !check.Enabled
+	check.UpdatedAt = time.Now().UTC()
+	if err := h.store.UpdateScheduledCheck(r.Context(), check); err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if h.scheduler != nil {
+		h.scheduler.AddOrUpdateJob(check)
+		check.NextRunAt = h.scheduler.GetJobNextRun(check.ID)
+	}
+
+	writeJSON(w, http.StatusOK, check)
+}
+

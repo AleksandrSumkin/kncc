@@ -40,6 +40,15 @@ func SetupRouter(h *Handler, authSvc *auth.AuthService, limiter *ratelimit.Limit
 	mux.HandleFunc("GET /api/reports/{id}", RequireAuth(h.GetReport))
 	mux.HandleFunc("POST /api/reports/{id}/rerun", RequireAuth(RateLimitMiddleware(limiter)(h.RerunCheck)))
 
+	// 3b. Scheduled checks routes
+	mux.HandleFunc("GET /api/scheduled-checks", RequireAuth(h.ListScheduledChecks))
+	mux.HandleFunc("GET /api/scheduled-checks/{id}", RequireAuth(h.GetScheduledCheck))
+	mux.HandleFunc("POST /api/scheduled-checks", RequireAuth(h.CreateScheduledCheck))
+	mux.HandleFunc("PUT /api/scheduled-checks/{id}", RequireAuth(h.UpdateScheduledCheck))
+	mux.HandleFunc("DELETE /api/scheduled-checks/{id}", RequireAuth(h.DeleteScheduledCheck))
+	mux.HandleFunc("POST /api/scheduled-checks/{id}/run", RequireAuth(h.RunScheduledCheck))
+	mux.HandleFunc("PATCH /api/scheduled-checks/{id}/toggle", RequireAuth(h.ToggleScheduledCheck))
+
 	// 4. Admin routes
 	mux.HandleFunc("GET /api/admin/users", RequireAdmin(h.ListUsers))
 	mux.HandleFunc("POST /api/admin/users", RequireAdmin(h.CreateUser))

@@ -1,0 +1,11 @@
+{{- if and .Values.ingress.enabled (and .Values.ingress.traefik .Values.ingress.traefik.insecureSkipVerify) -}}
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "kncc.fullname" . }}-insecure-transport
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+spec:
+  insecureSkipVerify: true
+{{- end }}

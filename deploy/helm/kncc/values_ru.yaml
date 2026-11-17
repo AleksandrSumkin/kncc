@@ -39,6 +39,18 @@ image:
   # Задайте явный тег (например, "1.11.0"), если хотите зафиксировать версию контейнера независимо от чарта.
   tag: ""
 
+  # Хэш-дайджест образа контейнера (например, "sha256:71790fa41e78c654...").
+  # Если указан, образ сервера фиксируется по криптографическому дайджесту
+  # (формат: "repository@digest"), гарантируя абсолютную неизменяемость артефакта.
+  digest: ""
+
+# Опциональные структурированные настройки образа агента (альтернатива/алиас для k8s.probeImage и k8s.probeImageDigest).
+agent:
+  image:
+    repository: ""
+    tag: ""
+    digest: ""
+
 # Список имен Kubernetes Secrets для авторизации в приватных реестрах контейнеров (imagePullSecrets).
 # Пример:
 #   imagePullSecrets:
@@ -54,6 +66,34 @@ nameOverride: ""
 # Оставьте пустым ("") для автогенерации имени вида "<release-name>-kncc".
 # Задайте строку (до 63 символов), если регламент кластера требует строго фиксированных имен ресурсов.
 fullnameOverride: ""
+
+# Контекст безопасности на уровне пода сервера kncc (PodSecurityContext).
+# Обеспечивает соответствие политикам Pod Security Standards (PSS Restricted).
+# Также может быть задан в секции server.podSecurityContext.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  # seccompProfile:
+  #   type: RuntimeDefault
+
+# Контекст безопасности на уровне контейнера сервера kncc (SecurityContext).
+# Обеспечивает режим read-only корневой файловой системы, запрет повышения привилегий
+# и полный сброс Linux-capabilities (Kubernetes PSS Restricted).
+# Примечание: каталог /tmp монтируется как том emptyDir для временных таблиц SQLite и служебных файлов runtime.
+# Также может быть задан в секции server.securityContext.
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  # seccompProfile:
+  #   type: RuntimeDefault
 
 # ------------------------------------------------------------------------------
 # 2. Сервер приложения и сетевые протоколы (Server & API)
@@ -174,6 +214,11 @@ k8s:
   #       Минималистичный образ curl (~15 МБ). Поддерживает ТОЛЬКО HTTP/HTTPS (проверки TCP/UDP/ICMP завершатся ошибкой).
   probeImage: "ghcr.io/aleksandrsumkin/kncc-agent:latest"
 
+  # Хэш-дайджест образа контейнера зонда (например, "sha256:45b23dee...").
+  # При указании фиксирует образ агента по дайджесту (формат: "repository@digest"),
+  # гарантируя запуск проверенной и неизменяемой версии агента-зонда.
+  probeImageDigest: ""
+
   # Таймаут на одну сетевую операцию внутри пода-зонда (в секундах).
   # Применяется к TCP-хэндшейку, HTTP-запросу, UDP-тесту и ICMP-пингу.
   # Увеличьте (до 45-60 сек) при проверке медленных удаленных каналов или спутниковой связи.
@@ -187,6 +232,11 @@ k8s:
   # Управление allowPrivilegeEscalation в SecurityContext пода-зонда.
   # Если true (по умолчанию), непривилегированные контейнеры могут использовать SUID bit для NET_RAW.
   probeAllowPrivilegeEscalation: true
+
+  # Управление automountServiceAccountToken в спецификации пода-зонда (PodSpec).
+  # При false (по умолчанию) Kubernetes не монтирует токен ServiceAccount в поды-зонды,
+  # соблюдая принцип наименьших привилегий (Least Privilege) и повышая безопасность.
+  probeAutomountServiceAccountToken: false
 
   # Метод загрузки образа контейнера зонда (Always, IfNotPresent, Never).
   # Если не задан, используются стандартные правила Kubernetes.
@@ -219,21 +269,30 @@ k8s:
     #   cpu: "100m"
     #   memory: "128Mi"
 
-  # Дополнительные параметры PodSecurityContext для пода-зонда.
+  # Дополнительные параметры PodSecurityContext для пода-зонда (также поддерживается через agent.podSecurityContext).
+  # Поддерживает именование свойств как в camelCase, так и в snake_case.
   probePodSecurityContext: {}
     # runAsNonRoot: true
     # runAsUser: 10001
+    # runAsGroup: 10001
     # fsGroup: 10001
+    # seccompProfile:
+    #   type: RuntimeDefault
 
-  # Дополнительные параметры SecurityContext для контейнера зонда.
+  # Дополнительные параметры SecurityContext для контейнера зонда (также поддерживается через agent.securityContext).
   # Дополняют или переопределяют контекст по умолчанию с приоритетом и логированием WARN.
+  # Поддерживает именование свойств как в camelCase, так и в snake_case.
+  # По умолчанию контейнеры зонда запускаются с readOnlyRootFilesystem: true и томом emptyDir, смонтированным в /tmp.
   probeSecurityContext: {}
     # readOnlyRootFilesystem: false
+    # allowPrivilegeEscalation: true
     # capabilities:
     #   drop:
     #     - ALL
     #   add:
     #     - NET_RAW
+    # seccompProfile:
+    #   type: RuntimeDefault
 
   # Интервал запуска фонового сборщика мусора (Garbage Collector).
   # Периодически сканирует кластер и удаляет завершившиеся поды kncc-probe.
@@ -613,9 +672,28 @@ ingress:
   # Имя Ingress-контроллера (например, "traefik", "nginx", "haproxy").
   className: "traefik"
 
-  # Аннотации для Ingress-контроллера (например, интеграция с cert-manager, настройки буферизации или тайм-аутов).
+  # Порт сервиса бэкенда для маршрутизации трафика (например, 80, 443, 8443, либо имя порта "http", "https").
+  # По умолчанию: service.port (80). Для защищенного бэкенда укажите service.tlsPort (например, 8443 или 443) или "https".
+  servicePort: ""
+
+  # Схема протокола бэкенда ("http" или "https").
+  # Если указано "https" и servicePort не задан, по умолчанию используется service.tlsPort (или 443).
+  backendProtocol: ""
+
+  # Аннотации для Ingress-контроллера (интеграция с cert-manager, тайм-ауты, протокол бэкенда):
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Для HTTPS-бэкенда в Traefik:
+    # traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    # Для HTTPS-бэкенда в NGINX:
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    # nginx.ingress.kubernetes.io/proxy-ssl-verify: "off"
+
+  # Специальные настройки для контроллера Traefik:
+  traefik:
+    # Автоматическое создание ресурса ServersTransport с insecureSkipVerify: true
+    # для доверия самоподписанным TLS-сертификатам контейнеров бэкенда.
+    insecureSkipVerify: false
 
   # Маршрутизация хостов и путей:
   hosts:
@@ -623,6 +701,8 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
+          # Локальное переопределение порта для конкретного пути (например, 8443, 443 или "https"):
+          # servicePort: 8443
 
   # Настройки TLS-сертификатов для терминирования HTTPS на уровне Ingress.
   tls: []
@@ -724,6 +804,11 @@ resources:
     cpu: 50m
     memory: 64Mi
 
+# Опциональное имя PriorityClass для пода сервера kncc (например, "system-cluster-critical").
+# При указании планировщик Kubernetes назначает данный класс приоритета поду сервера kncc.
+# По умолчанию не задано ("") — используется стандартный приоритет кластера.
+priorityClassName: ""
+
 # Селектор меток узлов для планирования пода сервера kncc (например, "kubernetes.io/os: linux").
 nodeSelector: {}
 
@@ -734,3 +819,93 @@ tolerations: []
 
 # Правила сродства узлов и подов (Affinity / Anti-Affinity) для расширенных сценариев оркестрации.
 affinity: {}
+
+# ------------------------------------------------------------------------------
+# 13. Метрики Prometheus и периодический мониторинг (Prometheus & Monitoring)
+# ------------------------------------------------------------------------------
+
+metrics:
+  # Включить встроенный экспортер метрик Prometheus на выделенном HTTP-порту.
+  enabled: true
+  host: "0.0.0.0"
+  port: 9090
+  path: "/metrics"
+  # Аннотации для сбора метрик Prometheus через Service (например, prometheus.io/scrape: "true")
+  annotations: {}
+  auth:
+    # Требовать аутентификацию для доступа к /metrics (Basic или Bearer)
+    enabled: false
+    type: "basic" # "basic" или "bearer"
+    username: "prometheus"
+    password: "" # Задайте пароль или используйте existingSecret
+    token: ""    # Задайте токен или используйте existingSecret для bearer-аутентификации
+    passwordFile: ""
+    tokenFile: ""
+    existingSecret: ""
+    existingSecretUsernameKey: ""
+    existingSecretPasswordKey: ""
+    existingSecretTokenKey: ""
+  serviceMonitor:
+    # Создать ресурс ServiceMonitor для Prometheus Operator (monitoring.coreos.com/v1)
+    enabled: false
+    namespace: ""
+    interval: "30s"
+    scrapeTimeout: "10s"
+    labels: {}
+    annotations: {}
+    metricRelabelings: []
+    relabelings: []
+
+monitoring:
+  # Минимально допустимый интервал для периодических проверок (например, "30s", "1m")
+  minInterval: "30s"
+  # Допустимые интервалы для периодических проверок в UI и API
+  allowedIntervals:
+    - "30s"
+    - "1m"
+    - "5m"
+    - "15m"
+    - "30m"
+    - "1h"
+
+# Декларативные периодические проверки сети, загружаемые при старте (неизменяемые через UI/API)
+scheduledChecks: []
+# Пример:
+# scheduledChecks:
+#   - id: "core-dns"
+#     name: "CoreDNS Connectivity"
+#     interval: "1m"
+#     mode: "host"
+#     targets:
+#       - protocol: "udp"
+#         host: "10.96.0.10"
+#         port: 53
+
+# ------------------------------------------------------------------------------
+# 14. Дополнительные ресурсы Kubernetes (extraObjects)
+# ------------------------------------------------------------------------------
+
+# Список или словарь дополнительных ресурсов Kubernetes для совместного развертывания с чартом
+# (например, ExternalSecret, VaultSecret, SealedSecret, NetworkPolicy, ServiceMonitor и др.).
+# Поддерживаются как структурированные YAML-объекты, так и строки (с поддержкой интерполяции через tpl).
+#
+# Пример (ExternalSecret):
+# extraObjects:
+#   - apiVersion: external-secrets.io/v1beta1
+#     kind: ExternalSecret
+#     metadata:
+#       name: '{{ include "kncc.fullname" . }}-vault-secrets'
+#     spec:
+#       secretStoreRef:
+#         name: vault-backend
+#         kind: ClusterSecretStore
+#       target:
+#         name: '{{ include "kncc.fullname" . }}-secrets'
+#       data:
+#         - secretKey: ADMIN_INITIAL_PASSWORD
+#           remoteRef:
+#             key: secret/kncc
+#             property: admin_password
+extraObjects: []
+
+

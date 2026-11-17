@@ -43,7 +43,12 @@ data:
 
     k8s:
       namespace: "{{ .Release.Namespace }}"
-      probe_image: "{{ .Values.k8s.probeImage }}"
+      probe_image: {{ include "kncc.probeImage" . | quote }}
+      {{- if .Values.k8s.probeImageDigest }}
+      probe_image_digest: "{{ .Values.k8s.probeImageDigest }}"
+      {{- else if and .Values.agent (and .Values.agent.image .Values.agent.image.digest) }}
+      probe_image_digest: "{{ .Values.agent.image.digest }}"
+      {{- end }}
       multi_namespace_allowed: {{ .Values.rbac.multiNamespace }}
       namespace_list_enabled: {{ default false .Values.k8s.namespaceListEnabled }}
       {{- if .Values.k8s.namespaceExcludeList }}
@@ -67,6 +72,9 @@ data:
       probe_active_deadline_seconds: {{ .Values.k8s.probeActiveDeadlineSeconds }}
       {{- if hasKey .Values.k8s "probeAllowPrivilegeEscalation" }}
       probe_allow_privilege_escalation: {{ .Values.k8s.probeAllowPrivilegeEscalation }}
+      {{- end }}
+      {{- if hasKey .Values.k8s "probeAutomountServiceAccountToken" }}
+      probe_automount_service_account_token: {{ .Values.k8s.probeAutomountServiceAccountToken }}
       {{- end }}
       {{- if .Values.k8s.probeImagePullPolicy }}
       probe_image_pull_policy: "{{ .Values.k8s.probeImagePullPolicy }}"
@@ -92,13 +100,15 @@ data:
       probe_resources:
         {{- toYaml .Values.k8s.probeResources | nindent 8 }}
       {{- end }}
-      {{- if .Values.k8s.probePodSecurityContext }}
+      {{- $probePodSec := or .Values.k8s.probePodSecurityContext (and .Values.agent .Values.agent.podSecurityContext) .Values.probePodSecurityContext }}
+      {{- if $probePodSec }}
       probe_pod_security_context:
-        {{- toYaml .Values.k8s.probePodSecurityContext | nindent 8 }}
+        {{- toYaml $probePodSec | nindent 8 }}
       {{- end }}
-      {{- if .Values.k8s.probeSecurityContext }}
+      {{- $probeSec := or .Values.k8s.probeSecurityContext (and .Values.agent .Values.agent.securityContext) .Values.probeSecurityContext }}
+      {{- if $probeSec }}
       probe_security_context:
-        {{- toYaml .Values.k8s.probeSecurityContext | nindent 8 }}
+        {{- toYaml $probeSec | nindent 8 }}
       {{- end }}
       gc_interval: "{{ .Values.k8s.gcInterval }}"
       gc_stale_threshold: "{{ default "3m" .Values.k8s.gcStaleThreshold }}"
@@ -167,4 +177,43 @@ data:
     quick_add:
       presets:
         {{- toYaml .Values.quickAdd.presets | nindent 8 }}
+    {{- end }}
+
+    {{- if .Values.metrics }}
+    metrics:
+      enabled: {{ default false .Values.metrics.enabled }}
+      host: "{{ default "0.0.0.0" .Values.metrics.host }}"
+      port: {{ default 9090 .Values.metrics.port }}
+      path: "{{ default "/metrics" .Values.metrics.path }}"
+      {{- if .Values.metrics.auth }}
+      auth:
+        enabled: {{ default false .Values.metrics.auth.enabled }}
+        type: "{{ default "basic" .Values.metrics.auth.type }}"
+        {{- if .Values.metrics.auth.username }}
+        username: "{{ .Values.metrics.auth.username }}"
+        {{- end }}
+        {{- if .Values.metrics.auth.passwordFile }}
+        password_file: "{{ .Values.metrics.auth.passwordFile }}"
+        {{- end }}
+        {{- if .Values.metrics.auth.tokenFile }}
+        token_file: "{{ .Values.metrics.auth.tokenFile }}"
+        {{- end }}
+      {{- end }}
+    {{- end }}
+
+    {{- if .Values.monitoring }}
+    monitoring:
+      min_interval: "{{ .Values.monitoring.minInterval | default .Values.monitoring.min_interval | default "30s" }}"
+      {{- if or .Values.monitoring.allowedIntervals .Values.monitoring.allowed_intervals }}
+      allowed_intervals:
+        {{- toYaml (default .Values.monitoring.allowed_intervals .Values.monitoring.allowedIntervals) | nindent 8 }}
+      {{- end }}
+    {{- end }}
+
+    {{- if .Values.scheduled_checks }}
+    scheduled_checks:
+      {{- toYaml .Values.scheduled_checks | nindent 6 }}
+    {{- else if .Values.scheduledChecks }}
+    scheduled_checks:
+      {{- toYaml .Values.scheduledChecks | nindent 6 }}
     {{- end }}

@@ -16,7 +16,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var dns1123SubdomainRegex = regexp.MustCompile(`[^a-z0-9\-.]`)
+var (
+	dns1123LabelRegex = regexp.MustCompile(`[^a-z0-9\-]`)
+	multiHyphenRegex  = regexp.MustCompile(`-+`)
+)
 
 // BuildProbePod creates the Kubernetes Pod manifest for a single node probe.
 func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config.Config) (*corev1.Pod, error) {
@@ -39,20 +42,27 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 	var activeDeadline int64 = 60
 	probeImage := "wbitt/network-multitool:alpine-extra"
 	allowPrivilegeEscalation := true
+	automountServiceAccountToken := false
 
 	if cfg != nil {
 		if cfg.K8s.ProbeActiveDeadlineSeconds > 0 {
 			activeDeadline = cfg.K8s.ProbeActiveDeadlineSeconds
 		}
-		if cfg.K8s.ProbeImage != "" {
-			probeImage = cfg.K8s.ProbeImage
+		if cfg.K8s.ProbeImage != "" || cfg.K8s.ProbeImageDigest != "" {
+			probeImage = cfg.K8s.GetEffectiveProbeImage()
+			if cfg.K8s.ProbeImageDigest != "" {
+				log.Printf("[INFO] probe pod image pinned by digest: %s", probeImage)
+			}
 		}
 		if cfg.K8s.ProbeAllowPrivilegeEscalation != nil {
 			allowPrivilegeEscalation = *cfg.K8s.ProbeAllowPrivilegeEscalation
 		}
+		if cfg.K8s.ProbeAutomountServiceAccountToken != nil {
+			automountServiceAccountToken = *cfg.K8s.ProbeAutomountServiceAccountToken
+		}
 	}
 
-	readOnlyRootFilesystem := false // container needs to write to /dev/termination-log and /tmp
+	readOnlyRootFilesystem := true // container runs with read-only rootfs; /tmp is mounted via emptyDir
 
 	// 1. Labels & Annotations
 	labels := map[string]string{
@@ -176,23 +186,49 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 				secCtx.Capabilities.Drop = drops
 			}
 		}
+		if cSec.SeccompProfile != nil && cSec.SeccompProfile.Type != "" {
+			secCtx.SeccompProfile = &corev1.SeccompProfile{
+				Type:             corev1.SeccompProfileType(cSec.SeccompProfile.Type),
+				LocalhostProfile: cSec.SeccompProfile.LocalhostProfile,
+			}
+		}
 	}
 
 	var podSecCtx *corev1.PodSecurityContext
 	if cfg != nil && cfg.K8s.ProbePodSecurityContext != nil {
 		customPSC := cfg.K8s.ProbePodSecurityContext
-		podSecCtx = &corev1.PodSecurityContext{}
+		psc := &corev1.PodSecurityContext{}
+		hasFields := false
 		if customPSC.RunAsUser != nil {
-			podSecCtx.RunAsUser = customPSC.RunAsUser
+			psc.RunAsUser = customPSC.RunAsUser
+			hasFields = true
 		}
 		if customPSC.RunAsGroup != nil {
-			podSecCtx.RunAsGroup = customPSC.RunAsGroup
+			psc.RunAsGroup = customPSC.RunAsGroup
+			hasFields = true
 		}
 		if customPSC.RunAsNonRoot != nil {
-			podSecCtx.RunAsNonRoot = customPSC.RunAsNonRoot
+			psc.RunAsNonRoot = customPSC.RunAsNonRoot
+			hasFields = true
 		}
 		if customPSC.FSGroup != nil {
-			podSecCtx.FSGroup = customPSC.FSGroup
+			psc.FSGroup = customPSC.FSGroup
+			hasFields = true
+		}
+		if customPSC.FSGroupChangePolicy != nil && *customPSC.FSGroupChangePolicy != "" {
+			policy := corev1.PodFSGroupChangePolicy(*customPSC.FSGroupChangePolicy)
+			psc.FSGroupChangePolicy = &policy
+			hasFields = true
+		}
+		if customPSC.SeccompProfile != nil && customPSC.SeccompProfile.Type != "" {
+			psc.SeccompProfile = &corev1.SeccompProfile{
+				Type:             corev1.SeccompProfileType(customPSC.SeccompProfile.Type),
+				LocalhostProfile: customPSC.SeccompProfile.LocalhostProfile,
+			}
+			hasFields = true
+		}
+		if hasFields {
+			podSecCtx = psc
 		}
 	}
 
@@ -228,13 +264,14 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 			Annotations: annotations,
 		},
 		Spec: corev1.PodSpec{
-			NodeName:              nodeName,
-			HostNetwork:           isHostNetwork,
-			RestartPolicy:         corev1.RestartPolicyNever,
-			ActiveDeadlineSeconds: &activeDeadline,
-			PriorityClassName:     priorityClassName,
-			ImagePullSecrets:      imagePullSecrets,
-			SecurityContext:       podSecCtx,
+			NodeName:                     nodeName,
+			HostNetwork:                  isHostNetwork,
+			RestartPolicy:                corev1.RestartPolicyNever,
+			ActiveDeadlineSeconds:        &activeDeadline,
+			PriorityClassName:            priorityClassName,
+			AutomountServiceAccountToken: &automountServiceAccountToken,
+			ImagePullSecrets:             imagePullSecrets,
+			SecurityContext:              podSecCtx,
 			Tolerations: []corev1.Toleration{
 				{
 					// Tolerate all taints (master/control-plane, GPU, custom)
@@ -251,6 +288,20 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 					SecurityContext:          secCtx,
 					TerminationMessagePath:   "/dev/termination-log",
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "kncc-probe-tmp",
+							MountPath: "/tmp",
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "kncc-probe-tmp",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
 				},
 			},
 		},
@@ -259,7 +310,9 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 	return pod, nil
 }
 
-// generateProbePodName creates a valid DNS-1123 pod name <= 63 chars.
+// generateProbePodName creates a valid RFC 1123 DNS label pod name <= 63 chars.
+// Kubernetes Pod names strictly forbid dots (RFC 1123 Label), so dots from FQDN
+// node names are sanitized to hyphens and deduplicated.
 func generateProbePodName(reportID, nodeName string) string {
 	reportPrefix := reportID
 	if len(reportPrefix) > 8 {
@@ -270,23 +323,32 @@ func generateProbePodName(reportID, nodeName string) string {
 	h.Write([]byte(nodeName))
 	nodeHash := hex.EncodeToString(h.Sum(nil))[:8]
 
-	cleanNode := dns1123SubdomainRegex.ReplaceAllString(strings.ToLower(nodeName), "-")
+	cleanNode := dns1123LabelRegex.ReplaceAllString(strings.ToLower(nodeName), "-")
+	cleanNode = multiHyphenRegex.ReplaceAllString(cleanNode, "-")
+	cleanNode = strings.Trim(cleanNode, "-")
 	if len(cleanNode) > 20 {
-		cleanNode = cleanNode[:20]
+		cleanNode = strings.TrimRight(cleanNode[:20], "-")
 	}
-	cleanNode = strings.Trim(cleanNode, "-.")
 
-	name := fmt.Sprintf("kncc-%s-%s-%s", reportPrefix, cleanNode, nodeHash)
-	if len(name) > 63 {
-		name = name[:63]
+	var name string
+	if cleanNode != "" {
+		name = fmt.Sprintf("kncc-%s-%s-%s", reportPrefix, cleanNode, nodeHash)
+	} else {
+		name = fmt.Sprintf("kncc-%s-%s", reportPrefix, nodeHash)
 	}
-	return strings.Trim(name, "-.")
+
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "-")
+	}
+	return strings.Trim(name, "-")
 }
 
 func sanitizeLabelValue(s string) string {
-	clean := dns1123SubdomainRegex.ReplaceAllString(strings.ToLower(s), "-")
+	clean := dns1123LabelRegex.ReplaceAllString(strings.ToLower(s), "-")
+	clean = multiHyphenRegex.ReplaceAllString(clean, "-")
+	clean = strings.Trim(clean, "-")
 	if len(clean) > 63 {
-		clean = clean[:63]
+		clean = strings.TrimRight(clean[:63], "-")
 	}
-	return strings.Trim(clean, "-.")
+	return clean
 }

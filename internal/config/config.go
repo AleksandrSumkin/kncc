@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"crypto/rand"
@@ -17,15 +17,18 @@ import (
 
 // Config holds all configuration settings for kncc.
 type Config struct {
-	LogLevel string         `yaml:"log_level"`
-	Server   ServerConfig   `yaml:"server"`
-	K8s      K8sConfig      `yaml:"k8s"`
-	Security SecurityConfig `yaml:"security"`
-	Storage  StorageConfig  `yaml:"storage"`
-	Auth     AuthConfig     `yaml:"auth"`
-	Theme    ThemeConfig    `yaml:"theme"`
-	QuickAdd QuickAddConfig `yaml:"quick_add"`
-	CACerts  CACertsConfig  `yaml:"ca_certs"`
+	LogLevel        string                 `yaml:"log_level"`
+	Server          ServerConfig           `yaml:"server"`
+	K8s             K8sConfig              `yaml:"k8s"`
+	Security        SecurityConfig         `yaml:"security"`
+	Storage         StorageConfig          `yaml:"storage"`
+	Auth            AuthConfig             `yaml:"auth"`
+	Theme           ThemeConfig            `yaml:"theme"`
+	QuickAdd        QuickAddConfig         `yaml:"quick_add"`
+	CACerts         CACertsConfig          `yaml:"ca_certs"`
+	Metrics         MetricsConfig          `yaml:"metrics"`
+	Monitoring      MonitoringConfig       `yaml:"monitoring"`
+	ScheduledChecks []ScheduledCheckConfig `yaml:"scheduled_checks"`
 }
 
 type CACertsConfig struct {
@@ -64,32 +67,201 @@ type ProbeResourceRequirements struct {
 	Limits   map[string]string `yaml:"limits"`
 }
 
+type ProbeSeccompProfileConfig struct {
+	Type             string  `yaml:"type"`
+	LocalhostProfile *string `yaml:"localhost_profile"`
+}
+
+func (c *ProbeSeccompProfileConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "type":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			c.Type = s
+		case "localhostprofile":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			c.LocalhostProfile = &s
+		}
+	}
+	return nil
+}
+
 type ProbeCapabilitiesConfig struct {
 	Add  []string `yaml:"add"`
 	Drop []string `yaml:"drop"`
 }
 
+func (c *ProbeCapabilitiesConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "add":
+			var a []string
+			if err := valNode.Decode(&a); err != nil {
+				return err
+			}
+			c.Add = a
+		case "drop":
+			var d []string
+			if err := valNode.Decode(&d); err != nil {
+				return err
+			}
+			c.Drop = d
+		}
+	}
+	return nil
+}
+
 type ProbeSecurityContextConfig struct {
-	AllowPrivilegeEscalation *bool                    `yaml:"allow_privilege_escalation"`
-	ReadOnlyRootFilesystem   *bool                    `yaml:"read_only_root_filesystem"`
-	RunAsUser                *int64                   `yaml:"run_as_user"`
-	RunAsGroup               *int64                   `yaml:"run_as_group"`
-	RunAsNonRoot             *bool                    `yaml:"run_as_non_root"`
-	Privileged               *bool                    `yaml:"privileged"`
-	Capabilities             *ProbeCapabilitiesConfig `yaml:"capabilities"`
+	AllowPrivilegeEscalation *bool                      `yaml:"allow_privilege_escalation"`
+	ReadOnlyRootFilesystem   *bool                      `yaml:"read_only_root_filesystem"`
+	RunAsUser                *int64                     `yaml:"run_as_user"`
+	RunAsGroup               *int64                     `yaml:"run_as_group"`
+	RunAsNonRoot             *bool                      `yaml:"run_as_non_root"`
+	Privileged               *bool                      `yaml:"privileged"`
+	Capabilities             *ProbeCapabilitiesConfig   `yaml:"capabilities"`
+	SeccompProfile           *ProbeSeccompProfileConfig `yaml:"seccomp_profile"`
+}
+
+func (c *ProbeSecurityContextConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "allowprivilegeescalation":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			c.AllowPrivilegeEscalation = &b
+		case "readonlyrootfilesystem":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			c.ReadOnlyRootFilesystem = &b
+		case "runasuser":
+			var u int64
+			if err := valNode.Decode(&u); err != nil {
+				return err
+			}
+			c.RunAsUser = &u
+		case "runasgroup":
+			var g int64
+			if err := valNode.Decode(&g); err != nil {
+				return err
+			}
+			c.RunAsGroup = &g
+		case "runasnonroot":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			c.RunAsNonRoot = &b
+		case "privileged":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			c.Privileged = &b
+		case "capabilities":
+			var cap ProbeCapabilitiesConfig
+			if err := valNode.Decode(&cap); err != nil {
+				return err
+			}
+			c.Capabilities = &cap
+		case "seccompprofile":
+			var sp ProbeSeccompProfileConfig
+			if err := valNode.Decode(&sp); err != nil {
+				return err
+			}
+			c.SeccompProfile = &sp
+		}
+	}
+	return nil
 }
 
 type ProbePodSecurityContextConfig struct {
-	RunAsUser    *int64 `yaml:"run_as_user"`
-	RunAsGroup   *int64 `yaml:"run_as_group"`
-	RunAsNonRoot *bool  `yaml:"run_as_non_root"`
-	FSGroup      *int64 `yaml:"fs_group"`
+	RunAsUser           *int64                     `yaml:"run_as_user"`
+	RunAsGroup          *int64                     `yaml:"run_as_group"`
+	RunAsNonRoot        *bool                      `yaml:"run_as_non_root"`
+	FSGroup             *int64                     `yaml:"fs_group"`
+	FSGroupChangePolicy *string                    `yaml:"fs_group_change_policy"`
+	SeccompProfile      *ProbeSeccompProfileConfig `yaml:"seccomp_profile"`
+}
+
+func (c *ProbePodSecurityContextConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "runasuser":
+			var u int64
+			if err := valNode.Decode(&u); err != nil {
+				return err
+			}
+			c.RunAsUser = &u
+		case "runasgroup":
+			var g int64
+			if err := valNode.Decode(&g); err != nil {
+				return err
+			}
+			c.RunAsGroup = &g
+		case "runasnonroot":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			c.RunAsNonRoot = &b
+		case "fsgroup":
+			var f int64
+			if err := valNode.Decode(&f); err != nil {
+				return err
+			}
+			c.FSGroup = &f
+		case "fsgroupchangepolicy":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			c.FSGroupChangePolicy = &s
+		case "seccompprofile":
+			var sp ProbeSeccompProfileConfig
+			if err := valNode.Decode(&sp); err != nil {
+				return err
+			}
+			c.SeccompProfile = &sp
+		}
+	}
+	return nil
 }
 
 type K8sConfig struct {
 	Kubeconfig                    string                         `yaml:"kubeconfig"`
 	Namespace                     string                         `yaml:"namespace"`
 	ProbeImage                    string                         `yaml:"probe_image"`
+	ProbeImageDigest              string                         `yaml:"probe_image_digest"`
 	MultiNamespaceAllowed         bool                           `yaml:"multi_namespace_allowed"`
 	NamespaceListEnabled          bool                           `yaml:"namespace_list_enabled"`
 	NamespaceExcludeList          []string                       `yaml:"namespace_exclude_list"`
@@ -99,7 +271,8 @@ type K8sConfig struct {
 	NodeSelector                  string                         `yaml:"node_selector"`
 	ProbeTimeoutSeconds           int                            `yaml:"probe_timeout_seconds"`
 	ProbeActiveDeadlineSeconds    int64                          `yaml:"probe_active_deadline_seconds"`
-	ProbeAllowPrivilegeEscalation *bool                          `yaml:"probe_allow_privilege_escalation"`
+	ProbeAllowPrivilegeEscalation     *bool                          `yaml:"probe_allow_privilege_escalation"`
+	ProbeAutomountServiceAccountToken *bool                          `yaml:"probe_automount_service_account_token"`
 	ProbeImagePullPolicy          string                         `yaml:"probe_image_pull_policy"`
 	ProbeImagePullSecrets         []string                       `yaml:"probe_image_pull_secrets"`
 	ProbeExtraLabels              map[string]string              `yaml:"probe_extra_labels"`
@@ -114,6 +287,36 @@ type K8sConfig struct {
 	FaviconConfigMapName          string                         `yaml:"favicon_configmap_name"`
 	CustomCABundle                string                         `yaml:"custom_ca_bundle"`
 	PrintAccessList               bool                           `yaml:"print_access_list"`
+}
+
+// GetEffectiveProbeImage returns the resolved container image reference for diagnostic probe pods.
+// If ProbeImageDigest is specified, it attaches the cryptographic digest (@sha256:...)
+// to the base image and strips any mutable floating tag (:tag).
+func (c *K8sConfig) GetEffectiveProbeImage() string {
+	base := strings.TrimSpace(c.ProbeImage)
+	if base == "" {
+		base = "wbitt/network-multitool:alpine-extra"
+	}
+	digest := strings.TrimSpace(c.ProbeImageDigest)
+	if digest == "" {
+		return base
+	}
+	if !strings.HasPrefix(digest, "@") {
+		digest = "@" + digest
+	}
+	// Strip existing digest if present in base
+	if idx := strings.Index(base, "@"); idx != -1 {
+		base = base[:idx]
+	}
+	// Strip existing tag if present in base (e.g. "image:tag" -> "image")
+	// Make sure ':' is a tag and not part of registry host:port (e.g. "ghcr.io/AleksandrSumkin/image")
+	if colonIdx := strings.LastIndex(base, ":"); colonIdx != -1 {
+		slashIdx := strings.LastIndex(base, "/")
+		if slashIdx == -1 || colonIdx > slashIdx {
+			base = base[:colonIdx]
+		}
+	}
+	return base + digest
 }
 
 type SecurityConfig struct {
@@ -189,6 +392,39 @@ type QuickAddConfig struct {
 	Presets []QuickAddPreset `yaml:"presets"`
 }
 
+type MetricsAuthConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	Type         string `yaml:"type"`          // "basic" or "bearer"
+	Username     string `yaml:"username"`      // for basic auth
+	Password     string `yaml:"password"`      // for basic auth
+	PasswordFile string `yaml:"password_file"` // for basic auth
+	Token        string `yaml:"token"`         // for bearer auth
+	TokenFile    string `yaml:"token_file"`    // for bearer auth
+}
+
+type MetricsConfig struct {
+	Enabled bool              `yaml:"enabled"`
+	Host    string            `yaml:"host"` // default 0.0.0.0
+	Port    int               `yaml:"port"` // default 9090
+	Path    string            `yaml:"path"` // default /metrics
+	Auth    MetricsAuthConfig `yaml:"auth"`
+}
+
+type MonitoringConfig struct {
+	MinInterval      string   `yaml:"min_interval"`      // default "30s"
+	AllowedIntervals []string `yaml:"allowed_intervals"` // default ["30s", "1m", "5m", "15m", "30m", "1h"]
+}
+
+type ScheduledCheckConfig struct {
+	ID        string                `yaml:"id" json:"id"`
+	Name      string                `yaml:"name" json:"name"`
+	Interval  string                `yaml:"interval" json:"interval"`
+	Mode      model.CheckMode       `yaml:"mode" json:"mode"`
+	Namespace string                `yaml:"namespace" json:"namespace"`
+	Targets   []model.TargetService `yaml:"targets" json:"targets"`
+	Enabled   *bool                 `yaml:"enabled" json:"enabled,omitempty"`
+}
+
 // DefaultConfig returns safe defaults.
 func DefaultConfig() *Config {
 	return &Config{
@@ -228,10 +464,11 @@ func DefaultConfig() *Config {
 			NodeExcludeList:            []string{},
 			NodeExcludeSelector:        "",
 			NodeSelector:               "",
-			ProbeTimeoutSeconds:           30,
-			ProbeActiveDeadlineSeconds:    60,
-			ProbeAllowPrivilegeEscalation: boolPtr(true),
-			GCInterval:                    2 * time.Minute,
+			ProbeTimeoutSeconds:               30,
+			ProbeActiveDeadlineSeconds:        60,
+			ProbeAllowPrivilegeEscalation:     boolPtr(true),
+			ProbeAutomountServiceAccountToken: boolPtr(false),
+			GCInterval:                        2 * time.Minute,
 			GCStaleThreshold:           3 * time.Minute,
 			LogoConfigMapName:          "kncc-logo",
 			FaviconConfigMapName:       "kncc-favicon",
@@ -288,6 +525,24 @@ func DefaultConfig() *Config {
 			Path: "",
 			PEM:  "",
 		},
+		Metrics: MetricsConfig{
+			Enabled: true,
+			Host:    "0.0.0.0",
+			Port:    9090,
+			Path:    "/metrics",
+			Auth: MetricsAuthConfig{
+				Enabled:  false,
+				Type:     "basic",
+				Username: "prometheus",
+				Password: "",
+				Token:    "",
+			},
+		},
+		Monitoring: MonitoringConfig{
+			MinInterval:      "30s",
+			AllowedIntervals: []string{"30s", "1m", "5m", "15m", "30m", "1h"},
+		},
+		ScheduledChecks: []ScheduledCheckConfig{},
 	}
 }
 
@@ -366,6 +621,22 @@ func Load(configPath string) (*Config, error) {
 			return nil, fmt.Errorf("reading oidc client secret file %s: %w", cfg.Auth.OIDC.ClientSecretFile, err)
 		}
 		cfg.Auth.OIDC.ClientSecret = strings.TrimSpace(string(data))
+	}
+
+	// Metrics auth files
+	if cfg.Metrics.Auth.PasswordFile != "" {
+		data, err := os.ReadFile(cfg.Metrics.Auth.PasswordFile)
+		if err != nil {
+			return nil, fmt.Errorf("reading metrics password file %s: %w", cfg.Metrics.Auth.PasswordFile, err)
+		}
+		cfg.Metrics.Auth.Password = strings.TrimSpace(string(data))
+	}
+	if cfg.Metrics.Auth.TokenFile != "" {
+		data, err := os.ReadFile(cfg.Metrics.Auth.TokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("reading metrics token file %s: %w", cfg.Metrics.Auth.TokenFile, err)
+		}
+		cfg.Metrics.Auth.Token = strings.TrimSpace(string(data))
 	}
 
 	// Normalize default language (supported: "en", "ru")
@@ -479,6 +750,11 @@ func (c *Config) loadFromEnv() {
 	} else if v := os.Getenv("KNCC_K8S_PROBE_IMAGE"); v != "" {
 		c.K8s.ProbeImage = v
 	}
+	if v := os.Getenv("K8S_PROBE_IMAGE_DIGEST"); v != "" {
+		c.K8s.ProbeImageDigest = strings.TrimSpace(v)
+	} else if v := os.Getenv("KNCC_K8S_PROBE_IMAGE_DIGEST"); v != "" {
+		c.K8s.ProbeImageDigest = strings.TrimSpace(v)
+	}
 	if v := os.Getenv("K8S_MULTI_NAMESPACE_ALLOWED"); v != "" {
 		c.K8s.MultiNamespaceAllowed = parseBool(v)
 	}
@@ -509,6 +785,11 @@ func (c *Config) loadFromEnv() {
 		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
 	} else if v := os.Getenv("KNCC_K8S_PROBE_ALLOW_PRIVILEGE_ESCALATION"); v != "" {
 		c.K8s.ProbeAllowPrivilegeEscalation = boolPtr(parseBool(v))
+	}
+	if v := os.Getenv("K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN"); v != "" {
+		c.K8s.ProbeAutomountServiceAccountToken = boolPtr(parseBool(v))
+	} else if v := os.Getenv("KNCC_K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN"); v != "" {
+		c.K8s.ProbeAutomountServiceAccountToken = boolPtr(parseBool(v))
 	}
 	if v := os.Getenv("K8S_PROBE_IMAGE_PULL_POLICY"); v != "" {
 		c.K8s.ProbeImagePullPolicy = strings.TrimSpace(v)
@@ -712,6 +993,51 @@ func (c *Config) loadFromEnv() {
 		if info, err := os.Stat(defaultMountPath); err == nil && (info.IsDir() || info.Mode().IsRegular()) {
 			c.CACerts.Path = defaultMountPath
 		}
+	}
+
+	// Metrics
+	if v := os.Getenv("METRICS_ENABLED"); v != "" {
+		c.Metrics.Enabled = parseBool(v)
+	}
+	if v := os.Getenv("METRICS_HOST"); v != "" {
+		c.Metrics.Host = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			c.Metrics.Port = p
+		}
+	}
+	if v := os.Getenv("METRICS_PATH"); v != "" {
+		c.Metrics.Path = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_ENABLED"); v != "" {
+		c.Metrics.Auth.Enabled = parseBool(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_TYPE"); v != "" {
+		c.Metrics.Auth.Type = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v := os.Getenv("METRICS_AUTH_USERNAME"); v != "" {
+		c.Metrics.Auth.Username = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_PASSWORD"); v != "" {
+		c.Metrics.Auth.Password = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_PASSWORD_FILE"); v != "" {
+		c.Metrics.Auth.PasswordFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_TOKEN"); v != "" {
+		c.Metrics.Auth.Token = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_AUTH_TOKEN_FILE"); v != "" {
+		c.Metrics.Auth.TokenFile = strings.TrimSpace(v)
+	}
+
+	// Monitoring
+	if v := os.Getenv("MONITORING_MIN_INTERVAL"); v != "" {
+		c.Monitoring.MinInterval = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("MONITORING_ALLOWED_INTERVALS"); v != "" {
+		c.Monitoring.AllowedIntervals = splitAndTrim(v, ",")
 	}
 }
 

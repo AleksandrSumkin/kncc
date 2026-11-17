@@ -558,3 +558,247 @@ func TestStore_Ping(t *testing.T) {
 		t.Fatalf("expected ping to fail on closed store, got nil")
 	}
 }
+
+func TestStore_ScheduledChecksLifecycle(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Create a dynamic scheduled check
+	check := &model.ScheduledCheck{
+		ID:                "sched-1",
+		Name:              "Daily DNS Check",
+		IntervalStr:       "5m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}},
+		Enabled:           true,
+		CreatedByUserID:   "user-1",
+		CreatedByUsername: "bob",
+		IsSystem:          false,
+		IsEphemeral:       true,
+	}
+
+	if err := s.CreateScheduledCheck(ctx, check); err != nil {
+		t.Fatalf("CreateScheduledCheck failed: %v", err)
+	}
+
+	// 2. Get the check
+	got, err := s.GetScheduledCheck(ctx, "sched-1")
+	if err != nil {
+		t.Fatalf("GetScheduledCheck failed: %v", err)
+	}
+	if got.Name != "Daily DNS Check" || got.IntervalStr != "5m" || !got.IsEphemeral {
+		t.Errorf("unexpected check data: %+v", got)
+	}
+
+	// 3. Update check
+	got.IntervalStr = "15m"
+	got.Enabled = false
+	if err := s.UpdateScheduledCheck(ctx, got); err != nil {
+		t.Fatalf("UpdateScheduledCheck failed: %v", err)
+	}
+
+	updated, err := s.GetScheduledCheck(ctx, "sched-1")
+	if err != nil {
+		t.Fatalf("GetScheduledCheck failed: %v", err)
+	}
+	if updated.IntervalStr != "15m" || updated.Enabled != false {
+		t.Errorf("expected interval 15m and enabled false, got %+v", updated)
+	}
+
+	// 4. Upsert system check
+	sysCheck := &model.ScheduledCheck{
+		ID:                "sys-1",
+		Name:              "Forgejo Check",
+		IntervalStr:       "1m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "forgejo.local", Port: 3000}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+	}
+	if err := s.UpsertSystemScheduledCheck(ctx, sysCheck); err != nil {
+		t.Fatalf("UpsertSystemScheduledCheck failed: %v", err)
+	}
+
+	list, err := s.ListScheduledChecks(ctx)
+	if err != nil {
+		t.Fatalf("ListScheduledChecks failed: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("expected 2 checks, got %d", len(list))
+	}
+
+	// 5. Delete dynamic check
+	if err := s.DeleteScheduledCheck(ctx, "sched-1"); err != nil {
+		t.Fatalf("DeleteScheduledCheck failed: %v", err)
+	}
+	_, err = s.GetScheduledCheck(ctx, "sched-1")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestStore_UpdateScheduledCheckLastReport_PurgeOld(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	check := &model.ScheduledCheck{
+		ID:                "sched-purge-test",
+		Name:              "Purge Test",
+		IntervalStr:       "1m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolTCP, Host: "1.1.1.1", Port: 53}},
+		Enabled:           true,
+		CreatedByUserID:   "user-1",
+		CreatedByUsername: "tester",
+	}
+	if err := s.CreateScheduledCheck(ctx, check); err != nil {
+		t.Fatalf("CreateScheduledCheck failed: %v", err)
+	}
+
+	// Create first report
+	rep1 := &model.Report{
+		ID:        "rep-1",
+		UserID:    "user-1",
+		Username:  "tester",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Status:    model.StatusCompleted,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	if err := s.CreateReport(ctx, rep1); err != nil {
+		t.Fatalf("CreateReport 1 failed: %v", err)
+	}
+
+	if err := s.UpdateScheduledCheckLastReport(ctx, check.ID, rep1.ID); err != nil {
+		t.Fatalf("UpdateScheduledCheckLastReport rep1 failed: %v", err)
+	}
+
+	// Create second report
+	rep2 := &model.Report{
+		ID:        "rep-2",
+		UserID:    "user-1",
+		Username:  "tester",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Status:    model.StatusCompleted,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	if err := s.CreateReport(ctx, rep2); err != nil {
+		t.Fatalf("CreateReport 2 failed: %v", err)
+	}
+
+	// Updating to rep2 should purge rep1!
+	if err := s.UpdateScheduledCheckLastReport(ctx, check.ID, rep2.ID); err != nil {
+		t.Fatalf("UpdateScheduledCheckLastReport rep2 failed: %v", err)
+	}
+
+	// rep1 should be gone from reports table
+	_, err := s.GetReport(ctx, "rep-1")
+	if err != ErrNotFound {
+		t.Errorf("expected rep-1 to be deleted from store, got %v", err)
+	}
+
+	// rep2 should still exist
+	gotRep2, err := s.GetReport(ctx, "rep-2")
+	if err != nil {
+		t.Errorf("expected rep-2 to exist, got %v", err)
+	} else if gotRep2.ID != "rep-2" {
+		t.Errorf("expected rep-2, got %s", gotRep2.ID)
+	}
+}
+
+func TestStore_PurgeEphemeralScheduledChecks(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// Create 1 system check and 2 ephemeral checks
+	sysCheck := &model.ScheduledCheck{
+		ID:                "sys-check",
+		Name:              "System Check",
+		IntervalStr:       "1m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+		IsSystem:          true,
+		IsEphemeral:       false,
+	}
+	if err := s.CreateScheduledCheck(ctx, sysCheck); err != nil {
+		t.Fatalf("Create system check failed: %v", err)
+	}
+
+	ephCheck1 := &model.ScheduledCheck{
+		ID:                "eph-1",
+		Name:              "Ephemeral 1",
+		IntervalStr:       "30s",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Enabled:           true,
+		CreatedByUserID:   "user-1",
+		CreatedByUsername: "alice",
+		IsSystem:          false,
+		IsEphemeral:       true,
+	}
+	if err := s.CreateScheduledCheck(ctx, ephCheck1); err != nil {
+		t.Fatalf("Create ephCheck1 failed: %v", err)
+	}
+
+	// Purge ephemeral checks
+	if err := s.PurgeEphemeralScheduledChecks(ctx); err != nil {
+		t.Fatalf("PurgeEphemeralScheduledChecks failed: %v", err)
+	}
+
+	checks, err := s.ListScheduledChecks(ctx)
+	if err != nil {
+		t.Fatalf("ListScheduledChecks failed: %v", err)
+	}
+	if len(checks) != 1 || checks[0].ID != "sys-check" {
+		t.Errorf("expected only sys-check to remain, got %+v", checks)
+	}
+}
+
+func TestStore_MetricsHelpers(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	size, err := s.GetDatabaseSizeBytes()
+	if err != nil {
+		t.Fatalf("GetDatabaseSizeBytes failed: %v", err)
+	}
+	if size <= 0 {
+		t.Errorf("expected database size > 0, got %d", size)
+	}
+
+	count, err := s.GetManualChecksCount(ctx)
+	if err != nil {
+		t.Fatalf("GetManualChecksCount failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 manual checks initially, got %d", count)
+	}
+
+	_ = s.RecordUserRequest(ctx, "req-1", "user-1", "alice", time.Now().UTC())
+	count, err = s.GetManualChecksCount(ctx)
+	if err != nil {
+		t.Fatalf("GetManualChecksCount after record failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 manual check, got %d", count)
+	}
+}
+

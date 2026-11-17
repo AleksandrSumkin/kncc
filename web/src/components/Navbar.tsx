@@ -78,6 +78,17 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                   <History className="w-4 h-4 mr-1.5" />
                   {t('navbar.history')}
                 </button>
+                <button
+                  onClick={() => onNavigate('monitoring')}
+                  className={`inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    currentView === 'monitoring'
+                      ? 'bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-white font-semibold'
+                      : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Activity className="w-4 h-4 mr-1.5" />
+                  {t('navbar.monitoring')}
+                </button>
                 {user.role === 'admin' && (
                   <button
                     onClick={() => onNavigate('admin')}

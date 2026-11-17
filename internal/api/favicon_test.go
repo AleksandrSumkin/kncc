@@ -75,7 +75,7 @@ func setupFaviconTestServer(t *testing.T, withK8s bool) (http.Handler, store.Sto
 		k8sClient = fakeK8s
 	}
 
-	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, k8sClient, "1.7.0")
+	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, k8sClient, nil, nil, "1.7.0")
 	router := SetupRouter(h, authSvc, limiter, webFS)
 
 	cleanup := func() {

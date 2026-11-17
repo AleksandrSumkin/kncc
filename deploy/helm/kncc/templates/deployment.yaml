@@ -34,15 +34,23 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "kncc.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with or .Values.server.podSecurityContext .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
+      {{- end }}
       {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) .Values.auth.volume.populateFromSecret }}
       initContainers:
         - name: init-admin-password
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "kncc.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - "/bin/sh"
@@ -63,15 +71,39 @@ spec:
             requests:
               cpu: 10m
               memory: 16Mi
+          {{- if and .Values.initContainers .Values.initContainers.securityContext }}
+          securityContext:
+            {{- toYaml .Values.initContainers.securityContext | nindent 12 }}
+          {{- else }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
             runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "kncc.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with or .Values.server.securityContext .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- else }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          {{- end }}
           args:
             - "-config"
             - "/etc/kncc/config.yaml"
@@ -82,6 +114,11 @@ spec:
             {{- if and .Values.server.tls .Values.server.tls.enabled }}
             - name: https
               containerPort: {{ .Values.server.tls.port | default 8443 }}
+              protocol: TCP
+            {{- end }}
+            {{- if and .Values.metrics .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port | default 9090 }}
               protocol: TCP
             {{- end }}
           env:
@@ -160,7 +197,11 @@ spec:
             {{- end }}
             {{- if and .Values.caCerts .Values.caCerts.enabled (ne (include "kncc.caVolumeType" .) "none") }}
             - name: CA_CERTS_PATH
+              {{- if .Values.caCerts.certKey }}
+              value: {{ printf "%s/%s" (.Values.caCerts.mountPath | default "/etc/ssl/kncc-ca") .Values.caCerts.certKey | quote }}
+              {{- else }}
               value: {{ .Values.caCerts.mountPath | default "/etc/ssl/kncc-ca" | quote }}
+              {{- end }}
             {{- end }}
             {{- if and .Values.server.tls .Values.server.tls.enabled }}
             - name: SERVER_TLS_ENABLED
@@ -178,6 +219,48 @@ spec:
             {{- if .Values.server.tls.keyFile }}
             - name: SERVER_TLS_KEY_FILE
               value: {{ .Values.server.tls.keyFile | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if and .Values.metrics .Values.metrics.enabled }}
+            - name: METRICS_ENABLED
+              value: "true"
+            - name: METRICS_PORT
+              value: {{ .Values.metrics.port | default 9090 | quote }}
+            - name: METRICS_PATH
+              value: {{ .Values.metrics.path | default "/metrics" | quote }}
+            {{- if and .Values.metrics.auth .Values.metrics.auth.enabled }}
+            - name: METRICS_AUTH_ENABLED
+              value: "true"
+            - name: METRICS_AUTH_TYPE
+              value: {{ .Values.metrics.auth.type | default "basic" | quote }}
+            - name: METRICS_AUTH_USERNAME
+              value: {{ .Values.metrics.auth.username | default "prometheus" | quote }}
+            {{- if and .Values.metrics.auth.password (not .Values.metrics.auth.existingSecret) }}
+            - name: METRICS_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.fullname" . }}-secrets
+                  key: METRICS_AUTH_PASSWORD
+            {{- else if and .Values.metrics.auth.existingSecret .Values.metrics.auth.existingSecretPasswordKey }}
+            - name: METRICS_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metrics.auth.existingSecret }}
+                  key: {{ .Values.metrics.auth.existingSecretPasswordKey }}
+            {{- end }}
+            {{- if and .Values.metrics.auth.token (not .Values.metrics.auth.existingSecret) }}
+            - name: METRICS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kncc.fullname" . }}-secrets
+                  key: METRICS_AUTH_TOKEN
+            {{- else if and .Values.metrics.auth.existingSecret .Values.metrics.auth.existingSecretTokenKey }}
+            - name: METRICS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metrics.auth.existingSecret }}
+                  key: {{ .Values.metrics.auth.existingSecretTokenKey }}
+            {{- end }}
             {{- end }}
             {{- end }}
           {{- if and .Values.probes .Values.probes.startup .Values.probes.startup.enabled }}
@@ -218,6 +301,8 @@ spec:
               readOnly: true
             - name: data-volume
               mountPath: {{ .Values.persistence.mountPath }}
+            - name: tmp-volume
+              mountPath: /tmp
             {{- if and .Values.caCerts .Values.caCerts.enabled (ne (include "kncc.caVolumeType" .) "none") }}
             - name: custom-ca-volume
               mountPath: {{ .Values.caCerts.mountPath | default "/etc/ssl/kncc-ca" }}
@@ -244,6 +329,8 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: tmp-volume
+          emptyDir: {}
         {{- if and (eq (include "kncc.hasAdminPassword" .) "true") (or (eq .Values.auth.deliveryMode "volume") (eq .Values.auth.deliveryMode "file")) .Values.auth.volume.populateFromSecret }}
         - name: admin-secret-source
           secret:
@@ -264,9 +351,19 @@ spec:
           {{- if eq (include "kncc.caVolumeType" .) "secret" }}
           secret:
             secretName: {{ include "kncc.caResourceName" . }}
+            {{- if .Values.caCerts.certKey }}
+            items:
+              - key: {{ .Values.caCerts.certKey }}
+                path: {{ .Values.caCerts.certKey }}
+            {{- end }}
           {{- else if eq (include "kncc.caVolumeType" .) "configMap" }}
           configMap:
             name: {{ include "kncc.caResourceName" . }}
+            {{- if .Values.caCerts.certKey }}
+            items:
+              - key: {{ .Values.caCerts.certKey }}
+                path: {{ .Values.caCerts.certKey }}
+            {{- end }}
           {{- end }}
         {{- end }}
         {{- if eq (include "kncc.hasServerTlsSecret" .) "true" }}

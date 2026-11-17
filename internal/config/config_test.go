@@ -613,6 +613,56 @@ k8s:
 	}
 }
 
+func TestLoad_ProbeAutomountServiceAccountToken(t *testing.T) {
+	// 1. Default value should be false
+	defCfg := DefaultConfig()
+	if defCfg.K8s.ProbeAutomountServiceAccountToken == nil || *defCfg.K8s.ProbeAutomountServiceAccountToken != false {
+		t.Errorf("expected default ProbeAutomountServiceAccountToken to be false")
+	}
+
+	// 2. YAML override to true
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.yaml")
+	content := `
+k8s:
+  probe_automount_service_account_token: true
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+	loaded, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loaded.K8s.ProbeAutomountServiceAccountToken == nil || *loaded.K8s.ProbeAutomountServiceAccountToken != true {
+		t.Errorf("expected ProbeAutomountServiceAccountToken to be true from YAML")
+	}
+
+	// 3. ENV override
+	os.Setenv("K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN", "true")
+	defer os.Unsetenv("K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN")
+
+	loadedEnv, err := Load("")
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loadedEnv.K8s.ProbeAutomountServiceAccountToken == nil || *loadedEnv.K8s.ProbeAutomountServiceAccountToken != true {
+		t.Errorf("expected ProbeAutomountServiceAccountToken to be true from env")
+	}
+
+	os.Unsetenv("K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN")
+	os.Setenv("KNCC_K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN", "false")
+	defer os.Unsetenv("KNCC_K8S_PROBE_AUTOMOUNT_SERVICE_ACCOUNT_TOKEN")
+
+	loadedEnv2, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loadedEnv2.K8s.ProbeAutomountServiceAccountToken == nil || *loadedEnv2.K8s.ProbeAutomountServiceAccountToken != false {
+		t.Errorf("expected ProbeAutomountServiceAccountToken to be false from KNCC_ env overriding YAML")
+	}
+}
+
 func TestLoad_ProbeCustomAgentConfig(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := filepath.Join(dir, "custom_probe.yaml")
@@ -737,5 +787,190 @@ func TestConfig_LogLevelYAML(t *testing.T) {
 	}
 	if cfg2.Server.LogLevel != "debug" || cfg2.LogLevel != "debug" {
 		t.Errorf("expected debug, got server=%q root=%q", cfg2.Server.LogLevel, cfg2.LogLevel)
+	}
+}
+
+func TestLoad_ProbeImageDigest_EnvVars(t *testing.T) {
+	os.Setenv("K8S_PROBE_IMAGE_DIGEST", "sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff")
+	defer os.Unsetenv("K8S_PROBE_IMAGE_DIGEST")
+
+	loaded, err := Load("")
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loaded.K8s.ProbeImageDigest != "sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff" {
+		t.Errorf("expected ProbeImageDigest from K8S_PROBE_IMAGE_DIGEST, got %s", loaded.K8s.ProbeImageDigest)
+	}
+
+	os.Unsetenv("K8S_PROBE_IMAGE_DIGEST")
+	os.Setenv("KNCC_K8S_PROBE_IMAGE_DIGEST", "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210")
+	defer os.Unsetenv("KNCC_K8S_PROBE_IMAGE_DIGEST")
+
+	loaded2, err := Load("")
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	if loaded2.K8s.ProbeImageDigest != "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210" {
+		t.Errorf("expected ProbeImageDigest from KNCC_K8S_PROBE_IMAGE_DIGEST, got %s", loaded2.K8s.ProbeImageDigest)
+	}
+}
+
+func TestK8sConfig_GetEffectiveProbeImage(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		digest   string
+		expected string
+	}{
+		{
+			name:     "empty digest keeps base",
+			base:     "ghcr.io/aleksandrsumkin/kncc-agent:latest",
+			digest:   "",
+			expected: "ghcr.io/aleksandrsumkin/kncc-agent:latest",
+		},
+		{
+			name:     "digest strips tag",
+			base:     "ghcr.io/aleksandrsumkin/kncc-agent:latest",
+			digest:   "sha256:abcdef1234567890",
+			expected: "ghcr.io/aleksandrsumkin/kncc-agent@sha256:abcdef1234567890",
+		},
+		{
+			name:     "digest with @ prefix",
+			base:     "ghcr.io/aleksandrsumkin/kncc-agent:1.16.0",
+			digest:   "@sha256:abcdef1234567890",
+			expected: "ghcr.io/aleksandrsumkin/kncc-agent@sha256:abcdef1234567890",
+		},
+		{
+			name:     "digest replaces existing digest",
+			base:     "ghcr.io/aleksandrsumkin/kncc-agent@sha256:oldhash",
+			digest:   "sha256:newhash",
+			expected: "ghcr.io/aleksandrsumkin/kncc-agent@sha256:newhash",
+		},
+		{
+			name:     "registry with host and port and tag",
+			base:     "ghcr.io/AleksandrSumkin/kncc-agent:latest",
+			digest:   "sha256:45b23dee08af",
+			expected: "ghcr.io/AleksandrSumkin/kncc-agent@sha256:45b23dee08af",
+		},
+		{
+			name:     "registry with host and port without tag",
+			base:     "ghcr.io/AleksandrSumkin/kncc-agent",
+			digest:   "sha256:45b23dee08af",
+			expected: "ghcr.io/AleksandrSumkin/kncc-agent@sha256:45b23dee08af",
+		},
+		{
+			name:     "empty base defaults to fallback with digest",
+			base:     "",
+			digest:   "sha256:fedcba",
+			expected: "wbitt/network-multitool@sha256:fedcba",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &K8sConfig{
+				ProbeImage:       tc.base,
+				ProbeImageDigest: tc.digest,
+			}
+			actual := cfg.GetEffectiveProbeImage()
+			if actual != tc.expected {
+				t.Errorf("expected %q, got %q", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestLoad_ProbeSecurityContext_CamelCaseAndSeccomp(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "camel_case_probe.yaml")
+	content := `
+k8s:
+  probe_pod_security_context:
+    runAsUser: 10002
+    runAsGroup: 10003
+    runAsNonRoot: true
+    fsGroup: 10004
+    fsGroupChangePolicy: "OnRootMismatch"
+    seccompProfile:
+      type: "RuntimeDefault"
+  probe_security_context:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsUser: 10005
+    runAsGroup: 10006
+    runAsNonRoot: true
+    privileged: false
+    capabilities:
+      add:
+        - "NET_RAW"
+      drop:
+        - "ALL"
+    seccompProfile:
+      type: "RuntimeDefault"
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	loaded, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	// Verify ProbePodSecurityContext camelCase unmarshaling
+	psc := loaded.K8s.ProbePodSecurityContext
+	if psc == nil {
+		t.Fatal("expected ProbePodSecurityContext not nil")
+	}
+	if psc.RunAsUser == nil || *psc.RunAsUser != 10002 {
+		t.Errorf("expected RunAsUser 10002, got %v", psc.RunAsUser)
+	}
+	if psc.RunAsGroup == nil || *psc.RunAsGroup != 10003 {
+		t.Errorf("expected RunAsGroup 10003, got %v", psc.RunAsGroup)
+	}
+	if psc.RunAsNonRoot == nil || *psc.RunAsNonRoot != true {
+		t.Errorf("expected RunAsNonRoot true, got %v", psc.RunAsNonRoot)
+	}
+	if psc.FSGroup == nil || *psc.FSGroup != 10004 {
+		t.Errorf("expected FSGroup 10004, got %v", psc.FSGroup)
+	}
+	if psc.FSGroupChangePolicy == nil || *psc.FSGroupChangePolicy != "OnRootMismatch" {
+		t.Errorf("expected FSGroupChangePolicy OnRootMismatch, got %v", psc.FSGroupChangePolicy)
+	}
+	if psc.SeccompProfile == nil || psc.SeccompProfile.Type != "RuntimeDefault" {
+		t.Errorf("expected SeccompProfile RuntimeDefault, got %v", psc.SeccompProfile)
+	}
+
+	// Verify ProbeSecurityContext camelCase unmarshaling
+	sc := loaded.K8s.ProbeSecurityContext
+	if sc == nil {
+		t.Fatal("expected ProbeSecurityContext not nil")
+	}
+	if sc.ReadOnlyRootFilesystem == nil || *sc.ReadOnlyRootFilesystem != true {
+		t.Errorf("expected ReadOnlyRootFilesystem true, got %v", sc.ReadOnlyRootFilesystem)
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation != false {
+		t.Errorf("expected AllowPrivilegeEscalation false, got %v", sc.AllowPrivilegeEscalation)
+	}
+	if sc.RunAsUser == nil || *sc.RunAsUser != 10005 {
+		t.Errorf("expected RunAsUser 10005, got %v", sc.RunAsUser)
+	}
+	if sc.RunAsGroup == nil || *sc.RunAsGroup != 10006 {
+		t.Errorf("expected RunAsGroup 10006, got %v", sc.RunAsGroup)
+	}
+	if sc.RunAsNonRoot == nil || *sc.RunAsNonRoot != true {
+		t.Errorf("expected RunAsNonRoot true, got %v", sc.RunAsNonRoot)
+	}
+	if sc.Privileged == nil || *sc.Privileged != false {
+		t.Errorf("expected Privileged false, got %v", sc.Privileged)
+	}
+	if sc.Capabilities == nil || len(sc.Capabilities.Add) != 1 || sc.Capabilities.Add[0] != "NET_RAW" {
+		t.Errorf("expected Capabilities.Add [NET_RAW], got %v", sc.Capabilities)
+	}
+	if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+		t.Errorf("expected Capabilities.Drop [ALL], got %v", sc.Capabilities)
+	}
+	if sc.SeccompProfile == nil || sc.SeccompProfile.Type != "RuntimeDefault" {
+		t.Errorf("expected SeccompProfile RuntimeDefault, got %v", sc.SeccompProfile)
 	}
 }

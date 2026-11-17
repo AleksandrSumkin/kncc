@@ -5,6 +5,21 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kncc.labels" . | nindent 4 }}
+  {{- $annotations := dict }}
+  {{- if and .Values.service .Values.service.annotations }}
+    {{- $annotations = deepCopy .Values.service.annotations }}
+  {{- end }}
+  {{- if and .Values.metrics .Values.metrics.enabled .Values.metrics.annotations }}
+    {{- $annotations = merge .Values.metrics.annotations $annotations }}
+  {{- end }}
+  {{- if and .Values.ingress.enabled (and .Values.ingress.traefik .Values.ingress.traefik.insecureSkipVerify) (not (hasKey $annotations "traefik.ingress.kubernetes.io/service.serverstransport")) }}
+    {{- $transportRef := printf "%s-%s-insecure-transport@kubernetescrd" .Release.Namespace (include "kncc.fullname" .) }}
+    {{- $_ := set $annotations "traefik.ingress.kubernetes.io/service.serverstransport" $transportRef }}
+  {{- end }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -17,6 +32,19 @@ spec:
       targetPort: https
       protocol: TCP
       name: https
+    {{- $ingPort := default "" (toString $.Values.ingress.servicePort) }}
+    {{- if and $.Values.ingress.enabled (eq $ingPort "8443") (ne (int (.Values.service.tlsPort | default 443)) 8443) }}
+    - port: 8443
+      targetPort: https
+      protocol: TCP
+      name: https-alt
+    {{- end }}
+    {{- end }}
+    {{- if and .Values.metrics .Values.metrics.enabled }}
+    - port: {{ .Values.metrics.port | default 9090 }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
     {{- end }}
   selector:
     {{- include "kncc.selectorLabels" . | nindent 4 }}

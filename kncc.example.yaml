@@ -39,6 +39,9 @@ k8s:
   #   - "curlimages/curl:latest":
   #       Minimal curl container (~15MB). Supports ONLY HTTP/HTTPS checks; TCP, UDP, ICMP checks will fail.
   probe_image: "wbitt/network-multitool:alpine-extra"
+  # Probe image cryptographic digest (e.g. "sha256:71790fa...").
+  # When set, pins probe pods to an immutable image digest ("repository@digest").
+  probe_image_digest: ""
   multi_namespace_allowed: false # If true, users can run pod-network checks from arbitrary namespaces (requires ClusterRole)
 
   # Namespace Discovery & Selection Settings:
@@ -78,6 +81,9 @@ k8s:
   # are permitted to utilize the SUID bit on /bin/ping to acquire the NET_RAW capability,
   # enabling ICMP checks in HostNetwork mode without granting any extra capabilities.
   probe_allow_privilege_escalation: true
+  # Controls automountServiceAccountToken in probe pod PodSpec.
+  # When false (default), Kubernetes will not mount ServiceAccount tokens into ephemeral probe pods.
+  probe_automount_service_account_token: false
 
   # Custom probe pod configuration (Issue #110)
   probe_image_pull_policy: "" # "Always", "IfNotPresent", or "Never"
@@ -93,14 +99,22 @@ k8s:
       cpu: "100m"
       memory: "128Mi"
   probe_pod_security_context: {}
+    # Supports both snake_case and camelCase (e.g. run_as_user or runAsUser)
     # run_as_non_root: true
     # run_as_user: 10001
+    # run_as_group: 10001
     # fs_group: 10001
+    # seccomp_profile:
+    #   type: "RuntimeDefault"
   probe_security_context: {}
-    # read_only_root_filesystem: false
+    # Supports both snake_case and camelCase (e.g. read_only_root_filesystem or readOnlyRootFilesystem)
+    # read_only_root_filesystem: false # Defaults to true; /tmp is mounted via emptyDir
+    # allow_privilege_escalation: true
     # capabilities:
     #   drop: ["ALL"]
     #   add: ["NET_RAW"]
+    # seccomp_profile:
+    #   type: "RuntimeDefault"
   gc_interval: "2m"
   # Minimum age before an orphaned or zombie probe pod is deleted by GC.
   # Prevents race conditions with actively running or just completed checks.
@@ -187,3 +201,42 @@ theme:
   primary_color: "#ffffff" # Primary background / card color
   accent_color: "#dc2626"  # Accent button / highlight color (default: red-600)
   app_name: "Kubernetes Network Connectivity Checker"
+
+# Prometheus Metrics Exporter Configuration
+metrics:
+  enabled: true # Enable dedicated Prometheus /metrics HTTP server
+  host: "0.0.0.0"
+  port: 9090    # Dedicated port for Prometheus scraping
+  path: "/metrics"
+  auth:
+    enabled: false # Require authentication for /metrics endpoint
+    type: "basic"  # "basic" or "bearer"
+    username: "prometheus" # Username for basic auth
+    password: ""   # Password for basic auth
+    password_file: "" # Path to file containing password
+    token: ""      # Bearer token for bearer auth
+    token_file: "" # Path to file containing bearer token
+
+# Scheduled Monitoring Configuration
+monitoring:
+  min_interval: "30s" # Minimum allowed interval for periodic checks
+  allowed_intervals:  # Whitelist of allowed intervals
+    - "30s"
+    - "1m"
+    - "5m"
+    - "15m"
+    - "30m"
+    - "1h"
+
+# Declarative Scheduled Network Checks (System Checks)
+# Automatically registered on kncc startup; immutable via UI or API.
+scheduled_checks:
+  - id: "coredns-connectivity"
+    name: "CoreDNS Connectivity"
+    interval: "1m"
+    mode: "host"
+    targets:
+      - protocol: "udp"
+        host: "10.96.0.10"
+        port: 53
+

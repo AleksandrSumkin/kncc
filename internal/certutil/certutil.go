@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -64,6 +65,7 @@ func LoadCertPool(customCAPath string, customPEM string) (*x509.CertPool, string
 	// 4. Parse, validate, and add certificates to the pool
 	var combinedPEM strings.Builder
 	loadedCount := 0
+	seenFingerprints := make(map[[32]byte]bool)
 
 	for i, rawPEM := range pemBlocks {
 		block, _ := pem.Decode(rawPEM)
@@ -79,6 +81,14 @@ func LoadCertPool(customCAPath string, customPEM string) (*x509.CertPool, string
 			log.Printf("Warning: failed to parse certificate block #%d: %v", i+1, err)
 			continue
 		}
+
+		fp := sha256.Sum256(cert.Raw)
+		if seenFingerprints[fp] {
+			log.Printf("Notice: skipping duplicate CA certificate: CN=%q, Issuer=%q",
+				cert.Subject.CommonName, cert.Issuer.CommonName)
+			continue
+		}
+		seenFingerprints[fp] = true
 
 		pool.AddCert(cert)
 		combinedPEM.WriteString(string(rawPEM))

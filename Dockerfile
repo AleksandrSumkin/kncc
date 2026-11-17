@@ -61,7 +61,7 @@ COPY --from=backend-builder /app/bin/kncc /app/kncc
 
 USER 10001:10001
 
-EXPOSE 8080
+EXPOSE 8080 8443 9090
 
 VOLUME ["/data"]
 

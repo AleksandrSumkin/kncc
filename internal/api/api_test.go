@@ -16,8 +16,10 @@ import (
 	"kncc/internal/auth"
 	"kncc/internal/certutil"
 	"kncc/internal/config"
+	"kncc/internal/metrics"
 	"kncc/internal/model"
 	"kncc/internal/ratelimit"
+	"kncc/internal/scheduler"
 	"kncc/internal/security"
 	"kncc/internal/store"
 	"kncc/web"
@@ -64,10 +66,14 @@ func setupTestServer(t *testing.T) (http.Handler, store.Store, *mockRunner, func
 
 	webFS, _ := web.GetFS()
 
-	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, "1.5.0")
+	metricsMgr := metrics.NewMetrics(s)
+	sched := scheduler.NewScheduler(cfg, s, runner, metricsMgr)
+
+	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, sched, metricsMgr, "1.5.0")
 	router := SetupRouter(h, authSvc, limiter, webFS)
 
 	cleanup := func() {
+		sched.Stop()
 		limiter.Stop()
 		_ = s.Close()
 		_ = os.RemoveAll(dir)
@@ -383,7 +389,7 @@ func TestAPI_GetNamespaces_Enabled(t *testing.T) {
 	runner := &mockRunner{}
 	webFS, _ := web.GetFS()
 
-	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, "1.5.0")
+	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, nil, nil, "1.5.0")
 	router := SetupRouter(h, authSvc, limiter, webFS)
 
 	token := loginHelper(t, router, "admin", "admin123")
@@ -438,7 +444,7 @@ func TestAPI_CreateCheck_ForbiddenNamespace(t *testing.T) {
 	runner := &mockRunner{}
 	webFS, _ := web.GetFS()
 
-	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, "1.5.0")
+	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, nil, nil, "1.5.0")
 	router := SetupRouter(h, authSvc, limiter, webFS)
 
 	token := loginHelper(t, router, "admin", "admin123")
@@ -1117,3 +1123,116 @@ func TestOIDC_DisabledEndpoints(t *testing.T) {
 		t.Errorf("expected 400 for disabled OIDC callback, got: %d", recCallback.Code)
 	}
 }
+
+func TestAPI_ScheduledChecks(t *testing.T) {
+	router, s, _, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	token := loginHelper(t, router, "admin", "admin123")
+
+	// 1. Check GET /api/system/config returns monitoring and metrics config
+	reqCfg := httptest.NewRequest(http.MethodGet, "/api/system/config", nil)
+	recCfg := httptest.NewRecorder()
+	router.ServeHTTP(recCfg, reqCfg)
+	if recCfg.Code != http.StatusOK {
+		t.Fatalf("expected 200 for system config, got %d", recCfg.Code)
+	}
+	var sysCfg map[string]any
+	_ = json.Unmarshal(recCfg.Body.Bytes(), &sysCfg)
+	if sysCfg["monitoring"] == nil || sysCfg["metrics"] == nil {
+		t.Fatalf("expected monitoring and metrics in system config, got %+v", sysCfg)
+	}
+
+	// 2. Create dynamic scheduled check
+	createPayload := model.CreateScheduledCheckRequest{
+		Name:     "Test Daily Probe",
+		Interval: "1m",
+		Mode:     model.ModeHostNetwork,
+		Targets: []model.TargetService{
+			{Protocol: model.ProtocolICMP, Host: "8.8.8.8"},
+		},
+	}
+	b, _ := json.Marshal(createPayload)
+	reqCreate := httptest.NewRequest(http.MethodPost, "/api/scheduled-checks", bytes.NewReader(b))
+	reqCreate.Header.Set("Authorization", "Bearer "+token)
+	reqCreate.Header.Set("Content-Type", "application/json")
+	recCreate := httptest.NewRecorder()
+	router.ServeHTTP(recCreate, reqCreate)
+
+	if recCreate.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for scheduled check, got %d: %s", recCreate.Code, recCreate.Body.String())
+	}
+	var createdCheck model.ScheduledCheck
+	_ = json.Unmarshal(recCreate.Body.Bytes(), &createdCheck)
+	if createdCheck.ID == "" || !createdCheck.IsEphemeral || createdCheck.IsSystem {
+		t.Fatalf("unexpected created check: %+v", createdCheck)
+	}
+
+	// 3. Reject invalid interval
+	badIntervalPayload := model.CreateScheduledCheckRequest{
+		Name:     "Bad Interval",
+		Interval: "10s", // below default min_interval 30s
+		Mode:     model.ModeHostNetwork,
+		Targets:  []model.TargetService{{Protocol: model.ProtocolICMP, Host: "8.8.8.8"}},
+	}
+	bBad, _ := json.Marshal(badIntervalPayload)
+	reqBad := httptest.NewRequest(http.MethodPost, "/api/scheduled-checks", bytes.NewReader(bBad))
+	reqBad.Header.Set("Authorization", "Bearer "+token)
+	reqBad.Header.Set("Content-Type", "application/json")
+	recBad := httptest.NewRecorder()
+	router.ServeHTTP(recBad, reqBad)
+	if recBad.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for interval below min_interval, got %d", recBad.Code)
+	}
+
+	// 4. List scheduled checks
+	reqList := httptest.NewRequest(http.MethodGet, "/api/scheduled-checks", nil)
+	reqList.Header.Set("Authorization", "Bearer "+token)
+	recList := httptest.NewRecorder()
+	router.ServeHTTP(recList, reqList)
+	if recList.Code != http.StatusOK {
+		t.Fatalf("expected 200 for list, got %d", recList.Code)
+	}
+
+	// 5. Toggle check enabled status
+	reqToggle := httptest.NewRequest(http.MethodPatch, "/api/scheduled-checks/"+createdCheck.ID+"/toggle", nil)
+	reqToggle.Header.Set("Authorization", "Bearer "+token)
+	recToggle := httptest.NewRecorder()
+	router.ServeHTTP(recToggle, reqToggle)
+	if recToggle.Code != http.StatusOK {
+		t.Fatalf("expected 200 for toggle, got %d: %s", recToggle.Code, recToggle.Body.String())
+	}
+
+	// 6. Test system check protection (upsert system check and attempt delete/update via API)
+	sysCheck := &model.ScheduledCheck{
+		ID:                "sys-protected-1",
+		Name:              "System Protected",
+		IntervalStr:       "5m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "10.0.0.1", Port: 80}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+	}
+	_ = s.UpsertSystemScheduledCheck(context.Background(), sysCheck)
+
+	// Attempt delete system check -> 403 Forbidden
+	reqDelSys := httptest.NewRequest(http.MethodDelete, "/api/scheduled-checks/sys-protected-1", nil)
+	reqDelSys.Header.Set("Authorization", "Bearer "+token)
+	recDelSys := httptest.NewRecorder()
+	router.ServeHTTP(recDelSys, reqDelSys)
+	if recDelSys.Code != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden when deleting system check, got %d", recDelSys.Code)
+	}
+
+	// 7. Delete dynamic check -> 200 OK
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/scheduled-checks/"+createdCheck.ID, nil)
+	reqDel.Header.Set("Authorization", "Bearer "+token)
+	recDel := httptest.NewRecorder()
+	router.ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for delete dynamic check, got %d: %s", recDel.Code, recDel.Body.String())
+	}
+}
+

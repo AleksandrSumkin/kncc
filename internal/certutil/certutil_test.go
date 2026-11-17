@@ -217,6 +217,81 @@ func TestLoadCertPool_FromDirectory(t *testing.T) {
 	}
 }
 
+func TestLoadCertPool_Deduplication_Directory(t *testing.T) {
+	rootPEM, intermediatePEM, _, _ := generateTestCAChain(t)
+
+	tmpDir := t.TempDir()
+	chainData := append(append([]byte{}, rootPEM...), intermediatePEM...)
+
+	// Simulate secret mounted directory containing both ca.crt and tls.crt with duplicate chain
+	if err := os.WriteFile(filepath.Join(tmpDir, "ca.crt"), chainData, 0644); err != nil {
+		t.Fatalf("failed to write ca.crt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "tls.crt"), chainData, 0644); err != nil {
+		t.Fatalf("failed to write tls.crt: %v", err)
+	}
+
+	pool, bundle, err := LoadCertPool(tmpDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pool == nil {
+		t.Fatal("expected non-nil pool")
+	}
+
+	count := strings.Count(bundle, "-----BEGIN CERTIFICATE-----")
+	if count != 2 {
+		t.Fatalf("expected 2 unique certificates in bundle, got %d", count)
+	}
+}
+
+func TestLoadCertPool_Deduplication_InlineChain(t *testing.T) {
+	rootPEM, intermediatePEM, _, _ := generateTestCAChain(t)
+
+	// Chain containing duplicate certificates
+	chainWithDuplicates := string(rootPEM) + "\n" + string(intermediatePEM) + "\n" +
+		string(rootPEM) + "\n" + string(intermediatePEM)
+
+	pool, bundle, err := LoadCertPool("", chainWithDuplicates)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pool == nil {
+		t.Fatal("expected non-nil pool")
+	}
+
+	count := strings.Count(bundle, "-----BEGIN CERTIFICATE-----")
+	if count != 2 {
+		t.Fatalf("expected 2 unique certificates in bundle, got %d", count)
+	}
+}
+
+func TestLoadCertPool_Deduplication_PathAndInlineOverlap(t *testing.T) {
+	rootPEM, intermediatePEM, _, _ := generateTestCAChain(t)
+
+	tmpDir := t.TempDir()
+	certFile := filepath.Join(tmpDir, "ca.crt")
+	if err := os.WriteFile(certFile, rootPEM, 0644); err != nil {
+		t.Fatalf("failed to write ca.crt: %v", err)
+	}
+
+	// Inline PEM contains both root and intermediate
+	inlinePEM := string(rootPEM) + "\n" + string(intermediatePEM)
+
+	pool, bundle, err := LoadCertPool(certFile, inlinePEM)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pool == nil {
+		t.Fatal("expected non-nil pool")
+	}
+
+	count := strings.Count(bundle, "-----BEGIN CERTIFICATE-----")
+	if count != 2 {
+		t.Fatalf("expected 2 unique certificates in bundle, got %d", count)
+	}
+}
+
 func TestLoadCertPool_NonExistentPath(t *testing.T) {
 	_, _, err := LoadCertPool("/path/that/does/not/exist", "")
 	if err == nil {

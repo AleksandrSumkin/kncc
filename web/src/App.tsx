@@ -8,12 +8,13 @@ import { NewCheckPage, PrefillData } from './pages/NewCheckPage';
 import { ReportPage } from './pages/ReportPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AdminPage } from './pages/AdminPage';
+import { MonitoringPage } from './pages/MonitoringPage';
 
 export const App: React.FC = () => {
   const { user, loading } = useAuth();
   const { config } = useTheme();
   const { t } = useTranslation();
-  const [currentView, setCurrentView] = useState<'new' | 'report' | 'history' | 'admin'>('new');
+  const [currentView, setCurrentView] = useState<'new' | 'report' | 'history' | 'monitoring' | 'admin'>('new');
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [prefillCheckData, setPrefillCheckData] = useState<PrefillData | null>(() => {
     try {
@@ -37,6 +38,8 @@ export const App: React.FC = () => {
         }
       } else if (hash === 'history') {
         setCurrentView('history');
+      } else if (hash === 'monitoring') {
+        setCurrentView('monitoring');
       } else if (hash === 'admin') {
         if (user && user.role !== 'admin') {
           window.location.hash = '/';
@@ -80,6 +83,9 @@ export const App: React.FC = () => {
     } else if (view === 'history') {
       window.location.hash = '/history';
       setCurrentView('history');
+    } else if (view === 'monitoring') {
+      window.location.hash = '/monitoring';
+      setCurrentView('monitoring');
     } else if (view === 'admin') {
       if (user && user.role !== 'admin') {
         window.location.hash = '/';
@@ -147,6 +153,11 @@ export const App: React.FC = () => {
         )}
         {currentView === 'history' && (
           <HistoryPage
+            onSelectReport={(reportId) => navigateTo('report', reportId)}
+          />
+        )}
+        {currentView === 'monitoring' && (
+          <MonitoringPage
             onSelectReport={(reportId) => navigateTo('report', reportId)}
           />
         )}

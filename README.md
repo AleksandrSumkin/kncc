@@ -26,6 +26,7 @@ During application deployment, scenarios frequently arise where an external serv
 - Supports two key diagnostic modes: **Host Network** (verifies physical node routing and perimeter firewalls) and **Pod Network** (verifies CNI overlays and `NetworkPolicy` rules within a target namespace).
 - Supports safe namespace selection via interactive cluster dropdown or manual input with automatic exclusion of system namespaces.
 - Enables persistent link sharing for diagnostic reports with colleagues and network administrators, as well as one-click test reruns.
+- Supports **Scheduled Network Monitoring & Prometheus Metrics Exporter**: run periodic checks in background (declarative system checks or ephemeral UI checks) and export node reachability gauges and job statistics via `/metrics` (port 9090) into Prometheus / Grafana.
 
 The complete version history is documented in **[CHANGELOG.md](CHANGELOG.md)**.
 
@@ -176,6 +177,7 @@ To minimize network overhead, speed up cold-starts, and achieve a strict **Zero-
   - Zero unneeded daemons (no Nginx, Apache), packet sniffers (`tcpdump`, `wireshark`), port scanners (`nmap`), compilers, or scripting runtimes.
   - Zero known vulnerabilities (0 CVE according to Trivy / Grype audits).
   - Runs under dedicated unprivileged user `kncc-agent` (UID 10001) with hardened Kubernetes SecurityContext (`Drop: [ALL]`, `Add: [NET_RAW]`, `allowPrivilegeEscalation: true` for ICMP raw socket operation in HostNetwork mode).
+  - ServiceAccount token automount disabled by default (`automountServiceAccountToken: false`) to enforce Least Privilege and eliminate credential exposure risks in ephemeral probe pods.
 
 **Building custom `kncc-agent` image:**
 ```bash
@@ -256,12 +258,12 @@ Before deploying release artifacts to production clusters, verify digital signat
 ```bash
 # 1. Download release public key, checksum manifest, and signature from Forgejo Release page
 # 2. Verify digital signature of checksum manifest
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.16.0-checksums.txt.sig kncc-1.16.0-checksums.txt
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.17.0-checksums.txt.sig kncc-1.17.0-checksums.txt
 # Expected output: Verified OK
 
-# 3. Verify artifact checksums (Helm chart kncc-1.16.0.tgz, manifests, SBOM)
-sha256sum -c kncc-1.16.0-checksums.txt
-# Expected output: kncc-1.16.0.tgz: OK
+# 3. Verify artifact checksums (Helm chart kncc-1.17.0.tgz, manifests, SBOM)
+sha256sum -c kncc-1.17.0-checksums.txt
+# Expected output: kncc-1.17.0.tgz: OK
 ```
 
 ### 6.2. Standard Installation
@@ -328,6 +330,28 @@ helm upgrade --install kncc ./deploy/helm/kncc \
 ```
 
 Access the interface at: `http://kncc.example.com`.
+
+#### Secure HTTPS Backend (End-to-End TLS / Zero Trust)
+
+To encrypt traffic between the Ingress controller and the `kncc` container on port `8443`:
+
+```bash
+helm upgrade --install kncc ./deploy/helm/kncc \
+  --namespace kncc \
+  --create-namespace \
+  --set ingress.enabled=true \
+  --set ingress.servicePort=8443 \
+  --set "ingress.annotations.traefik\.ingress\.kubernetes\.io/service\.serversscheme=https" \
+  --set ingress.traefik.insecureSkipVerify=true
+```
+
+For Ingress-NGINX:
+```bash
+  --set ingress.enabled=true \
+  --set ingress.servicePort=8443 \
+  --set "ingress.annotations.nginx\.ingress\.kubernetes\.io/backend-protocol=HTTPS" \
+  --set "ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-ssl-verify=off"
+```
 
 ### 6.6. Gateway API Publishing (HTTPRoute)
 
@@ -495,6 +519,31 @@ helm upgrade --install kncc ./deploy/helm/kncc \
 
 Supported values: `debug`, `info` (default), `warn`, `error`.
 
+### 6.17. Auxiliary Kubernetes Resources (`extraObjects`)
+
+Deploy arbitrary Kubernetes resources alongside `kncc` directly through Helm values (e.g., `ExternalSecret`, `VaultSecret`, `SealedSecret`, `NetworkPolicy`, `ConfigMap`):
+
+```yaml
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: '{{ include "kncc.fullname" . }}-vault-secrets'
+    spec:
+      secretStoreRef:
+        name: vault-backend
+        kind: ClusterSecretStore
+      target:
+        name: '{{ include "kncc.fullname" . }}-secrets'
+      data:
+        - secretKey: ADMIN_INITIAL_PASSWORD
+          remoteRef:
+            key: secret/kncc
+            property: admin_password
+```
+
+Supports lists of objects, named maps of resources, raw YAML strings, and Helm template evaluation (`tpl`) with access to chart context (`$`).
+
 ---
 
 ## 7. Helm Values Reference
@@ -505,9 +554,14 @@ Supported values: `debug`, `info` (default), `warn`, `error`.
 | Parameter | Description | Default |
 | :--- | :--- | :--- |
 | `replicaCount` | kncc server pod replicas (Single-Writer SQLite constraint) | `1` |
+| `podSecurityContext` | PodSecurityContext for kncc server pod | `runAsNonRoot: true, runAsUser/Group/FSGroup: 10001` |
+| `securityContext` | SecurityContext for kncc server container | `allowPrivilegeEscalation: false, capabilities: drop: [ALL]` |
 | `image.repository` | Container image repository | `ghcr.io/aleksandrsumkin/kncc` |
 | `image.tag` | Image tag override (defaults to `appVersion`) | `""` |
+| `image.digest` | Cryptographic image digest override (e.g. `sha256:...`) | `""` |
 | `image.pullPolicy` | Image pull policy (`Always`, `IfNotPresent`) | `IfNotPresent` |
+| `podSecurityContext` | PodSecurityContext configuration for kncc server pod (PSS Restricted) | `runAsNonRoot: true, runAsUser: 10001, ...` |
+| `securityContext` | Container SecurityContext for kncc server (readOnlyRootFilesystem, drop capabilities) | `readOnlyRootFilesystem: true, ...` |
 | `server.port` | HTTP API and UI port inside container | `8080` |
 | `server.logLevel` | Application logging level (`debug`, `info`, `warn`, `error`) | `"info"` |
 | `server.tokenTTL` | JWT session lifetime | `24h` |
@@ -526,8 +580,11 @@ Supported values: `debug`, `info` (default), `warn`, `error`.
 | `server.openapi.public` | Anonymous API documentation access (for DAST scanners) | `false` |
 | `service.tlsPort` | External HTTPS service port (mapped to `server.tls.port`) | `443` |
 | `k8s.probeImage` | Image for ephemeral diagnostic probe pods | `ghcr.io/aleksandrsumkin/kncc-agent:latest` |
+| `k8s.probeImageDigest` | Cryptographic image digest override for probe pods (e.g. `sha256:...`) | `""` |
 | `k8s.probeTimeoutSeconds` | Individual probe network operation timeout | `30` |
 | `k8s.probeActiveDeadlineSeconds` | Probe pod hard execution deadline | `60` |
+| `k8s.probeAllowPrivilegeEscalation` | Allow privilege escalation in probe container SecurityContext (for ICMP) | `true` |
+| `k8s.probeAutomountServiceAccountToken` | Automatically mount ServiceAccount token into probe pods | `false` |
 | `k8s.probeImagePullPolicy` | Container image pull policy for probe pods (`Always`, `IfNotPresent`, `Never`) | `""` |
 | `k8s.probeImagePullSecrets` | Registry credentials for private probe container images | `[]` |
 | `k8s.probeExtraLabels` | Additional labels attached to probe pods | `{}` |
@@ -569,6 +626,10 @@ Supported values: `debug`, `info` (default), `warn`, `error`.
 | `auth.oidc.existingSecret` | Existing Secret containing OIDC client credentials | `""` |
 | `caCerts.enabled` | Enable mounting custom enterprise CA certificates | `false` |
 | `caCerts.pem` | Inline PEM corporate CA bundle | `""` |
+| `caCerts.existingConfigMap` | Existing ConfigMap containing CA certificate | `""` |
+| `caCerts.existingSecret` | Existing Secret containing CA certificate | `""` |
+| `caCerts.certKey` | Key inside Secret or ConfigMap containing CA certificate | `"ca.crt"` |
+| `caCerts.mountPath` | Mount path inside kncc container | `"/etc/ssl/kncc-ca"` |
 | `theme.appName` | Application title in UI header | `Kubernetes Network Connectivity Checker` |
 | `theme.primaryColor` | Base background color | `#ffffff` |
 | `theme.accentColor` | Accent brand color for buttons and badges | `#dc2626` |
@@ -578,10 +639,15 @@ Supported values: `debug`, `info` (default), `warn`, `error`.
 | `favicon.enabled` | Enable custom favicon ConfigMap | `true` |
 | `quickAdd.presets` | Quick-add diagnostic target presets | `[{name: "K8s API", ...}, {name: "Google DNS", ...}]` |
 | `ingress.enabled` | Provision Ingress resource | `false` |
+| `ingress.servicePort` | Target Service backend port or name (e.g. `8443`, `443`, `"https"`) | `""` (defaults to `service.port`) |
+| `ingress.backendProtocol` | Backend protocol scheme (`http` or `https`) | `""` |
+| `ingress.traefik.insecureSkipVerify` | Automatically provision Traefik ServersTransport for self-signed backend certs | `false` |
 | `gateway.enabled` | Provision Gateway API HTTPRoute | `false` |
 | `probes.startup.enabled` | Enable Startup Probe | `true` |
 | `probes.liveness.enabled` | Enable Liveness Probe | `true` |
 | `probes.readiness.enabled`| Enable Readiness Probe | `true` |
+| `priorityClassName` | PriorityClass name assigned to kncc server pod | `""` |
+| `extraObjects` | List or map of extra Kubernetes manifests to deploy alongside chart | `[]` |
 
 ---
 
@@ -610,6 +676,14 @@ Supported values: `debug`, `info` (default), `warn`, `error`.
 | `GET` | `/api/reports` | Authenticated | Paginated connectivity report list |
 | `GET` | `/api/reports/{id}` | Authenticated | Diagnostic report with node reachability matrix |
 | `POST` | `/api/reports/{id}/rerun`| Authenticated | Rerun connectivity check from existing report |
+| `GET` | `/api/scheduled-checks` | Authenticated | List all configured scheduled network checks |
+| `POST` | `/api/scheduled-checks` | Authenticated | Create a new scheduled network check (ephemeral) |
+| `GET` | `/api/scheduled-checks/{id}` | Authenticated | Retrieve scheduled check configuration and status |
+| `PUT` | `/api/scheduled-checks/{id}` | Authenticated | Update scheduled check (forbidden for system checks) |
+| `DELETE` | `/api/scheduled-checks/{id}` | Authenticated | Delete scheduled check (forbidden for system checks) |
+| `POST` | `/api/scheduled-checks/{id}/run` | Authenticated | Trigger immediate execution of a scheduled check |
+| `POST` | `/api/scheduled-checks/{id}/toggle` | Authenticated | Enable or pause a scheduled check |
+| `GET` | `/metrics` | Port 9090 (Configurable) | Prometheus metrics endpoint (supports Basic / Bearer auth) |
 | `GET` | `/api/admin/users` | Administrator | List registered user accounts |
 | `POST` | `/api/admin/users` | Administrator | Create local user account |
 | `GET` | `/api/admin/stats/users` | Administrator | Query execution statistics across users and timeframes |

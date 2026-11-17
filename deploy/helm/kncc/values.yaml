@@ -39,6 +39,19 @@ image:
   # Specify an explicit tag (e.g. "1.13.0") to pin a container version independently of the chart.
   tag: ""
 
+  # Container image digest (e.g. "sha256:71790fa41e78c654...").
+  # When specified, the server container image reference is pinned by its cryptographic digest
+  # (e.g. "repository@digest"), guaranteeing absolute immutability in production/SSDLC.
+  digest: ""
+
+# Optional structured agent image settings (alternative/alias to k8s.probeImage and k8s.probeImageDigest).
+# If specified, takes precedence when constructing the probe agent image.
+agent:
+  image:
+    repository: ""
+    tag: ""
+    digest: ""
+
 # List of Kubernetes Secret names for authenticating against private container registries (imagePullSecrets).
 # Example:
 #   imagePullSecrets:
@@ -54,6 +67,34 @@ nameOverride: ""
 # Leave empty ("") to auto-generate names formatted as "<release-name>-kncc".
 # Specify a string (up to 63 chars) if cluster governance requires fixed resource names.
 fullnameOverride: ""
+
+# Pod-level SecurityContext for kncc server pod.
+# Enforces Pod Security Standards (PSS Restricted) compliant runtime settings.
+# Can also be set under server.podSecurityContext.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  # seccompProfile:
+  #   type: RuntimeDefault
+
+# Container-level SecurityContext for kncc server container.
+# Enforces an immutable read-only root filesystem, non-root execution, privilege escalation prevention,
+# and drops all Linux capabilities (Kubernetes PSS Restricted).
+# Notice: /tmp is mounted as an in-memory/ephemeral emptyDir volume for SQLite temporary tables and runtime temporary files.
+# Can also be set under server.securityContext.
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  # seccompProfile:
+  #   type: RuntimeDefault
 
 # ------------------------------------------------------------------------------
 # 2. Application Server and Protocols (Server & API)
@@ -174,6 +215,11 @@ k8s:
   #       Minimal curl image (~15 MB). ONLY supports HTTP/HTTPS (TCP/UDP/ICMP checks will fail).
   probeImage: "ghcr.io/aleksandrsumkin/kncc-agent:latest"
 
+  # Container image digest for ephemeral probe/agent pods (e.g. "sha256:45b23dee...").
+  # When specified, the probe container image is pinned by cryptographic digest (e.g. "repository@digest"),
+  # ensuring that diagnostic probe pods run an immutable and verified agent image.
+  probeImageDigest: ""
+
   # Timeout for a single network diagnostic probe operation (in seconds).
   # Applied to TCP handshake, HTTP request, UDP test, and ICMP ping.
   # Increase (up to 45-60s) when probing high-latency satellite links or slow remote targets.
@@ -189,6 +235,11 @@ k8s:
   # are permitted to utilize the SUID bit on /bin/ping to acquire the NET_RAW capability,
   # enabling ICMP checks in HostNetwork mode without granting any extra capabilities.
   probeAllowPrivilegeEscalation: true
+
+  # Controls automountServiceAccountToken in probe pod PodSpec.
+  # When false (default), Kubernetes will not mount the ServiceAccount token Secret
+  # into ephemeral probe pods, adhering to the Principle of Least Privilege and hardening security.
+  probeAutomountServiceAccountToken: false
 
   # Image pull policy for ephemeral probe pods (Always, IfNotPresent, Never).
   # If empty, Kubernetes defaults are used.
@@ -223,21 +274,30 @@ k8s:
     #   cpu: "100m"
     #   memory: "128Mi"
 
-  # Additional PodSecurityContext settings for probe pods.
+  # Additional PodSecurityContext settings for probe pods (also supported via agent.podSecurityContext).
+  # Supports both camelCase and snake_case YAML properties.
   probePodSecurityContext: {}
     # runAsNonRoot: true
     # runAsUser: 10001
+    # runAsGroup: 10001
     # fsGroup: 10001
+    # seccompProfile:
+    #   type: RuntimeDefault
 
-  # Additional SecurityContext settings for probe container.
+  # Additional SecurityContext settings for probe container (also supported via agent.securityContext).
   # Extends/overrides template container security context with precedence and WARN logging.
+  # Supports both camelCase and snake_case YAML properties.
+  # By default, probe containers run with readOnlyRootFilesystem: true and an emptyDir volume mounted at /tmp.
   probeSecurityContext: {}
     # readOnlyRootFilesystem: false
+    # allowPrivilegeEscalation: true
     # capabilities:
     #   drop:
     #     - ALL
     #   add:
     #     - NET_RAW
+    # seccompProfile:
+    #   type: RuntimeDefault
 
   # Background Garbage Collector execution interval.
   # Periodically inspects cluster and cleans up completed kncc-probe pods.
@@ -619,9 +679,28 @@ ingress:
   # Ingress controller class name (e.g. "traefik", "nginx", "haproxy").
   className: "traefik"
 
-  # Ingress annotations (cert-manager integration, buffer tuning, timeouts).
+  # Backend Service port or port name to route traffic to (e.g. 80, 443, 8443, or "http", "https").
+  # Default: service.port (80). Set to service.tlsPort (e.g. 8443 or 443) or "https" for secure backend.
+  servicePort: ""
+
+  # Backend protocol scheme ("http" or "https").
+  # If set to "https" and servicePort is omitted, defaults to service.tlsPort (or 443).
+  backendProtocol: ""
+
+  # Ingress annotations (cert-manager integration, buffer tuning, timeouts, backend TLS protocol):
   annotations: {}
     # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # For Traefik HTTPS backend:
+    # traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    # For NGINX HTTPS backend:
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    # nginx.ingress.kubernetes.io/proxy-ssl-verify: "off"
+
+  # Traefik-specific backend transport settings:
+  traefik:
+    # Automatically create a ServersTransport resource with insecureSkipVerify: true
+    # and attach it to allow self-signed internal TLS certificates on backend pods.
+    insecureSkipVerify: false
 
   # Host and path routing rules:
   hosts:
@@ -629,6 +708,8 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
+          # Optional per-path service port override (e.g. 8443, 443, or "https"):
+          # servicePort: 8443
 
   # Ingress TLS termination configurations:
   tls: []
@@ -730,6 +811,11 @@ resources:
     cpu: 50m
     memory: 64Mi
 
+# Optional PriorityClass name for kncc server pod (e.g. "system-cluster-critical").
+# If specified, the Kubernetes scheduler assigns this priority to the kncc server pod.
+# Leave empty ("") to use the default cluster priority.
+priorityClassName: ""
+
 # Node label selector for scheduling kncc server pod (e.g. "kubernetes.io/os: linux").
 nodeSelector: {}
 
@@ -740,3 +826,93 @@ tolerations: []
 
 # Node and pod affinity rules (Affinity / Anti-Affinity) for advanced scheduling.
 affinity: {}
+
+# ------------------------------------------------------------------------------
+# 13. Prometheus Metrics & Scheduled Monitoring
+# ------------------------------------------------------------------------------
+
+metrics:
+  # Enable Prometheus metrics exporter on dedicated HTTP port.
+  enabled: true
+  host: "0.0.0.0"
+  port: 9090
+  path: "/metrics"
+  # Annotations for Prometheus scraping via Service (e.g. prometheus.io/scrape: "true")
+  annotations: {}
+  auth:
+    # Require authentication for metrics endpoint (Basic or Bearer)
+    enabled: false
+    type: "basic" # "basic" or "bearer"
+    username: "prometheus"
+    password: "" # Set or use existingSecret
+    token: ""    # Set or use existingSecret for bearer auth
+    passwordFile: ""
+    tokenFile: ""
+    existingSecret: ""
+    existingSecretUsernameKey: ""
+    existingSecretPasswordKey: ""
+    existingSecretTokenKey: ""
+  serviceMonitor:
+    # Create Prometheus Operator ServiceMonitor resource (monitoring.coreos.com/v1)
+    enabled: false
+    namespace: ""
+    interval: "30s"
+    scrapeTimeout: "10s"
+    labels: {}
+    annotations: {}
+    metricRelabelings: []
+    relabelings: []
+
+monitoring:
+  # Minimum allowed interval for periodic checks (e.g. "30s", "1m")
+  minInterval: "30s"
+  # Allowed intervals for scheduled checks in UI and API
+  allowedIntervals:
+    - "30s"
+    - "1m"
+    - "5m"
+    - "15m"
+    - "30m"
+    - "1h"
+
+# Declarative scheduled network checks loaded at startup (immutable via UI/API)
+scheduledChecks: []
+# Example:
+# scheduledChecks:
+#   - id: "core-dns"
+#     name: "CoreDNS Connectivity"
+#     interval: "1m"
+#     mode: "host"
+#     targets:
+#       - protocol: "udp"
+#         host: "10.96.0.10"
+#         port: 53
+
+# ------------------------------------------------------------------------------
+# 14. Extra Kubernetes Objects
+# ------------------------------------------------------------------------------
+
+# List or map of extra Kubernetes resources to deploy alongside the chart
+# (e.g. ExternalSecrets, VaultSecrets, SealedSecrets, NetworkPolicies, ServiceMonitors, etc.).
+# Both YAML objects and raw strings (with Helm templating support via tpl) are supported.
+#
+# Example (ExternalSecret):
+# extraObjects:
+#   - apiVersion: external-secrets.io/v1beta1
+#     kind: ExternalSecret
+#     metadata:
+#       name: '{{ include "kncc.fullname" . }}-vault-secrets'
+#     spec:
+#       secretStoreRef:
+#         name: vault-backend
+#         kind: ClusterSecretStore
+#       target:
+#         name: '{{ include "kncc.fullname" . }}-secrets'
+#       data:
+#         - secretKey: ADMIN_INITIAL_PASSWORD
+#           remoteRef:
+#             key: secret/kncc
+#             property: admin_password
+extraObjects: []
+
+

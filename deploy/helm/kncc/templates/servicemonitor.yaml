@@ -1,0 +1,52 @@
+{{- if and .Values.metrics .Values.metrics.enabled .Values.metrics.serviceMonitor .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kncc.fullname" . }}
+  namespace: {{ default .Release.Namespace .Values.metrics.serviceMonitor.namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    {{- if .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml .Values.metrics.serviceMonitor.labels | nindent 4 }}
+    {{- end }}
+  {{- if .Values.metrics.serviceMonitor.annotations }}
+  annotations:
+    {{- toYaml .Values.metrics.serviceMonitor.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "kncc.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: {{ default "/metrics" .Values.metrics.path }}
+      {{- if .Values.metrics.serviceMonitor.interval }}
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      {{- end }}
+      {{- if .Values.metrics.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+      {{- end }}
+      {{- if and .Values.metrics.auth .Values.metrics.auth.enabled }}
+      {{- if eq .Values.metrics.auth.type "basic" }}
+      basicAuth:
+        username:
+          name: {{ include "kncc.metricsSecretName" . }}
+          key: {{ include "kncc.metricsUsernameKey" . }}
+        password:
+          name: {{ include "kncc.metricsSecretName" . }}
+          key: {{ include "kncc.metricsPasswordKey" . }}
+      {{- else if eq .Values.metrics.auth.type "bearer" }}
+      bearerTokenSecret:
+        name: {{ include "kncc.metricsSecretName" . }}
+        key: {{ include "kncc.metricsTokenKey" . }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.metrics.serviceMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml .Values.metrics.serviceMonitor.metricRelabelings | nindent 8 }}
+      {{- end }}
+      {{- if .Values.metrics.serviceMonitor.relabelings }}
+      relabelings:
+        {{- toYaml .Values.metrics.serviceMonitor.relabelings | nindent 8 }}
+      {{- end }}
+{{- end }}

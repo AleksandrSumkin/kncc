@@ -115,6 +115,53 @@ export interface SystemConfig {
   logo_url?: string;
   has_custom_favicon?: boolean;
   favicon_url?: string;
+  monitoring?: {
+    min_interval: string;
+    allowed_intervals: string[];
+  };
+  metrics?: {
+    enabled: boolean;
+    port: number;
+    path: string;
+    auth_enabled: boolean;
+  };
+}
+
+export interface ScheduledCheck {
+  id: string;
+  name: string;
+  interval: string;
+  mode: CheckMode;
+  namespace?: string;
+  targets: TargetService[];
+  enabled: boolean;
+  created_by_user_id: string;
+  created_by_username: string;
+  is_system: boolean;
+  is_ephemeral: boolean;
+  last_report_id?: string;
+  last_report_status?: ReportStatus;
+  last_run_at?: string;
+  next_run_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateScheduledCheckPayload {
+  name: string;
+  interval: string;
+  mode: CheckMode;
+  namespace?: string;
+  targets: TargetService[];
+}
+
+export interface UpdateScheduledCheckPayload {
+  name?: string;
+  interval?: string;
+  mode?: CheckMode;
+  namespace?: string;
+  targets?: TargetService[];
+  enabled?: boolean;
 }
 
 export interface SubjectInfo {

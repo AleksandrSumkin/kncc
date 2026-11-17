@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,14 +55,29 @@ type Store interface {
 	GetSetting(ctx context.Context, key string) (string, error)
 	SetSetting(ctx context.Context, key, value string) error
 
+	// Scheduled Checks
+	CreateScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error
+	GetScheduledCheck(ctx context.Context, id string) (*model.ScheduledCheck, error)
+	ListScheduledChecks(ctx context.Context) ([]*model.ScheduledCheck, error)
+	UpdateScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error
+	DeleteScheduledCheck(ctx context.Context, id string) error
+	UpdateScheduledCheckLastReport(ctx context.Context, id, newReportID string) error
+	PurgeEphemeralScheduledChecks(ctx context.Context) error
+	UpsertSystemScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error
+
+	// Metrics & DB Helpers
+	GetDatabaseSizeBytes() (int64, error)
+	GetManualChecksCount(ctx context.Context) (int64, error)
+
 	Ping(ctx context.Context) error
 	Close() error
 }
 
 // SQLiteStore implements Store using modernc.org/sqlite (pure Go).
 type SQLiteStore struct {
-	db *sql.DB
-	mu sync.RWMutex
+	db     *sql.DB
+	dbPath string
+	mu     sync.RWMutex
 }
 
 // NewSQLiteStore opens or creates an SQLite database at dbPath.
@@ -76,7 +92,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	db.SetMaxOpenConns(1) // SQLite works best with 1 open writer in WAL mode
 	db.SetMaxIdleConns(1)
 
-	s := &SQLiteStore{db: db}
+	s := &SQLiteStore{db: db, dbPath: dbPath}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrating database: %w", err)
@@ -152,6 +168,26 @@ func (s *SQLiteStore) migrate() error {
 		value TEXT NOT NULL,
 		updated_at DATETIME NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS scheduled_checks (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		interval_str TEXT NOT NULL,
+		mode TEXT NOT NULL,
+		namespace TEXT NOT NULL,
+		targets_json TEXT NOT NULL,
+		enabled BOOLEAN NOT NULL DEFAULT 1,
+		created_by_user_id TEXT NOT NULL,
+		created_by_username TEXT NOT NULL,
+		is_system BOOLEAN NOT NULL DEFAULT 0,
+		is_ephemeral BOOLEAN NOT NULL DEFAULT 0,
+		last_report_id TEXT,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (last_report_id) REFERENCES reports(id) ON DELETE SET NULL
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_sched_checks_enabled ON scheduled_checks(enabled);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -934,5 +970,372 @@ func (s *SQLiteStore) GetUserTopTargets(ctx context.Context, userID string, limi
 
 	return results, rows.Err()
 }
+
+// CreateScheduledCheck inserts a new scheduled check.
+func (s *SQLiteStore) CreateScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if check.ID == "" {
+		check.ID = uuid.NewString()
+	}
+	now := time.Now().UTC()
+	if check.CreatedAt.IsZero() {
+		check.CreatedAt = now
+	}
+	if check.UpdatedAt.IsZero() {
+		check.UpdatedAt = now
+	}
+
+	query := `
+	INSERT INTO scheduled_checks (
+		id, name, interval_str, mode, namespace, targets_json,
+		enabled, created_by_user_id, created_by_username, is_system,
+		is_ephemeral, last_report_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		check.ID,
+		check.Name,
+		check.IntervalStr,
+		string(check.Mode),
+		check.Namespace,
+		check.TargetsJSON(),
+		check.Enabled,
+		check.CreatedByUserID,
+		check.CreatedByUsername,
+		check.IsSystem,
+		check.IsEphemeral,
+		check.LastReportID,
+		check.CreatedAt.UTC(),
+		check.UpdatedAt.UTC(),
+	)
+	return err
+}
+
+// GetScheduledCheck returns a scheduled check by ID with last report info if available.
+func (s *SQLiteStore) GetScheduledCheck(ctx context.Context, id string) (*model.ScheduledCheck, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `
+	SELECT s.id, s.name, s.interval_str, s.mode, s.namespace, s.targets_json,
+	       s.enabled, s.created_by_user_id, s.created_by_username, s.is_system,
+	       s.is_ephemeral, s.last_report_id, s.created_at, s.updated_at,
+	       r.status, r.completed_at
+	FROM scheduled_checks s
+	LEFT JOIN reports r ON s.last_report_id = r.id
+	WHERE s.id = ?
+	`
+	row := s.db.QueryRowContext(ctx, query, id)
+
+	var (
+		c                model.ScheduledCheck
+		modeStr          string
+		targetsJSON      string
+		lastReportID     sql.NullString
+		lastReportStatus sql.NullString
+		lastCompletedAt  sql.NullTime
+	)
+
+	err := row.Scan(
+		&c.ID,
+		&c.Name,
+		&c.IntervalStr,
+		&modeStr,
+		&c.Namespace,
+		&targetsJSON,
+		&c.Enabled,
+		&c.CreatedByUserID,
+		&c.CreatedByUsername,
+		&c.IsSystem,
+		&c.IsEphemeral,
+		&lastReportID,
+		&c.CreatedAt,
+		&c.UpdatedAt,
+		&lastReportStatus,
+		&lastCompletedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	c.Mode = model.CheckMode(modeStr)
+	if lastReportID.Valid && lastReportID.String != "" {
+		c.LastReportID = &lastReportID.String
+	}
+	if lastReportStatus.Valid && lastReportStatus.String != "" {
+		st := model.ReportStatus(lastReportStatus.String)
+		c.LastReportStatus = &st
+	}
+	if lastCompletedAt.Valid {
+		c.LastRunAt = &lastCompletedAt.Time
+	}
+	if err := json.Unmarshal([]byte(targetsJSON), &c.Targets); err != nil {
+		c.Targets = []model.TargetService{}
+	}
+
+	return &c, nil
+}
+
+// ListScheduledChecks returns all scheduled checks with last report info.
+func (s *SQLiteStore) ListScheduledChecks(ctx context.Context) ([]*model.ScheduledCheck, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `
+	SELECT s.id, s.name, s.interval_str, s.mode, s.namespace, s.targets_json,
+	       s.enabled, s.created_by_user_id, s.created_by_username, s.is_system,
+	       s.is_ephemeral, s.last_report_id, s.created_at, s.updated_at,
+	       r.status, r.completed_at
+	FROM scheduled_checks s
+	LEFT JOIN reports r ON s.last_report_id = r.id
+	ORDER BY s.is_system DESC, s.name ASC
+	`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var checks []*model.ScheduledCheck
+	for rows.Next() {
+		var (
+			c                model.ScheduledCheck
+			modeStr          string
+			targetsJSON      string
+			lastReportID     sql.NullString
+			lastReportStatus sql.NullString
+			lastCompletedAt  sql.NullTime
+		)
+
+		if err := rows.Scan(
+			&c.ID,
+			&c.Name,
+			&c.IntervalStr,
+			&modeStr,
+			&c.Namespace,
+			&targetsJSON,
+			&c.Enabled,
+			&c.CreatedByUserID,
+			&c.CreatedByUsername,
+			&c.IsSystem,
+			&c.IsEphemeral,
+			&lastReportID,
+			&c.CreatedAt,
+			&c.UpdatedAt,
+			&lastReportStatus,
+			&lastCompletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		c.Mode = model.CheckMode(modeStr)
+		if lastReportID.Valid && lastReportID.String != "" {
+			c.LastReportID = &lastReportID.String
+		}
+		if lastReportStatus.Valid && lastReportStatus.String != "" {
+			st := model.ReportStatus(lastReportStatus.String)
+			c.LastReportStatus = &st
+		}
+		if lastCompletedAt.Valid {
+			c.LastRunAt = &lastCompletedAt.Time
+		}
+		if err := json.Unmarshal([]byte(targetsJSON), &c.Targets); err != nil {
+			c.Targets = []model.TargetService{}
+		}
+
+		checks = append(checks, &c)
+	}
+	return checks, rows.Err()
+}
+
+// UpdateScheduledCheck updates a scheduled check.
+func (s *SQLiteStore) UpdateScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	check.UpdatedAt = time.Now().UTC()
+	query := `
+	UPDATE scheduled_checks
+	SET name = ?, interval_str = ?, mode = ?, namespace = ?,
+	    targets_json = ?, enabled = ?, updated_at = ?
+	WHERE id = ?
+	`
+	res, err := s.db.ExecContext(ctx, query,
+		check.Name,
+		check.IntervalStr,
+		string(check.Mode),
+		check.Namespace,
+		check.TargetsJSON(),
+		check.Enabled,
+		check.UpdatedAt.UTC(),
+		check.ID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteScheduledCheck deletes a scheduled check and cleans up its last report.
+func (s *SQLiteStore) DeleteScheduledCheck(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var lastReportID sql.NullString
+	_ = s.db.QueryRowContext(ctx, "SELECT last_report_id FROM scheduled_checks WHERE id = ?", id).Scan(&lastReportID)
+
+	res, err := s.db.ExecContext(ctx, "DELETE FROM scheduled_checks WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+
+	if lastReportID.Valid && lastReportID.String != "" {
+		_, _ = s.db.ExecContext(ctx, "DELETE FROM reports WHERE id = ?", lastReportID.String)
+	}
+
+	return nil
+}
+
+// UpdateScheduledCheckLastReport updates last report ID and purges the previous report for this check.
+func (s *SQLiteStore) UpdateScheduledCheckLastReport(ctx context.Context, id, newReportID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var oldReportID sql.NullString
+	err := s.db.QueryRowContext(ctx, "SELECT last_report_id FROM scheduled_checks WHERE id = ?", id).Scan(&oldReportID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+
+	query := `UPDATE scheduled_checks SET last_report_id = ?, updated_at = ? WHERE id = ?`
+	if _, err := s.db.ExecContext(ctx, query, newReportID, time.Now().UTC(), id); err != nil {
+		return err
+	}
+
+	if oldReportID.Valid && oldReportID.String != "" && oldReportID.String != newReportID {
+		_, _ = s.db.ExecContext(ctx, "DELETE FROM reports WHERE id = ?", oldReportID.String)
+	}
+
+	return nil
+}
+
+// PurgeEphemeralScheduledChecks removes all ephemeral checks created via UI and their reports.
+func (s *SQLiteStore) PurgeEphemeralScheduledChecks(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Delete reports belonging to ephemeral checks
+	rows, err := s.db.QueryContext(ctx, "SELECT last_report_id FROM scheduled_checks WHERE is_ephemeral = 1 AND last_report_id IS NOT NULL")
+	if err == nil {
+		defer rows.Close()
+		var reportIDs []string
+		for rows.Next() {
+			var rID string
+			if err := rows.Scan(&rID); err == nil && rID != "" {
+				reportIDs = append(reportIDs, rID)
+			}
+		}
+		for _, rID := range reportIDs {
+			_, _ = s.db.ExecContext(ctx, "DELETE FROM reports WHERE id = ?", rID)
+		}
+	}
+
+	_, err = s.db.ExecContext(ctx, "DELETE FROM scheduled_checks WHERE is_ephemeral = 1")
+	return err
+}
+
+// UpsertSystemScheduledCheck inserts or updates a declarative system check.
+func (s *SQLiteStore) UpsertSystemScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now().UTC()
+	if check.CreatedAt.IsZero() {
+		check.CreatedAt = now
+	}
+	check.UpdatedAt = now
+	check.IsSystem = true
+	check.IsEphemeral = false
+
+	query := `
+	INSERT INTO scheduled_checks (
+		id, name, interval_str, mode, namespace, targets_json,
+		enabled, created_by_user_id, created_by_username, is_system,
+		is_ephemeral, last_report_id, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)
+	ON CONFLICT(id) DO UPDATE SET
+		name = excluded.name,
+		interval_str = excluded.interval_str,
+		mode = excluded.mode,
+		namespace = excluded.namespace,
+		targets_json = excluded.targets_json,
+		is_system = 1,
+		is_ephemeral = 0,
+		updated_at = excluded.updated_at
+	`
+	_, err := s.db.ExecContext(ctx, query,
+		check.ID,
+		check.Name,
+		check.IntervalStr,
+		string(check.Mode),
+		check.Namespace,
+		check.TargetsJSON(),
+		check.Enabled,
+		check.CreatedByUserID,
+		check.CreatedByUsername,
+		check.LastReportID,
+		check.CreatedAt.UTC(),
+		check.UpdatedAt.UTC(),
+	)
+	return err
+}
+
+// GetDatabaseSizeBytes returns the size in bytes of the SQLite database file on disk.
+func (s *SQLiteStore) GetDatabaseSizeBytes() (int64, error) {
+	if s.dbPath == "" {
+		return 0, nil
+	}
+	info, err := os.Stat(s.dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// GetManualChecksCount returns the total number of manual user check requests recorded.
+func (s *SQLiteStore) GetManualChecksCount(ctx context.Context) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var count int64
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM user_request_logs").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 
 

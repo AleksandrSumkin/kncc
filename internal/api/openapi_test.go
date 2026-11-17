@@ -52,7 +52,7 @@ func setupOpenAPITestServer(t *testing.T, enabled, public bool) (http.Handler, s
 	runner := &mockRunner{}
 	webFS, _ := web.GetFS()
 
-	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, "1.11.0")
+	h := NewHandler(cfg, s, authSvc, validator, limiter, runner, nil, nil, nil, "1.11.0")
 	router := SetupRouter(h, authSvc, limiter, webFS)
 
 	// Get a valid admin token

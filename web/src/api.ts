@@ -1,4 +1,4 @@
-import { CheckRequest, Report, SystemConfig, User, RBACReport, UserStatsResponse, TargetService } from './types';
+import { CheckRequest, Report, SystemConfig, User, RBACReport, UserStatsResponse, TargetService, ScheduledCheck, CreateScheduledCheckPayload, UpdateScheduledCheckPayload } from './types';
 
 const API_BASE = '/api';
 
@@ -122,5 +122,38 @@ export const api = {
   resetFavicon: () =>
     request<{ success: boolean; favicon_url: string; message: string }>('/admin/settings/favicon', {
       method: 'DELETE',
+    }),
+
+  listScheduledChecks: () =>
+    request<{ scheduled_checks: ScheduledCheck[]; total: number }>('/scheduled-checks'),
+
+  getScheduledCheck: (id: string) =>
+    request<ScheduledCheck>(`/scheduled-checks/${id}`),
+
+  createScheduledCheck: (data: CreateScheduledCheckPayload) =>
+    request<ScheduledCheck>('/scheduled-checks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateScheduledCheck: (id: string, data: UpdateScheduledCheckPayload) =>
+    request<ScheduledCheck>(`/scheduled-checks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  deleteScheduledCheck: (id: string) =>
+    request<{ message: string }>(`/scheduled-checks/${id}`, {
+      method: 'DELETE',
+    }),
+
+  runScheduledCheck: (id: string) =>
+    request<Report>(`/scheduled-checks/${id}/run`, {
+      method: 'POST',
+    }),
+
+  toggleScheduledCheck: (id: string) =>
+    request<ScheduledCheck>(`/scheduled-checks/${id}/toggle`, {
+      method: 'PATCH',
     }),
 };

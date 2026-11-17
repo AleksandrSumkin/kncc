@@ -6,7 +6,15 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kncc.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+  {{- $annotations := dict }}
+  {{- if .Values.ingress.annotations }}
+    {{- $annotations = deepCopy .Values.ingress.annotations }}
+  {{- end }}
+  {{- if and .Values.ingress.traefik .Values.ingress.traefik.insecureSkipVerify (not (hasKey $annotations "traefik.ingress.kubernetes.io/service.serverstransport")) }}
+    {{- $transportRef := printf "%s-%s-insecure-transport@kubernetescrd" .Release.Namespace (include "kncc.fullname" .) }}
+    {{- $_ := set $annotations "traefik.ingress.kubernetes.io/service.serverstransport" $transportRef }}
+  {{- end }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -36,7 +44,16 @@ spec:
               service:
                 name: {{ include "kncc.fullname" $ }}
                 port:
-                  number: {{ $.Values.service.port }}
+                  {{- $defaultPort := $.Values.service.port -}}
+                  {{- if and $.Values.ingress.backendProtocol (eq $.Values.ingress.backendProtocol "https") -}}
+                    {{- $defaultPort = default 443 $.Values.service.tlsPort -}}
+                  {{- end -}}
+                  {{- $svcPort := default $defaultPort (default $.Values.ingress.servicePort .servicePort) -}}
+                  {{- if or (kindIs "int" $svcPort) (kindIs "float64" $svcPort) (regexMatch "^[0-9]+$" (toString $svcPort)) }}
+                  number: {{ int $svcPort }}
+                  {{- else }}
+                  name: {{ $svcPort }}
+                  {{- end }}
           {{- end }}
     {{- end }}
 {{- end }}

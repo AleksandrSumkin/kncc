@@ -294,3 +294,50 @@ func IsIPOrHostname(host string) bool {
 	}
 	return true
 }
+
+// ScheduledCheck represents a periodic connectivity check.
+type ScheduledCheck struct {
+	ID                string          `json:"id"`
+	Name              string          `json:"name"`
+	IntervalStr       string          `json:"interval"`
+	Mode              CheckMode       `json:"mode"`
+	Namespace         string          `json:"namespace"`
+	Targets           []TargetService `json:"targets"`
+	Enabled           bool            `json:"enabled"`
+	CreatedByUserID   string          `json:"created_by_user_id"`
+	CreatedByUsername string          `json:"created_by_username"`
+	IsSystem          bool            `json:"is_system"`
+	IsEphemeral       bool            `json:"is_ephemeral"`
+	LastReportID      *string         `json:"last_report_id,omitempty"`
+	LastReportStatus  *ReportStatus   `json:"last_report_status,omitempty"`
+	LastRunAt         *time.Time      `json:"last_run_at,omitempty"`
+	NextRunAt         *time.Time      `json:"next_run_at,omitempty"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
+// TargetsJSON returns serialized targets for SQLite storage.
+func (s *ScheduledCheck) TargetsJSON() string {
+	b, _ := json.Marshal(s.Targets)
+	return string(b)
+}
+
+// CreateScheduledCheckRequest payload for creating a dynamic check.
+type CreateScheduledCheckRequest struct {
+	Name      string          `json:"name"`
+	Interval  string          `json:"interval"`
+	Mode      CheckMode       `json:"mode"`
+	Namespace string          `json:"namespace,omitempty"`
+	Targets   []TargetService `json:"targets"`
+}
+
+// UpdateScheduledCheckRequest payload for modifying a check.
+type UpdateScheduledCheckRequest struct {
+	Name      *string         `json:"name,omitempty"`
+	Interval  *string         `json:"interval,omitempty"`
+	Mode      *CheckMode      `json:"mode,omitempty"`
+	Namespace *string         `json:"namespace,omitempty"`
+	Targets   []TargetService `json:"targets,omitempty"`
+	Enabled   *bool           `json:"enabled,omitempty"`
+}
+

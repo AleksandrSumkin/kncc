@@ -125,7 +125,7 @@ false
 Return true if kncc-secrets Secret resource should be created
 */}}
 {{- define "kncc.createSecret" -}}
-{{- if or (and (not .Values.auth.existingSecret) .Values.auth.adminInitialPassword) (and .Values.auth.ldapEnabled .Values.auth.ldap.bindPassword (not .Values.auth.ldap.existingSecret)) (and .Values.auth.oidcEnabled .Values.auth.oidc.clientSecret (not .Values.auth.oidc.existingSecret)) }}
+{{- if or (and (not .Values.auth.existingSecret) .Values.auth.adminInitialPassword) (and .Values.auth.ldapEnabled .Values.auth.ldap.bindPassword (not .Values.auth.ldap.existingSecret)) (and .Values.auth.oidcEnabled .Values.auth.oidc.clientSecret (not .Values.auth.oidc.existingSecret)) (and .Values.metrics (and .Values.metrics.enabled (and .Values.metrics.auth (and .Values.metrics.auth.enabled (and (or .Values.metrics.auth.password .Values.metrics.auth.token) (not .Values.metrics.auth.existingSecret)))))) }}
 {{- true }}
 {{- end }}
 {{- end }}
@@ -185,3 +185,95 @@ Determine the secret name for the server TLS certificate
 {{- printf "%s-server-tls" (include "kncc.fullname" .) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Get the metrics secret name
+*/}}
+{{- define "kncc.metricsSecretName" -}}
+{{- if and .Values.metrics (and .Values.metrics.auth .Values.metrics.auth.existingSecret) }}
+{{- .Values.metrics.auth.existingSecret }}
+{{- else }}
+{{- printf "%s-secrets" (include "kncc.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get the metrics username key
+*/}}
+{{- define "kncc.metricsUsernameKey" -}}
+{{- if and .Values.metrics (and .Values.metrics.auth .Values.metrics.auth.existingSecretUsernameKey) }}
+{{- .Values.metrics.auth.existingSecretUsernameKey }}
+{{- else }}
+{{- "METRICS_AUTH_USERNAME" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get the metrics password key
+*/}}
+{{- define "kncc.metricsPasswordKey" -}}
+{{- if and .Values.metrics (and .Values.metrics.auth .Values.metrics.auth.existingSecretPasswordKey) }}
+{{- .Values.metrics.auth.existingSecretPasswordKey }}
+{{- else }}
+{{- "METRICS_AUTH_PASSWORD" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get the metrics token key
+*/}}
+{{- define "kncc.metricsTokenKey" -}}
+{{- if and .Values.metrics (and .Values.metrics.auth .Values.metrics.auth.existingSecretTokenKey) }}
+{{- .Values.metrics.auth.existingSecretTokenKey }}
+{{- else }}
+{{- "METRICS_AUTH_TOKEN" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Construct the server container image reference (repository, tag or digest)
+*/}}
+{{- define "kncc.image" -}}
+{{- if .Values.image.digest -}}
+    {{- if hasPrefix "@" .Values.image.digest -}}
+        {{- printf "%s%s" .Values.image.repository .Values.image.digest -}}
+    {{- else -}}
+        {{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+    {{- end -}}
+{{- else -}}
+    {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Construct the probe/agent container image reference
+*/}}
+{{- define "kncc.probeImage" -}}
+{{- $digest := "" -}}
+{{- if and .Values.k8s .Values.k8s.probeImageDigest -}}
+    {{- $digest = .Values.k8s.probeImageDigest -}}
+{{- else if and .Values.agent (and .Values.agent.image .Values.agent.image.digest) -}}
+    {{- $digest = .Values.agent.image.digest -}}
+{{- end -}}
+{{- $baseImage := .Values.k8s.probeImage -}}
+{{- if and .Values.agent (and .Values.agent.image .Values.agent.image.repository) -}}
+    {{- if .Values.agent.image.tag -}}
+        {{- $baseImage = printf "%s:%s" .Values.agent.image.repository .Values.agent.image.tag -}}
+    {{- else -}}
+        {{- $baseImage = .Values.agent.image.repository -}}
+    {{- end -}}
+{{- end -}}
+{{- if $digest -}}
+    {{- $cleanBase := regexReplaceAll "@.*$" $baseImage "" -}}
+    {{- $cleanBase = regexReplaceAll ":[^/:]+$" $cleanBase "" -}}
+    {{- if hasPrefix "@" $digest -}}
+        {{- printf "%s%s" $cleanBase $digest -}}
+    {{- else -}}
+        {{- printf "%s@%s" $cleanBase $digest -}}
+    {{- end -}}
+{{- else -}}
+    {{- $baseImage -}}
+{{- end -}}
+{{- end -}}
+
+
