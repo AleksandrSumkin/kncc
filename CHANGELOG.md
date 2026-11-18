@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-18
+
+### Added
+- **Detailed scheduledChecks examples with all keys in Helm values and config ([#146](https://github.com/AleksandrSumkin/kncc/issues/146)):**
+  - Added comprehensive examples for all supported network check protocols (`tcp`, `udp`, `http`, `https`, `icmp`) with all available keys in `deploy/helm/kncc/values.yaml` and `deploy/helm/kncc/values_ru.yaml`.
+  - Documented check-level configuration keys (`id`, `name`, `interval`, `mode`, `namespace`, `enabled`, `targets`) and protocol-specific target keys (`name`, `protocol`, `host`, `port`, `path`, `insecure_tls`, `timeout_seconds`).
+  - Added full multi-protocol examples to standalone configuration `kncc.example.yaml`.
+  - Added flexible YAML unmarshaling for `TargetService` and `QuickAddPreset` supporting both `snake_case` (`insecure_tls`, `timeout_seconds`) and `camelCase` (`insecureTls`, `timeoutSeconds`) syntax with unit tests.
+- **UI improvements & localization enhancements ([#144](https://github.com/AleksandrSumkin/kncc/issues/144)):**
+  - **Navigation & Russian Localization:** Renamed navigation buttons in Russian locale: "Новая проверка" → "Проверить" and "История проверок" → "История". Updated scheduled checks table column header from "Последний запуск" to "Последний". Added short labels for network modes: "Сеть хоста" and "Сеть подов".
+  - **Scheduled Monitoring Improvements:** Added consolidated report status pictogram with interactive tooltips in the "Последний" column. Refactored the manual execution "Play" button in actions column to be icon-only with a descriptive tooltip on hover.
+  - **Scheduled Check Modal Performance:** Extracted the create check modal into an isolated component (`CreateScheduledCheckModal`) with local form state, completely eliminating input lag and unnecessary parent dashboard re-renders.
+  - **Target Protocol Sanitization:** Implemented automatic field cleanup when switching target protocols (ICMP, TCP, UDP, HTTP, HTTPS) both in frontend forms (`MonitoringPage`, `NewCheckPage`) and backend Go validation (`internal/model/model.go`), preventing stale port/path/TLS parameters from persisting.
+  - **Interactive Namespace Selector in Monitoring:** Synchronized namespace selection behavior in the scheduled check modal with manual checks, supporting dynamic cluster namespace discovery via `api.getNamespaces()` and toggling between dropdown and manual input based on RBAC and configuration.
+
+### Fixed
+- **Prometheus Exporter Stale Metrics Cleanup and Ephemeral Check Filtering ([#148](https://github.com/AleksandrSumkin/kncc/issues/148)):**
+  - **Stale Metrics Cleanup:** Implemented `DeleteJobMetrics(jobID)` in `internal/metrics/metrics.go` using `DeletePartialMatch` on multi-label probe gauge vectors (`kncc_probe_success`, `kncc_probe_duration_seconds`, `kncc_probe_http_status_code`, `kncc_probe_cert_days_left`) and `DeleteLabelValues` on aggregated job gauges (`kncc_scheduled_job_*`).
+  - **Lifecycle Integration:** Automatically invoked `DeleteJobMetrics` when a scheduled check is deleted (`scheduler.RemoveJob`) or paused (`check.Enabled = false` in `scheduler.AddOrUpdateJob`), ensuring stopped or deleted checks do not retain stale time-series in the exporter.
+  - **Ephemeral Label Isolation:** Disabled Prometheus metrics publication for ad-hoc / ephemeral checks created in UI/API (`is_ephemeral: true`) by default, preventing high label cardinality accumulation with single-use UUIDs (`job="<UUID>"`).
+  - **Configuration:** Added `metrics.export_ephemeral_metrics` (default: `false`) in configuration, environment variable `METRICS_EXPORT_EPHEMERAL_METRICS`, and Helm chart values (`deploy/helm/kncc/values.yaml`, `values_ru.yaml`, `templates/configmap.yaml`).
+  - **Testing:** Added unit and integration test suites in `internal/metrics/metrics_test.go` and `internal/scheduler/scheduler_test.go`.
+- **Reconciliation of declarative scheduled checks and cleanup of test targets ([#145](https://github.com/AleksandrSumkin/kncc/issues/145)):**
+  - **Declarative System Checks Reconciliation:** Added `PurgeOrphanedSystemScheduledChecks` to `Store` interface and `SQLiteStore` (`internal/store/store.go`). On server startup (`internal/scheduler/scheduler.go`), declarative checks stored in SQLite are reconciled with the active configuration (`cfg.ScheduledChecks`). Any obsolete system checks removed from Helm `values.yaml` or config files are automatically purged from the database along with their associated reports, preventing orphan checks from running in the background.
+  - **Removal of Hardcoded Test Targets:** Removed hardcoded Forgejo development target (`http://github.com/api/v1/version`) from the "Add Scheduled Check" modal form in `web/src/pages/MonitoringPage.tsx` and replaced it with a neutral blank host and default port, preventing accidental or automatic probe executions.
+  - **Scheduler Graceful Shutdown:** Made `Scheduler.Stop()` idempotent to ensure thread-safe shutdowns.
+  - **Test Coverage:** Added comprehensive unit tests in `internal/store/store_test.go` (`TestStore_PurgeOrphanedSystemScheduledChecks`) and `internal/scheduler/scheduler_test.go` (`TestScheduler_ReconciliationOnStartup`).
+- **Move probe pod manifest conflict warnings to structured warning level ([#147](https://github.com/AleksandrSumkin/kncc/issues/147)):**
+  - Migrated `internal/k8s/builder.go` from legacy `log.Printf("[WARN] ...")` to structured `log/slog` (`slog.Warn(...)`).
+  - Resolved issue where Go 1.21+ standard logger redirect routed conflict warnings through `slog.Default()` with `LevelInfo`, resulting in `level=INFO` logs during normal execution and suppression when `server.logLevel: warn` was configured.
+  - Added structured attributes for probe pod label overrides, resource requests/limits conflicts, quantity parse errors, and `SecurityContext` overrides (`allowPrivilegeEscalation`, `readOnlyRootFilesystem`, capabilities).
+  - Added unit test `TestBuildProbePod_WarnLoggingOnOverrides` in `internal/k8s/builder_test.go` to verify proper log level emission and filtering.
+
 ## [1.17.0] - 2026-11-16
 
 ### Security

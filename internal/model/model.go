@@ -7,6 +7,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Protocol defines the network protocol for checks.
@@ -57,6 +59,63 @@ type TargetService struct {
 	TimeoutSeconds int      `json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"`
 }
 
+// UnmarshalYAML implements custom YAML unmarshaling for TargetService supporting
+// both snake_case (insecure_tls, timeout_seconds) and camelCase (insecureTls/insecureTLS, timeoutSeconds).
+func (t *TargetService) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "name":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			t.Name = s
+		case "protocol":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			t.Protocol = Protocol(s)
+		case "host":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			t.Host = s
+		case "port":
+			var p int
+			if err := valNode.Decode(&p); err != nil {
+				return err
+			}
+			t.Port = p
+		case "path":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			t.Path = s
+		case "insecuretls":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			t.InsecureTLS = b
+		case "timeoutseconds":
+			var sec int
+			if err := valNode.Decode(&sec); err != nil {
+				return err
+			}
+			t.TimeoutSeconds = sec
+		}
+	}
+	return nil
+}
+
 // Validate checks if the target service parameters are sound.
 func (t *TargetService) Validate() error {
 	t.Protocol = Protocol(strings.ToLower(strings.TrimSpace(string(t.Protocol))))
@@ -70,13 +129,23 @@ func (t *TargetService) Validate() error {
 		if t.Port < 1 || t.Port > 65535 {
 			return fmt.Errorf("invalid port %d for protocol %s (must be 1-65535)", t.Port, t.Protocol)
 		}
-	case ProtocolHTTP, ProtocolHTTPS:
+		t.Path = ""
+		t.InsecureTLS = false
+	case ProtocolHTTP:
 		if t.Port == 0 {
-			if t.Protocol == ProtocolHTTP {
-				t.Port = 80
-			} else {
-				t.Port = 443
-			}
+			t.Port = 80
+		} else if t.Port < 1 || t.Port > 65535 {
+			return fmt.Errorf("invalid port %d for %s", t.Port, t.Protocol)
+		}
+		if t.Path == "" {
+			t.Path = "/"
+		} else if !strings.HasPrefix(t.Path, "/") {
+			t.Path = "/" + t.Path
+		}
+		t.InsecureTLS = false
+	case ProtocolHTTPS:
+		if t.Port == 0 {
+			t.Port = 443
 		} else if t.Port < 1 || t.Port > 65535 {
 			return fmt.Errorf("invalid port %d for %s", t.Port, t.Protocol)
 		}
@@ -86,8 +155,10 @@ func (t *TargetService) Validate() error {
 			t.Path = "/" + t.Path
 		}
 	case ProtocolICMP:
-		// Port is not used for ICMP ping
+		// Port, Path, and InsecureTLS are not used for ICMP ping
 		t.Port = 0
+		t.Path = ""
+		t.InsecureTLS = false
 	default:
 		return fmt.Errorf("unsupported protocol %q, must be one of: tcp, udp, http, https, icmp", t.Protocol)
 	}

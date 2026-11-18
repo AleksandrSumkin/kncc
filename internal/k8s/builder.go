@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -51,7 +51,7 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 		if cfg.K8s.ProbeImage != "" || cfg.K8s.ProbeImageDigest != "" {
 			probeImage = cfg.K8s.GetEffectiveProbeImage()
 			if cfg.K8s.ProbeImageDigest != "" {
-				log.Printf("[INFO] probe pod image pinned by digest: %s", probeImage)
+				slog.Info("probe pod image pinned by digest", "image", probeImage)
 			}
 		}
 		if cfg.K8s.ProbeAllowPrivilegeEscalation != nil {
@@ -75,7 +75,7 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 	if cfg != nil && len(cfg.K8s.ProbeExtraLabels) > 0 {
 		for k, v := range cfg.K8s.ProbeExtraLabels {
 			if existing, exists := labels[k]; exists && existing != v {
-				log.Printf("[WARN] probe pod label conflict: overriding template label %q: %q -> %q", k, existing, v)
+				slog.Warn("probe pod label conflict: overriding template label", "label", k, "existing", existing, "override", v)
 			}
 			labels[k] = v
 		}
@@ -103,12 +103,12 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 			for rName, rVal := range cfg.K8s.ProbeResources.Requests {
 				q, err := resource.ParseQuantity(rVal)
 				if err != nil {
-					log.Printf("[WARN] probe pod invalid custom requests.%s quantity %q: %v", rName, rVal, err)
+					slog.Warn("probe pod invalid custom requests quantity", "resource", rName, "quantity", rVal, "error", err)
 					continue
 				}
 				resKey := corev1.ResourceName(rName)
 				if oldQ, exists := reqMap[resKey]; exists && oldQ.String() != q.String() {
-					log.Printf("[WARN] probe pod resource conflict: overriding template requests.%s: %s -> %s", rName, oldQ.String(), q.String())
+					slog.Warn("probe pod resource conflict: overriding template requests", "resource", rName, "template", oldQ.String(), "override", q.String())
 				}
 				reqMap[resKey] = q
 			}
@@ -117,12 +117,12 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 			for rName, rVal := range cfg.K8s.ProbeResources.Limits {
 				q, err := resource.ParseQuantity(rVal)
 				if err != nil {
-					log.Printf("[WARN] probe pod invalid custom limits.%s quantity %q: %v", rName, rVal, err)
+					slog.Warn("probe pod invalid custom limits quantity", "resource", rName, "quantity", rVal, "error", err)
 					continue
 				}
 				resKey := corev1.ResourceName(rName)
 				if oldQ, exists := limMap[resKey]; exists && oldQ.String() != q.String() {
-					log.Printf("[WARN] probe pod resource conflict: overriding template limits.%s: %s -> %s", rName, oldQ.String(), q.String())
+					slog.Warn("probe pod resource conflict: overriding template limits", "resource", rName, "template", oldQ.String(), "override", q.String())
 				}
 				limMap[resKey] = q
 			}
@@ -142,15 +142,15 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 		cSec := cfg.K8s.ProbeSecurityContext
 		if cSec.AllowPrivilegeEscalation != nil {
 			if *cSec.AllowPrivilegeEscalation != allowPrivilegeEscalation {
-				log.Printf("[WARN] probe pod securityContext conflict: overriding template allowPrivilegeEscalation: %v -> %v",
-					allowPrivilegeEscalation, *cSec.AllowPrivilegeEscalation)
+				slog.Warn("probe pod securityContext conflict: overriding template allowPrivilegeEscalation",
+					"template", allowPrivilegeEscalation, "override", *cSec.AllowPrivilegeEscalation)
 			}
 			secCtx.AllowPrivilegeEscalation = cSec.AllowPrivilegeEscalation
 		}
 		if cSec.ReadOnlyRootFilesystem != nil {
 			if *cSec.ReadOnlyRootFilesystem != readOnlyRootFilesystem {
-				log.Printf("[WARN] probe pod securityContext conflict: overriding template readOnlyRootFilesystem: %v -> %v",
-					readOnlyRootFilesystem, *cSec.ReadOnlyRootFilesystem)
+				slog.Warn("probe pod securityContext conflict: overriding template readOnlyRootFilesystem",
+					"template", readOnlyRootFilesystem, "override", *cSec.ReadOnlyRootFilesystem)
 			}
 			secCtx.ReadOnlyRootFilesystem = cSec.ReadOnlyRootFilesystem
 		}
@@ -172,8 +172,8 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 				for i, a := range cSec.Capabilities.Add {
 					adds[i] = corev1.Capability(a)
 				}
-				log.Printf("[WARN] probe pod securityContext conflict: overriding template capabilities.add: %v -> %v",
-					secCtx.Capabilities.Add, adds)
+				slog.Warn("probe pod securityContext conflict: overriding template capabilities.add",
+					"template", secCtx.Capabilities.Add, "override", adds)
 				secCtx.Capabilities.Add = adds
 			}
 			if cSec.Capabilities.Drop != nil {
@@ -181,8 +181,8 @@ func BuildProbePod(report *model.Report, nodeName, namespace string, cfg *config
 				for i, d := range cSec.Capabilities.Drop {
 					drops[i] = corev1.Capability(d)
 				}
-				log.Printf("[WARN] probe pod securityContext conflict: overriding template capabilities.drop: %v -> %v",
-					secCtx.Capabilities.Drop, drops)
+				slog.Warn("probe pod securityContext conflict: overriding template capabilities.drop",
+					"template", secCtx.Capabilities.Drop, "override", drops)
 				secCtx.Capabilities.Drop = drops
 			}
 		}

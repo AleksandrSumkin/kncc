@@ -110,11 +110,24 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		slog.Info("Purged ephemeral scheduled checks from previous sessions")
 	}
 
-	// 2. Load and upsert system checks from declarative config
-	for _, sc := range s.cfg.ScheduledChecks {
-		if sc.ID == "" {
-			sc.ID = "sys-" + uuid.NewString()[:8]
+	// 2. Reconcile system checks: purge orphaned system checks not present in current config
+	for i := range s.cfg.ScheduledChecks {
+		if s.cfg.ScheduledChecks[i].ID == "" {
+			s.cfg.ScheduledChecks[i].ID = "sys-" + uuid.NewString()[:8]
 		}
+	}
+	activeIDs := make([]string, 0, len(s.cfg.ScheduledChecks))
+	for _, sc := range s.cfg.ScheduledChecks {
+		activeIDs = append(activeIDs, sc.ID)
+	}
+	if err := s.store.PurgeOrphanedSystemScheduledChecks(ctx, activeIDs); err != nil {
+		slog.Warn("Failed to purge orphaned system scheduled checks on startup", "error", err)
+	} else {
+		slog.Info("Reconciled declarative system checks with active configuration", "active_count", len(activeIDs))
+	}
+
+	// 3. Load and upsert system checks from declarative config
+	for _, sc := range s.cfg.ScheduledChecks {
 		enabled := true
 		if sc.Enabled != nil {
 			enabled = *sc.Enabled
@@ -149,14 +162,16 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}
 	}
 
-	// 3. Query all scheduled checks and start tickers for enabled checks
+	// 4. Query all scheduled checks and start tickers for enabled checks
 	checks, err := s.store.ListScheduledChecks(ctx)
 	if err != nil {
 		return fmt.Errorf("loading scheduled checks: %w", err)
 	}
 
 	for _, check := range checks {
-		s.metrics.EnsureJobMetrics(check.ID)
+		if s.shouldExportMetrics(check) {
+			s.metrics.EnsureJobMetrics(check.ID)
+		}
 		if check.Enabled {
 			s.startJobLocked(check)
 		}
@@ -165,17 +180,36 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops all running job tickers and halts the scheduler.
+// Stop stops all running job tickers and halts the scheduler. Safe to call multiple times.
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	close(s.stopCh)
+	select {
+	case <-s.stopCh:
+		return
+	default:
+		close(s.stopCh)
+	}
+
 	for id, job := range s.jobs {
 		close(job.stopCh)
 		delete(s.jobs, id)
 	}
 	slog.Info("Scheduler stopped cleanly")
+}
+
+// shouldExportMetrics determines if metrics for the given check should be exported to Prometheus.
+// By default, only persistent system checks are exported. Ephemeral checks are excluded unless
+// Metrics.ExportEphemeralMetrics is explicitly enabled in configuration.
+func (s *Scheduler) shouldExportMetrics(check *model.ScheduledCheck) bool {
+	if check == nil || s.metrics == nil {
+		return false
+	}
+	if check.IsSystem {
+		return true
+	}
+	return s.cfg != nil && s.cfg.Metrics.ExportEphemeralMetrics
 }
 
 // AddOrUpdateJob registers or restarts a scheduled check.
@@ -189,14 +223,20 @@ func (s *Scheduler) AddOrUpdateJob(check *model.ScheduledCheck) {
 		delete(s.jobs, check.ID)
 	}
 
-	s.metrics.EnsureJobMetrics(check.ID)
-
 	if check.Enabled {
+		if s.shouldExportMetrics(check) {
+			s.metrics.EnsureJobMetrics(check.ID)
+		}
 		s.startJobLocked(check)
+	} else {
+		// When a check is paused/disabled, purge stale metrics from exporter
+		if s.metrics != nil {
+			s.metrics.DeleteJobMetrics(check.ID)
+		}
 	}
 }
 
-// RemoveJob stops and removes a job from scheduler.
+// RemoveJob stops and removes a job from scheduler and purges its Prometheus metrics.
 func (s *Scheduler) RemoveJob(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -204,6 +244,9 @@ func (s *Scheduler) RemoveJob(id string) {
 	if job, exists := s.jobs[id]; exists {
 		close(job.stopCh)
 		delete(s.jobs, id)
+	}
+	if s.metrics != nil {
+		s.metrics.DeleteJobMetrics(id)
 	}
 }
 
@@ -329,8 +372,8 @@ func (s *Scheduler) executeCheckRun(job *activeJob) (*model.Report, error) {
 		slog.Error("Failed to update scheduled check last report in store", "job", job.check.ID, "error", err)
 	}
 
-	// Publish metrics to Prometheus
-	if finalReport != nil {
+	// Publish metrics to Prometheus if eligible
+	if finalReport != nil && s.shouldExportMetrics(job.check) {
 		s.metrics.RecordScheduledJobResults(job.check.ID, finalReport, elapsed)
 	}
 

@@ -219,3 +219,36 @@ func (m *Metrics) EnsureJobMetrics(jobID string) {
 	m.jobLastTimestamp.WithLabelValues(jobID).Set(0)
 	m.jobLastDuration.WithLabelValues(jobID).Set(0)
 }
+
+// DeleteJobMetrics purges all probe and aggregated job metrics for the specified job ID.
+func (m *Metrics) DeleteJobMetrics(jobID string) {
+	if m == nil {
+		return
+	}
+	match := prometheus.Labels{"job": jobID}
+	if m.probeSuccess != nil {
+		m.probeSuccess.DeletePartialMatch(match)
+	}
+	if m.probeDuration != nil {
+		m.probeDuration.DeletePartialMatch(match)
+	}
+	if m.probeHTTPStatus != nil {
+		m.probeHTTPStatus.DeletePartialMatch(match)
+	}
+	if m.probeCertDaysLeft != nil {
+		m.probeCertDaysLeft.DeletePartialMatch(match)
+	}
+
+	if m.jobTotalNodes != nil {
+		m.jobTotalNodes.DeleteLabelValues(jobID)
+	}
+	if m.jobHealthyNodes != nil {
+		m.jobHealthyNodes.DeleteLabelValues(jobID)
+	}
+	if m.jobLastTimestamp != nil {
+		m.jobLastTimestamp.DeleteLabelValues(jobID)
+	}
+	if m.jobLastDuration != nil {
+		m.jobLastDuration.DeleteLabelValues(jobID)
+	}
+}

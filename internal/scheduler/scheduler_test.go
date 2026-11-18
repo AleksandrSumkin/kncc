@@ -1,4 +1,4 @@
-package scheduler
+﻿package scheduler
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"kncc/internal/metrics"
 	"kncc/internal/model"
 	"kncc/internal/store"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 type dummyRunner struct {
@@ -212,5 +214,230 @@ func TestScheduler_AddRemoveJob(t *testing.T) {
 	sched.RemoveJob(check.ID)
 	if sched.GetJobNextRun(check.ID) != nil {
 		t.Error("expected job to be removed")
+	}
+}
+
+func TestScheduler_ReconciliationOnStartup(t *testing.T) {
+	sched, s, cleanup := setupTestScheduler(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Pre-populate SQLite with an old system check (e.g. from previous deployment/session)
+	oldSysCheck := &model.ScheduledCheck{
+		ID:                "sys-old-example",
+		Name:              "Old Example Check",
+		IntervalStr:       "30s",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "10.0.0.1", Port: 3000}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+		IsSystem:          true,
+		IsEphemeral:       false,
+	}
+	if err := s.CreateScheduledCheck(ctx, oldSysCheck); err != nil {
+		t.Fatalf("CreateScheduledCheck oldSysCheck failed: %v", err)
+	}
+
+	// Active configuration does NOT contain sys-old-example (empty scheduled checks list)
+	sched.cfg.ScheduledChecks = []config.ScheduledCheckConfig{}
+
+	// 2. Start scheduler
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Scheduler Start failed: %v", err)
+	}
+
+	// 3. Verify old system check was purged from DB on startup
+	_, err := s.GetScheduledCheck(ctx, "sys-old-example")
+	if err != store.ErrNotFound {
+		t.Errorf("expected sys-old-example to be purged on startup, got %v", err)
+	}
+
+	// 4. Verify no job was scheduled in memory
+	if sched.GetJobNextRun("sys-old-example") != nil {
+		t.Errorf("expected sys-old-example not to be running in scheduler")
+	}
+
+	// 5. Test reconciliation with a new system check: old one purged, new one registered
+	oldSysCheck2 := &model.ScheduledCheck{
+		ID:                "sys-orphan-2",
+		Name:              "Orphan 2",
+		IntervalStr:       "30s",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolICMP, Host: "1.1.1.1"}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+		IsSystem:          true,
+		IsEphemeral:       false,
+	}
+	_ = s.CreateScheduledCheck(ctx, oldSysCheck2)
+
+	sched.cfg.ScheduledChecks = []config.ScheduledCheckConfig{
+		{
+			ID:       "sys-active-check",
+			Name:     "Active System Check",
+			Interval: "30s",
+			Mode:     model.ModeHostNetwork,
+			Targets: []model.TargetService{
+				{Protocol: model.ProtocolICMP, Host: "8.8.8.8"},
+			},
+		},
+	}
+
+	sched.Stop()
+	sched2 := NewScheduler(sched.cfg, s, sched.runner, sched.metrics)
+	if err := sched2.Start(ctx); err != nil {
+		t.Fatalf("Scheduler Start 2 failed: %v", err)
+	}
+	defer sched2.Stop()
+
+	// sys-orphan-2 should be purged, sys-active-check should exist and run
+	if _, err := s.GetScheduledCheck(ctx, "sys-orphan-2"); err != store.ErrNotFound {
+		t.Errorf("expected sys-orphan-2 to be purged, got %v", err)
+	}
+	if _, err := s.GetScheduledCheck(ctx, "sys-active-check"); err != nil {
+		t.Errorf("expected sys-active-check to exist, got %v", err)
+	}
+	if sched2.GetJobNextRun("sys-active-check") == nil {
+		t.Errorf("expected sys-active-check to have an active job in scheduler")
+	}
+}
+
+func hasJobMetric(mfs []*dto.MetricFamily, metricName, jobID string) bool {
+	for _, mf := range mfs {
+		if mf.GetName() == metricName {
+			for _, m := range mf.GetMetric() {
+				for _, label := range m.GetLabel() {
+					if label.GetName() == "job" && label.GetValue() == jobID {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestScheduler_MetricsCleanupOnRemoveAndToggle(t *testing.T) {
+	sched, s, cleanup := setupTestScheduler(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Create a system check
+	check := &model.ScheduledCheck{
+		ID:                "sys-cleanup-test",
+		Name:              "System Cleanup Check",
+		IntervalStr:       "30s",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolTCP, Host: "1.1.1.1", Port: 53}},
+		Enabled:           true,
+		IsSystem:          true,
+		IsEphemeral:       false,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+	}
+
+	_ = s.CreateScheduledCheck(ctx, check)
+	sched.AddOrUpdateJob(check)
+
+	// Trigger run
+	rep, err := sched.TriggerJobNow(ctx, check.ID)
+	if err != nil || rep == nil {
+		t.Fatalf("TriggerJobNow failed: %v", err)
+	}
+
+	// Verify metrics are present in exporter
+	mfs, err := sched.metrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	if !hasJobMetric(mfs, "kncc_probe_success", check.ID) {
+		t.Errorf("expected kncc_probe_success for %s to be present", check.ID)
+	}
+	if !hasJobMetric(mfs, "kncc_scheduled_job_total_nodes", check.ID) {
+		t.Errorf("expected kncc_scheduled_job_total_nodes for %s to be present", check.ID)
+	}
+
+	// 2. Toggle to disabled -> metrics should be immediately purged
+	check.Enabled = false
+	sched.AddOrUpdateJob(check)
+
+	mfsAfterPause, _ := sched.metrics.Registry.Gather()
+	if hasJobMetric(mfsAfterPause, "kncc_probe_success", check.ID) {
+		t.Errorf("expected kncc_probe_success for %s to be deleted when paused", check.ID)
+	}
+	if hasJobMetric(mfsAfterPause, "kncc_scheduled_job_total_nodes", check.ID) {
+		t.Errorf("expected kncc_scheduled_job_total_nodes for %s to be deleted when paused", check.ID)
+	}
+
+	// 3. Re-enable -> metrics re-initialized
+	check.Enabled = true
+	sched.AddOrUpdateJob(check)
+	mfsAfterResume, _ := sched.metrics.Registry.Gather()
+	if !hasJobMetric(mfsAfterResume, "kncc_scheduled_job_total_nodes", check.ID) {
+		t.Errorf("expected kncc_scheduled_job_total_nodes for %s to be restored upon resume", check.ID)
+	}
+
+	// 4. RemoveJob -> metrics purged
+	sched.RemoveJob(check.ID)
+	mfsAfterRemove, _ := sched.metrics.Registry.Gather()
+	if hasJobMetric(mfsAfterRemove, "kncc_scheduled_job_total_nodes", check.ID) {
+		t.Errorf("expected kncc_scheduled_job_total_nodes for %s to be deleted upon RemoveJob", check.ID)
+	}
+}
+
+func TestScheduler_EphemeralMetricsFiltering(t *testing.T) {
+	sched, s, cleanup := setupTestScheduler(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Ephemeral check with default config (ExportEphemeralMetrics = false)
+	ephemeralCheck := &model.ScheduledCheck{
+		ID:                "2e54dc09-febd-4251-ae7d-6f21a7f676ba",
+		Name:              "Ad-hoc Ephemeral Check",
+		IntervalStr:       "30s",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolTCP, Host: "10.0.0.1", Port: 80}},
+		Enabled:           true,
+		IsSystem:          false,
+		IsEphemeral:       true,
+		CreatedByUserID:   "user-1",
+		CreatedByUsername: "tester",
+	}
+
+	_ = s.CreateScheduledCheck(ctx, ephemeralCheck)
+	sched.AddOrUpdateJob(ephemeralCheck)
+
+	rep, err := sched.TriggerJobNow(ctx, ephemeralCheck.ID)
+	if err != nil || rep == nil {
+		t.Fatalf("TriggerJobNow failed: %v", err)
+	}
+
+	mfs, _ := sched.metrics.Registry.Gather()
+	if hasJobMetric(mfs, "kncc_probe_success", ephemeralCheck.ID) {
+		t.Errorf("ephemeral check should NOT export kncc_probe_success when ExportEphemeralMetrics is false")
+	}
+	if hasJobMetric(mfs, "kncc_scheduled_job_total_nodes", ephemeralCheck.ID) {
+		t.Errorf("ephemeral check should NOT export kncc_scheduled_job_total_nodes when ExportEphemeralMetrics is false")
+	}
+
+	// 2. Enable ExportEphemeralMetrics -> now it should export
+	sched.cfg.Metrics.ExportEphemeralMetrics = true
+	rep2, err := sched.TriggerJobNow(ctx, ephemeralCheck.ID)
+	if err != nil || rep2 == nil {
+		t.Fatalf("TriggerJobNow failed: %v", err)
+	}
+
+	mfsAllowed, _ := sched.metrics.Registry.Gather()
+	if !hasJobMetric(mfsAllowed, "kncc_probe_success", ephemeralCheck.ID) {
+		t.Errorf("ephemeral check should export kncc_probe_success when ExportEphemeralMetrics is true")
 	}
 }

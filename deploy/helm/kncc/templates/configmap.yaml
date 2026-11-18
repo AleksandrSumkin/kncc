@@ -199,6 +199,7 @@ data:
         token_file: "{{ .Values.metrics.auth.tokenFile }}"
         {{- end }}
       {{- end }}
+      export_ephemeral_metrics: {{ default false (coalesce .Values.metrics.exportEphemeralMetrics .Values.metrics.export_ephemeral_metrics) }}
     {{- end }}
 
     {{- if .Values.monitoring }}

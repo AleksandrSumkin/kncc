@@ -147,13 +147,26 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
     updated[index] = { ...updated[index], [field]: value };
 
     if (field === 'protocol') {
-      if (value === 'http' && (!updated[index].port || updated[index].port === 443)) {
-        updated[index].port = 80;
-      } else if (value === 'https' && (!updated[index].port || updated[index].port === 80)) {
-        updated[index].port = 443;
-      } else if (value === 'icmp') {
+      const proto = value as Protocol;
+      if (proto === 'icmp') {
         delete updated[index].port;
         delete updated[index].path;
+        delete updated[index].insecure_tls;
+      } else if (proto === 'tcp' || proto === 'udp') {
+        delete updated[index].path;
+        delete updated[index].insecure_tls;
+        if (!updated[index].port) {
+          updated[index].port = proto === 'tcp' ? 80 : 53;
+        }
+      } else if (proto === 'http') {
+        delete updated[index].insecure_tls;
+        if (!updated[index].port || updated[index].port === 443) {
+          updated[index].port = 80;
+        }
+      } else if (proto === 'https') {
+        if (!updated[index].port || updated[index].port === 80) {
+          updated[index].port = 443;
+        }
       }
     }
 
@@ -186,10 +199,29 @@ export const NewCheckPage: React.FC<NewCheckPageProps> = ({ onCheckCreated, init
 
     setLoading(true);
     try {
+      const sanitizedTargets: TargetService[] = targets.map((t) => {
+        const item: TargetService = {
+          name: t.name?.trim() || undefined,
+          protocol: t.protocol,
+          host: t.host.trim(),
+          timeout_seconds: t.timeout_seconds || 5,
+        };
+        if (t.protocol !== 'icmp') {
+          item.port = t.port || (t.protocol === 'https' ? 443 : 80);
+        }
+        if (t.protocol === 'http' || t.protocol === 'https') {
+          item.path = t.path?.trim() ? (t.path.startsWith('/') ? t.path.trim() : `/${t.path.trim()}`) : '/';
+        }
+        if (t.protocol === 'https' && t.insecure_tls) {
+          item.insecure_tls = true;
+        }
+        return item;
+      });
+
       const report = await api.createCheck({
         mode,
         namespace: mode === 'pod' ? namespace : undefined,
-        targets,
+        targets: sanitizedTargets,
       });
       onClearPrefill?.();
       onCheckCreated(report.id);

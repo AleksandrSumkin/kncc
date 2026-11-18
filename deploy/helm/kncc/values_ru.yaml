@@ -830,6 +830,9 @@ metrics:
   host: "0.0.0.0"
   port: 9090
   path: "/metrics"
+  # Экспортировать ли метрики для эфемерных/ручных проверок, созданных в UI/API (по умолчанию: false).
+  # При false экспортируются только постоянные системные проверки, исключая кардинальный взрыв меток.
+  exportEphemeralMetrics: false
   # Аннотации для сбора метрик Prometheus через Service (например, prometheus.io/scrape: "true")
   annotations: {}
   auth:
@@ -869,17 +872,128 @@ monitoring:
     - "1h"
 
 # Декларативные периодические проверки сети, загружаемые при старте (неизменяемые через UI/API)
-scheduledChecks: []
-# Пример:
+#
+# Доступные параметры на уровне задачи проверки:
+#   - id: Уникальный строковый идентификатор проверки (string, обязательный, например "coredns-udp")
+#   - name: Название проверки для отображения в интерфейсе и API (string, обязательный)
+#   - interval: Периодичность выполнения (string, например "30s", "1m", "5m", "15m", "30m", "1h")
+#   - mode: Сетевой режим запуска probe-подов (string, опционально, по умолчанию "host"):
+#       - "host": Запуск на хостовой сети узлов кластера (hostNetwork: true)
+#       - "pod":  Запуск в стандартной сети подов кластера (SDN)
+#   - namespace: Целевой неймспейс запуска probe-подов (string, опционально, по умолчанию kncc;
+#                актуально при mode: "pod" и разрешенном межнеймспейсном запуске)
+#   - enabled: Активность проверки при старте kncc (boolean, опционально, по умолчанию true)
+#   - targets: Список проверяемых сетевых сервисов (от 1 до 10 целей в одной проверке)
+#
+# Доступные параметры для каждого типа проверки (protocol):
+#   - TCP-проверка (protocol: "tcp"):
+#       - name: Метка/описание целевого сервиса (string, опционально)
+#       - protocol: "tcp" (string, обязательный)
+#       - host: Хост, FQDN или IP-адрес назначения (string, обязательный)
+#       - port: Порт сервиса (int 1-65535, обязательный)
+#       - timeout_seconds: Таймаут подключения в секундах (int 1-30, опционально, по умолчанию 5)
+#   - UDP-проверка (protocol: "udp"):
+#       - name: Метка/описание целевого сервиса (string, опционально)
+#       - protocol: "udp" (string, обязательный)
+#       - host: Хост, FQDN или IP-адрес назначения (string, обязательный)
+#       - port: Порт сервиса (int 1-65535, обязательный)
+#       - timeout_seconds: Таймаут в секундах (int 1-30, опционально, по умолчанию 5)
+#   - HTTP-проверка (protocol: "http"):
+#       - name: Метка/описание целевого сервиса (string, опционально)
+#       - protocol: "http" (string, обязательный)
+#       - host: Хост, FQDN или IP-адрес назначения (string, обязательный)
+#       - port: Порт HTTP-сервиса (int 1-65535, опционально, по умолчанию 80)
+#       - path: URI-путь запроса (string, опционально, по умолчанию "/")
+#       - timeout_seconds: Таймаут запроса в секундах (int 1-30, опционально, по умолчанию 5)
+#   - HTTPS-проверка (protocol: "https"):
+#       - name: Метка/описание целевого сервиса (string, опционально)
+#       - protocol: "https" (string, обязательный)
+#       - host: Хост, FQDN или IP-адрес назначения (string, обязательный)
+#       - port: Порт HTTPS-сервиса (int 1-65535, опционально, по умолчанию 443)
+#       - path: URI-путь запроса (string, опционально, по умолчанию "/")
+#       - insecure_tls: Пропуск проверки валидности сертификата TLS (boolean, опционально, по умолчанию false)
+#       - timeout_seconds: Таймаут запроса в секундах (int 1-30, опционально, по умолчанию 5)
+#   - ICMP-проверка (protocol: "icmp"):
+#       - name: Метка/описание целевого сервиса (string, опционально)
+#       - protocol: "icmp" (string, обязательный)
+#       - host: IP-адрес или хост для ICMP echo ping (string, обязательный)
+#       - timeout_seconds: Таймаут пинга в секундах (int 1-30, опционально, по умолчанию 5)
+#       (Примечание: параметры port, path и insecure_tls для протокола ICMP не применимы)
+#
+# Примеры для всех типов проверок со всеми поддерживаемыми ключами:
 # scheduledChecks:
-#   - id: "core-dns"
-#     name: "CoreDNS Connectivity"
+#   # 1. TCP-проверка: проверка доступности порта БД или бэкенда
+#   - id: "postgres-tcp"
+#     name: "PostgreSQL Database Connectivity"
+#     interval: "1m"
+#     mode: "pod"
+#     namespace: "default"
+#     enabled: true
+#     targets:
+#       - name: "PostgreSQL Primary"
+#         protocol: "tcp"
+#         host: "postgres.default.svc.cluster.local"
+#         port: 5432
+#         timeout_seconds: 5
+#
+#   # 2. UDP-проверка: проверка DNS или NTP портов
+#   - id: "coredns-udp"
+#     name: "CoreDNS UDP Connectivity"
 #     interval: "1m"
 #     mode: "host"
+#     namespace: "kube-system"
+#     enabled: true
 #     targets:
-#       - protocol: "udp"
-#         host: "10.96.0.10"
+#       - name: "Cluster DNS UDP"
+#         protocol: "udp"
+#         host: "kube-dns.kube-system.svc.cluster.local"
 #         port: 53
+#         timeout_seconds: 5
+#
+#   # 3. HTTP-проверка: проверка веб-эндпоинтов с кастомным портом и путем
+#   - id: "app-http"
+#     name: "Internal Web Health"
+#     interval: "5m"
+#     mode: "pod"
+#     namespace: "kncc"
+#     enabled: true
+#     targets:
+#       - name: "Frontend Readiness"
+#         protocol: "http"
+#         host: "kncc.kncc.svc.cluster.local"
+#         port: 8080
+#         path: "/healthz"
+#         timeout_seconds: 5
+#
+#   # 4. HTTPS-проверка: проверка защищенных API с TLS, путем и флагом insecure_tls
+#   - id: "k8s-apiserver-https"
+#     name: "Kubernetes API Server HTTPS"
+#     interval: "1m"
+#     mode: "pod"
+#     namespace: "default"
+#     enabled: true
+#     targets:
+#       - name: "Kubernetes API Livez"
+#         protocol: "https"
+#         host: "kubernetes.default.svc.cluster.local"
+#         port: 443
+#         path: "/livez"
+#         insecure_tls: true
+#         timeout_seconds: 10
+#
+#   # 5. ICMP-проверка: проверка сетевой доступности через ICMP echo ping
+#   - id: "gateway-icmp"
+#     name: "Cluster Node / Gateway Ping"
+#     interval: "1m"
+#     mode: "host"
+#     namespace: "kncc"
+#     enabled: true
+#     targets:
+#       - name: "Default Gateway"
+#         protocol: "icmp"
+#         host: "10.0.0.1"
+#         timeout_seconds: 3
+scheduledChecks: []
 
 # ------------------------------------------------------------------------------
 # 14. Дополнительные ресурсы Kubernetes (extraObjects)

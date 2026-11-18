@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"kncc/internal/model"
 )
 
 func TestConfig_Defaults(t *testing.T) {
@@ -972,5 +974,150 @@ k8s:
 	}
 	if sc.SeccompProfile == nil || sc.SeccompProfile.Type != "RuntimeDefault" {
 		t.Errorf("expected SeccompProfile RuntimeDefault, got %v", sc.SeccompProfile)
+	}
+}
+
+func TestConfig_ScheduledChecksAndQuickAdd_AllProtocolsAndCamelCase(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "scheduled_checks_all_types.yaml")
+	content := `
+quick_add:
+  presets:
+    - name: "Quick K8s API"
+      protocol: "https"
+      host: "kubernetes.default.svc.cluster.local"
+      port: 443
+      path: "/livez"
+      insecureTls: true
+      timeoutSeconds: 8
+    - name: "Quick Gateway Ping"
+      protocol: "icmp"
+      host: "10.0.0.1"
+      timeout_seconds: 3
+
+scheduled_checks:
+  - id: "test-tcp"
+    name: "TCP Check"
+    interval: "1m"
+    mode: "pod"
+    namespace: "default"
+    enabled: true
+    targets:
+      - name: "PostgreSQL DB"
+        protocol: "tcp"
+        host: "postgres.default.svc.cluster.local"
+        port: 5432
+        timeout_seconds: 5
+
+  - id: "test-udp"
+    name: "UDP Check"
+    interval: "1m"
+    mode: "host"
+    namespace: "kube-system"
+    enabled: true
+    targets:
+      - name: "CoreDNS UDP"
+        protocol: "udp"
+        host: "kube-dns.kube-system.svc.cluster.local"
+        port: 53
+        timeoutSeconds: 4
+
+  - id: "test-http"
+    name: "HTTP Check"
+    interval: "5m"
+    mode: "pod"
+    namespace: "kncc"
+    enabled: false
+    targets:
+      - name: "Web Service"
+        protocol: "http"
+        host: "frontend.kncc.svc.cluster.local"
+        port: 8080
+        path: "/healthz"
+        timeout_seconds: 6
+
+  - id: "test-https"
+    name: "HTTPS Check"
+    interval: "2m"
+    mode: "pod"
+    namespace: "default"
+    enabled: true
+    targets:
+      - name: "K8s API Livez"
+        protocol: "https"
+        host: "kubernetes.default.svc.cluster.local"
+        port: 443
+        path: "/livez"
+        insecureTls: true
+        timeoutSeconds: 10
+
+  - id: "test-icmp"
+    name: "ICMP Check"
+    interval: "30s"
+    mode: "host"
+    namespace: "kncc"
+    enabled: true
+    targets:
+      - name: "Node Gateway Ping"
+        protocol: "icmp"
+        host: "10.0.0.1"
+        timeout_seconds: 3
+`
+	if err := os.WriteFile(cfgFile, []byte(content), 0644); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	loaded, err := Load(cfgFile)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	// Verify QuickAdd presets
+	if len(loaded.QuickAdd.Presets) != 2 {
+		t.Fatalf("expected 2 quickAdd presets, got %d", len(loaded.QuickAdd.Presets))
+	}
+	if loaded.QuickAdd.Presets[0].Protocol != model.ProtocolHTTPS || !loaded.QuickAdd.Presets[0].InsecureTLS || loaded.QuickAdd.Presets[0].TimeoutSeconds != 8 {
+		t.Errorf("unexpected quickAdd preset 0: %+v", loaded.QuickAdd.Presets[0])
+	}
+	if loaded.QuickAdd.Presets[1].Protocol != model.ProtocolICMP || loaded.QuickAdd.Presets[1].TimeoutSeconds != 3 {
+		t.Errorf("unexpected quickAdd preset 1: %+v", loaded.QuickAdd.Presets[1])
+	}
+
+	// Verify ScheduledChecks
+	if len(loaded.ScheduledChecks) != 5 {
+		t.Fatalf("expected 5 scheduled checks, got %d", len(loaded.ScheduledChecks))
+	}
+
+	// 1. TCP
+	scTCP := loaded.ScheduledChecks[0]
+	if scTCP.ID != "test-tcp" || scTCP.Mode != model.ModePodNetwork || scTCP.Namespace != "default" || scTCP.Enabled == nil || !*scTCP.Enabled {
+		t.Errorf("unexpected TCP scheduled check: %+v", scTCP)
+	}
+	if len(scTCP.Targets) != 1 || scTCP.Targets[0].Protocol != model.ProtocolTCP || scTCP.Targets[0].Port != 5432 || scTCP.Targets[0].TimeoutSeconds != 5 {
+		t.Errorf("unexpected TCP target: %+v", scTCP.Targets)
+	}
+
+	// 2. UDP
+	scUDP := loaded.ScheduledChecks[1]
+	if scUDP.ID != "test-udp" || scUDP.Mode != model.ModeHostNetwork || scUDP.Targets[0].Protocol != model.ProtocolUDP || scUDP.Targets[0].TimeoutSeconds != 4 {
+		t.Errorf("unexpected UDP scheduled check: %+v", scUDP)
+	}
+
+	// 3. HTTP
+	scHTTP := loaded.ScheduledChecks[2]
+	if scHTTP.ID != "test-http" || scHTTP.Enabled == nil || *scHTTP.Enabled != false || scHTTP.Targets[0].Protocol != model.ProtocolHTTP || scHTTP.Targets[0].Path != "/healthz" {
+		t.Errorf("unexpected HTTP scheduled check: %+v", scHTTP)
+	}
+
+	// 4. HTTPS (camelCase)
+	scHTTPS := loaded.ScheduledChecks[3]
+	if scHTTPS.ID != "test-https" || scHTTPS.Targets[0].Protocol != model.ProtocolHTTPS || !scHTTPS.Targets[0].InsecureTLS || scHTTPS.Targets[0].TimeoutSeconds != 10 {
+		t.Errorf("unexpected HTTPS scheduled check: %+v", scHTTPS)
+	}
+
+	// 5. ICMP
+	scICMP := loaded.ScheduledChecks[4]
+	if scICMP.ID != "test-icmp" || scICMP.Targets[0].Protocol != model.ProtocolICMP || scICMP.Targets[0].TimeoutSeconds != 3 {
+		t.Errorf("unexpected ICMP scheduled check: %+v", scICMP)
 	}
 }

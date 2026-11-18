@@ -208,6 +208,7 @@ metrics:
   host: "0.0.0.0"
   port: 9090    # Dedicated port for Prometheus scraping
   path: "/metrics"
+  export_ephemeral_metrics: false # Exclude ad-hoc/ephemeral checks from exporter to prevent label accumulation
   auth:
     enabled: false # Require authentication for /metrics endpoint
     type: "basic"  # "basic" or "bearer"
@@ -230,13 +231,77 @@ monitoring:
 
 # Declarative Scheduled Network Checks (System Checks)
 # Automatically registered on kncc startup; immutable via UI or API.
+# Examples for each check type (tcp, udp, http, https, icmp) with all supported keys:
 scheduled_checks:
-  - id: "coredns-connectivity"
-    name: "CoreDNS Connectivity"
+  # 1. TCP Check
+  - id: "postgres-tcp"
+    name: "PostgreSQL Database Connectivity"
+    interval: "1m"
+    mode: "pod"
+    namespace: "default"
+    enabled: true
+    targets:
+      - name: "PostgreSQL Primary"
+        protocol: "tcp"
+        host: "postgres.default.svc.cluster.local"
+        port: 5432
+        timeout_seconds: 5
+
+  # 2. UDP Check
+  - id: "coredns-udp"
+    name: "CoreDNS UDP Connectivity"
     interval: "1m"
     mode: "host"
+    namespace: "kube-system"
+    enabled: true
     targets:
-      - protocol: "udp"
-        host: "10.96.0.10"
+      - name: "Cluster DNS UDP"
+        protocol: "udp"
+        host: "kube-dns.kube-system.svc.cluster.local"
         port: 53
+        timeout_seconds: 5
+
+  # 3. HTTP Check
+  - id: "app-http"
+    name: "Internal Web Health"
+    interval: "5m"
+    mode: "pod"
+    namespace: "kncc"
+    enabled: true
+    targets:
+      - name: "Frontend Readiness"
+        protocol: "http"
+        host: "127.0.0.1"
+        port: 8080
+        path: "/healthz"
+        timeout_seconds: 5
+
+  # 4. HTTPS Check
+  - id: "k8s-apiserver-https"
+    name: "Kubernetes API Server HTTPS"
+    interval: "1m"
+    mode: "pod"
+    namespace: "default"
+    enabled: true
+    targets:
+      - name: "Kubernetes API Livez"
+        protocol: "https"
+        host: "kubernetes.default.svc.cluster.local"
+        port: 443
+        path: "/livez"
+        insecure_tls: true
+        timeout_seconds: 10
+
+  # 5. ICMP Check
+  - id: "gateway-icmp"
+    name: "Gateway Ping"
+    interval: "1m"
+    mode: "host"
+    namespace: "kncc"
+    enabled: true
+    targets:
+      - name: "Default Gateway"
+        protocol: "icmp"
+        host: "10.0.0.1"
+        timeout_seconds: 3
 

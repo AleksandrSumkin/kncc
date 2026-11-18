@@ -258,12 +258,12 @@ Before deploying release artifacts to production clusters, verify digital signat
 ```bash
 # 1. Download release public key, checksum manifest, and signature from Forgejo Release page
 # 2. Verify digital signature of checksum manifest
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.17.0-checksums.txt.sig kncc-1.17.0-checksums.txt
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.18.0-checksums.txt.sig kncc-1.18.0-checksums.txt
 # Expected output: Verified OK
 
-# 3. Verify artifact checksums (Helm chart kncc-1.17.0.tgz, manifests, SBOM)
-sha256sum -c kncc-1.17.0-checksums.txt
-# Expected output: kncc-1.17.0.tgz: OK
+# 3. Verify artifact checksums (Helm chart kncc-1.18.0.tgz, manifests, SBOM)
+sha256sum -c kncc-1.18.0-checksums.txt
+# Expected output: kncc-1.18.0.tgz: OK
 ```
 
 ### 6.2. Standard Installation
@@ -647,6 +647,9 @@ Supports lists of objects, named maps of resources, raw YAML strings, and Helm t
 | `probes.liveness.enabled` | Enable Liveness Probe | `true` |
 | `probes.readiness.enabled`| Enable Readiness Probe | `true` |
 | `priorityClassName` | PriorityClass name assigned to kncc server pod | `""` |
+| `monitoring.minInterval` | Minimum allowed period for scheduled checks | `"30s"` |
+| `monitoring.allowedIntervals` | Whitelist of allowed execution intervals | `["30s", "1m", "5m", "15m", "30m", "1h"]` |
+| `scheduledChecks` | Declarative scheduled network checks loaded at startup (supports TCP, UDP, HTTP, HTTPS, ICMP) | `[]` |
 | `extraObjects` | List or map of extra Kubernetes manifests to deploy alongside chart | `[]` |
 
 ---

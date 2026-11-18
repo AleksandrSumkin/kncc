@@ -482,6 +482,12 @@ export interface TranslationSchema {
     modeLabel: string;
     hostMode: string;
     podMode: string;
+    modeHostShort: string;
+    modePodShort: string;
+    statusReportCompleted: string;
+    statusReportFailed: string;
+    statusReportRunning: string;
+    statusReportNever: string;
     namespaceLabel: string;
     targetsLabel: string;
     addTarget: string;

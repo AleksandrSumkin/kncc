@@ -837,6 +837,9 @@ metrics:
   host: "0.0.0.0"
   port: 9090
   path: "/metrics"
+  # Whether to export metrics for ad-hoc / ephemeral checks created in UI/API (default: false).
+  # When false, only declarative system checks (scheduledChecks) are exported, preventing label explosion.
+  exportEphemeralMetrics: false
   # Annotations for Prometheus scraping via Service (e.g. prometheus.io/scrape: "true")
   annotations: {}
   auth:
@@ -876,17 +879,128 @@ monitoring:
     - "1h"
 
 # Declarative scheduled network checks loaded at startup (immutable via UI/API)
-scheduledChecks: []
-# Example:
+#
+# Available check-level configuration keys:
+#   - id: Unique identifier for the check (string, required, e.g. "coredns-udp")
+#   - name: Descriptive title for display in UI and API (string, required)
+#   - interval: Execution schedule period (string, e.g. "30s", "1m", "5m", "15m", "30m", "1h")
+#   - mode: Probe pod network execution mode (string, optional, default "host"):
+#       - "host": Runs probe pod on host network (hostNetwork: true)
+#       - "pod":  Runs probe pod in cluster SDN pod network
+#   - namespace: Target namespace for probe pod execution (string, optional, defaults to kncc namespace;
+#                relevant when mode is "pod" and multi-namespace execution is permitted)
+#   - enabled: Whether the check is active on kncc startup (boolean, optional, default true)
+#   - targets: List of target endpoints to probe (1 to 10 targets per check)
+#
+# Available target-level keys by check type (protocol):
+#   - TCP check (protocol: "tcp"):
+#       - name: Label/description of endpoint (string, optional)
+#       - protocol: "tcp" (string, required)
+#       - host: Target hostname, FQDN or IP (string, required)
+#       - port: Destination port (int 1-65535, required)
+#       - timeout_seconds: Connection timeout in seconds (int 1-30, optional, default 5)
+#   - UDP check (protocol: "udp"):
+#       - name: Label/description of endpoint (string, optional)
+#       - protocol: "udp" (string, required)
+#       - host: Target hostname, FQDN or IP (string, required)
+#       - port: Destination port (int 1-65535, required)
+#       - timeout_seconds: Timeout in seconds (int 1-30, optional, default 5)
+#   - HTTP check (protocol: "http"):
+#       - name: Label/description of endpoint (string, optional)
+#       - protocol: "http" (string, required)
+#       - host: Target hostname, FQDN or IP (string, required)
+#       - port: HTTP port (int 1-65535, optional, default 80)
+#       - path: Request URI path (string, optional, default "/")
+#       - timeout_seconds: Request timeout in seconds (int 1-30, optional, default 5)
+#   - HTTPS check (protocol: "https"):
+#       - name: Label/description of endpoint (string, optional)
+#       - protocol: "https" (string, required)
+#       - host: Target hostname, FQDN or IP (string, required)
+#       - port: HTTPS port (int 1-65535, optional, default 443)
+#       - path: Request URI path (string, optional, default "/")
+#       - insecure_tls: Skip TLS certificate verification (boolean, optional, default false)
+#       - timeout_seconds: Request timeout in seconds (int 1-30, optional, default 5)
+#   - ICMP check (protocol: "icmp"):
+#       - name: Label/description of endpoint (string, optional)
+#       - protocol: "icmp" (string, required)
+#       - host: Target IP address or hostname to ping (string, required)
+#       - timeout_seconds: Ping timeout in seconds (int 1-30, optional, default 5)
+#       (Note: port, path, and insecure_tls are not applicable for ICMP)
+#
+# Examples for all check types with all supported keys:
 # scheduledChecks:
-#   - id: "core-dns"
-#     name: "CoreDNS Connectivity"
+#   # 1. TCP Check: verifies database or backend port availability
+#   - id: "postgres-tcp"
+#     name: "PostgreSQL Database Connectivity"
+#     interval: "1m"
+#     mode: "pod"
+#     namespace: "default"
+#     enabled: true
+#     targets:
+#       - name: "PostgreSQL Primary"
+#         protocol: "tcp"
+#         host: "postgres.default.svc.cluster.local"
+#         port: 5432
+#         timeout_seconds: 5
+#
+#   # 2. UDP Check: verifies DNS or NTP port connectivity
+#   - id: "coredns-udp"
+#     name: "CoreDNS UDP Connectivity"
 #     interval: "1m"
 #     mode: "host"
+#     namespace: "kube-system"
+#     enabled: true
 #     targets:
-#       - protocol: "udp"
-#         host: "10.96.0.10"
+#       - name: "Cluster DNS UDP"
+#         protocol: "udp"
+#         host: "kube-dns.kube-system.svc.cluster.local"
 #         port: 53
+#         timeout_seconds: 5
+#
+#   # 3. HTTP Check: verifies plain HTTP endpoints with custom port and path
+#   - id: "app-http"
+#     name: "Internal Web Health"
+#     interval: "5m"
+#     mode: "pod"
+#     namespace: "kncc"
+#     enabled: true
+#     targets:
+#       - name: "Frontend Readiness"
+#         protocol: "http"
+#         host: "kncc.kncc.svc.cluster.local"
+#         port: 8080
+#         path: "/healthz"
+#         timeout_seconds: 5
+#
+#   # 4. HTTPS Check: verifies secure endpoints with TLS, custom port, path, and optional insecure_tls
+#   - id: "k8s-apiserver-https"
+#     name: "Kubernetes API Server HTTPS"
+#     interval: "1m"
+#     mode: "pod"
+#     namespace: "default"
+#     enabled: true
+#     targets:
+#       - name: "Kubernetes API Livez"
+#         protocol: "https"
+#         host: "kubernetes.default.svc.cluster.local"
+#         port: 443
+#         path: "/livez"
+#         insecure_tls: true
+#         timeout_seconds: 10
+#
+#   # 5. ICMP Check: verifies network reachability via ICMP echo ping
+#   - id: "gateway-icmp"
+#     name: "Cluster Node / Gateway Ping"
+#     interval: "1m"
+#     mode: "host"
+#     namespace: "kncc"
+#     enabled: true
+#     targets:
+#       - name: "Default Gateway"
+#         protocol: "icmp"
+#         host: "10.0.0.1"
+#         timeout_seconds: 3
+scheduledChecks: []
 
 # ------------------------------------------------------------------------------
 # 14. Extra Kubernetes Objects

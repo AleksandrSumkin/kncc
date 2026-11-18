@@ -388,6 +388,63 @@ type QuickAddPreset struct {
 	TimeoutSeconds int            `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
+// UnmarshalYAML implements custom YAML unmarshaling for QuickAddPreset supporting
+// both snake_case (insecure_tls, timeout_seconds) and camelCase (insecureTls/insecureTLS, timeoutSeconds).
+func (p *QuickAddPreset) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(value.Content); i += 2 {
+		k := strings.ToLower(strings.ReplaceAll(value.Content[i].Value, "_", ""))
+		valNode := value.Content[i+1]
+		switch k {
+		case "name":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			p.Name = s
+		case "protocol":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			p.Protocol = model.Protocol(s)
+		case "host":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			p.Host = s
+		case "port":
+			var port int
+			if err := valNode.Decode(&port); err != nil {
+				return err
+			}
+			p.Port = port
+		case "path":
+			var s string
+			if err := valNode.Decode(&s); err != nil {
+				return err
+			}
+			p.Path = s
+		case "insecuretls":
+			var b bool
+			if err := valNode.Decode(&b); err != nil {
+				return err
+			}
+			p.InsecureTLS = b
+		case "timeoutseconds":
+			var sec int
+			if err := valNode.Decode(&sec); err != nil {
+				return err
+			}
+			p.TimeoutSeconds = sec
+		}
+	}
+	return nil
+}
+
 type QuickAddConfig struct {
 	Presets []QuickAddPreset `yaml:"presets"`
 }
@@ -403,11 +460,12 @@ type MetricsAuthConfig struct {
 }
 
 type MetricsConfig struct {
-	Enabled bool              `yaml:"enabled"`
-	Host    string            `yaml:"host"` // default 0.0.0.0
-	Port    int               `yaml:"port"` // default 9090
-	Path    string            `yaml:"path"` // default /metrics
-	Auth    MetricsAuthConfig `yaml:"auth"`
+	Enabled                bool              `yaml:"enabled"`
+	Host                   string            `yaml:"host"` // default 0.0.0.0
+	Port                   int               `yaml:"port"` // default 9090
+	Path                   string            `yaml:"path"` // default /metrics
+	Auth                   MetricsAuthConfig `yaml:"auth"`
+	ExportEphemeralMetrics bool              `yaml:"export_ephemeral_metrics" json:"export_ephemeral_metrics"`
 }
 
 type MonitoringConfig struct {
@@ -537,6 +595,7 @@ func DefaultConfig() *Config {
 				Password: "",
 				Token:    "",
 			},
+			ExportEphemeralMetrics: false,
 		},
 		Monitoring: MonitoringConfig{
 			MinInterval:      "30s",
@@ -1030,6 +1089,9 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("METRICS_AUTH_TOKEN_FILE"); v != "" {
 		c.Metrics.Auth.TokenFile = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("METRICS_EXPORT_EPHEMERAL_METRICS"); v != "" {
+		c.Metrics.ExportEphemeralMetrics = parseBool(v)
 	}
 
 	// Monitoring

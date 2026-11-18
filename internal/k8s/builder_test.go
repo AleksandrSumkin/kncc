@@ -1,6 +1,8 @@
 ﻿package k8s
 
 import (
+	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -707,5 +709,99 @@ func TestSanitizeLabelValue(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("sanitizeLabelValue(%q) = %q, want %q", tc.input, got, tc.want)
 		}
+	}
+}
+
+func TestBuildProbePod_WarnLoggingOnOverrides(t *testing.T) {
+	// Configure test slog logger writing to a buffer
+	var buf bytes.Buffer
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
+	testLogger := slog.New(handler)
+	oldDefault := slog.Default()
+	slog.SetDefault(testLogger)
+	defer slog.SetDefault(oldDefault)
+
+	cfg := config.DefaultConfig()
+	cfg.K8s.ProbeExtraLabels = map[string]string{
+		"app.kubernetes.io/name": "custom-probe-agent",
+	}
+	cfg.K8s.ProbeResources = &config.ProbeResourceRequirements{
+		Requests: map[string]string{"cpu": "50m", "invalid-res": "invalid-quantity"},
+		Limits:   map[string]string{"memory": "512Mi", "invalid-res-lim": "bad-quantity"},
+	}
+	f := false
+	cfg.K8s.ProbeSecurityContext = &config.ProbeSecurityContextConfig{
+		AllowPrivilegeEscalation: &f,
+		ReadOnlyRootFilesystem:   &f,
+		Capabilities: &config.ProbeCapabilitiesConfig{
+			Add:  []string{"NET_ADMIN"},
+			Drop: []string{"KILL"},
+		},
+	}
+	cfg.K8s.ProbeImageDigest = "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+	report := &model.Report{
+		ID:        "rep-warn-log-test",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+	}
+
+	_, err := BuildProbePod(report, "node-warn-test", "kncc", cfg)
+	if err != nil {
+		t.Fatalf("BuildProbePod failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// 1. Image digest pinning should be logged at INFO level
+	if !strings.Contains(output, "level=INFO") || !strings.Contains(output, "probe pod image pinned by digest") {
+		t.Errorf("expected level=INFO log for image digest pinning, got:\n%s", output)
+	}
+
+	// 2. Conflict warnings must be logged at level=WARN, NOT level=INFO or with [WARN] text prefix
+	expectedWarnSnippets := []string{
+		"probe pod label conflict: overriding template label",
+		"probe pod invalid custom requests quantity",
+		"probe pod resource conflict: overriding template requests",
+		"probe pod invalid custom limits quantity",
+		"probe pod resource conflict: overriding template limits",
+		"probe pod securityContext conflict: overriding template allowPrivilegeEscalation",
+		"probe pod securityContext conflict: overriding template readOnlyRootFilesystem",
+		"probe pod securityContext conflict: overriding template capabilities.add",
+		"probe pod securityContext conflict: overriding template capabilities.drop",
+	}
+
+	for _, snippet := range expectedWarnSnippets {
+		if !strings.Contains(output, snippet) {
+			t.Errorf("expected log output to contain %q, but got:\n%s", snippet, output)
+		}
+	}
+
+	// 3. Verify that all conflict logs have level=WARN
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	warnCount := 0
+	for _, line := range lines {
+		if strings.Contains(line, "level=WARN") {
+			warnCount++
+			if strings.Contains(line, `[WARN]`) {
+				t.Errorf("line contains legacy [WARN] text prefix: %s", line)
+			}
+		}
+	}
+	if warnCount < len(expectedWarnSnippets) {
+		t.Errorf("expected at least %d level=WARN log lines, found %d in output:\n%s", len(expectedWarnSnippets), warnCount, output)
+	}
+
+	// 4. Test filtering: with LevelError handler, no WARN messages should pass through
+	buf.Reset()
+	errHandler := slog.NewTextHandler(&buf, &slog.HandlerOptions{
+		Level: slog.LevelError,
+	})
+	slog.SetDefault(slog.New(errHandler))
+	_, _ = BuildProbePod(report, "node-warn-test-err", "kncc", cfg)
+	if buf.Len() > 0 {
+		t.Errorf("expected no log output when level is ERROR, but got:\n%s", buf.String())
 	}
 }

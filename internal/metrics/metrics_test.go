@@ -9,6 +9,8 @@ import (
 
 	"kncc/internal/config"
 	"kncc/internal/model"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 type mockStore struct {
@@ -79,6 +81,9 @@ func (m *mockStore) UpdateScheduledCheckLastReport(ctx context.Context, id, newR
 	return nil
 }
 func (m *mockStore) PurgeEphemeralScheduledChecks(ctx context.Context) error { return nil }
+func (m *mockStore) PurgeOrphanedSystemScheduledChecks(ctx context.Context, activeIDs []string) error {
+	return nil
+}
 func (m *mockStore) UpsertSystemScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error {
 	return nil
 }
@@ -155,6 +160,114 @@ func TestMetrics_RegistrationAndRecording(t *testing.T) {
 		if !foundMetrics[exp] {
 			t.Errorf("expected metric family %s to be registered and gathered", exp)
 		}
+	}
+}
+
+func TestMetrics_DeleteJobMetrics(t *testing.T) {
+	ms := &mockStore{dbSize: 1048576, count: 5}
+	m := NewMetrics(ms)
+
+	certDays := 30
+	report1 := &model.Report{
+		ID:         "rep-1",
+		TotalNodes: 1,
+		Mode:       model.ModeHostNetwork,
+		Namespace:  "default",
+		NodeResults: map[string]model.NodeResult{
+			"node-1": {
+				NodeName: "node-1",
+				ServiceResults: []model.ProbeOutput{
+					{
+						Target:         model.TargetService{Name: "Target-A", Protocol: model.ProtocolTCP, Host: "10.0.0.1", Port: 80},
+						Success:        true,
+						LatencyMs:      10,
+						HTTPStatusCode: 200,
+						CertDaysLeft:   &certDays,
+					},
+				},
+			},
+		},
+	}
+	report2 := &model.Report{
+		ID:         "rep-2",
+		TotalNodes: 1,
+		Mode:       model.ModeHostNetwork,
+		Namespace:  "default",
+		NodeResults: map[string]model.NodeResult{
+			"node-1": {
+				NodeName: "node-1",
+				ServiceResults: []model.ProbeOutput{
+					{
+						Target:    model.TargetService{Name: "Target-B", Protocol: model.ProtocolTCP, Host: "10.0.0.2", Port: 443},
+						Success:   true,
+						LatencyMs: 15,
+					},
+				},
+			},
+		},
+	}
+
+	m.RecordScheduledJobResults("job-to-delete", report1, time.Second)
+	m.RecordScheduledJobResults("job-to-keep", report2, time.Second)
+
+	// Verify both exist
+	mfs, err := m.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	hasJob := func(mfs []*dto.MetricFamily, name, jobID string) bool {
+		for _, mf := range mfs {
+			if mf.GetName() == name {
+				for _, metric := range mf.GetMetric() {
+					for _, label := range metric.GetLabel() {
+						if label.GetName() == "job" && label.GetValue() == jobID {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	if !hasJob(mfs, "kncc_probe_success", "job-to-delete") {
+		t.Fatalf("expected job-to-delete to be present before delete")
+	}
+	if !hasJob(mfs, "kncc_probe_success", "job-to-keep") {
+		t.Fatalf("expected job-to-keep to be present before delete")
+	}
+
+	// Delete job-to-delete
+	m.DeleteJobMetrics("job-to-delete")
+
+	mfsAfter, err := m.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather after delete: %v", err)
+	}
+
+	jobMetricsToCheck := []string{
+		"kncc_probe_success",
+		"kncc_probe_duration_seconds",
+		"kncc_probe_http_status_code",
+		"kncc_probe_cert_days_left",
+		"kncc_scheduled_job_total_nodes",
+		"kncc_scheduled_job_healthy_nodes",
+		"kncc_scheduled_job_last_run_timestamp_seconds",
+		"kncc_scheduled_job_last_run_duration_seconds",
+	}
+
+	for _, metricName := range jobMetricsToCheck {
+		if hasJob(mfsAfter, metricName, "job-to-delete") {
+			t.Errorf("metric %s still contains deleted job 'job-to-delete'", metricName)
+		}
+	}
+
+	// Verify job-to-keep still exists
+	if !hasJob(mfsAfter, "kncc_probe_success", "job-to-keep") {
+		t.Errorf("kncc_probe_success should still contain 'job-to-keep'")
+	}
+	if !hasJob(mfsAfter, "kncc_scheduled_job_total_nodes", "job-to-keep") {
+		t.Errorf("kncc_scheduled_job_total_nodes should still contain 'job-to-keep'")
 	}
 }
 

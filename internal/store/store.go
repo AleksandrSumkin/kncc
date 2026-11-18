@@ -63,6 +63,7 @@ type Store interface {
 	DeleteScheduledCheck(ctx context.Context, id string) error
 	UpdateScheduledCheckLastReport(ctx context.Context, id, newReportID string) error
 	PurgeEphemeralScheduledChecks(ctx context.Context) error
+	PurgeOrphanedSystemScheduledChecks(ctx context.Context, activeIDs []string) error
 	UpsertSystemScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error
 
 	// Metrics & DB Helpers
@@ -1261,6 +1262,59 @@ func (s *SQLiteStore) PurgeEphemeralScheduledChecks(ctx context.Context) error {
 
 	_, err = s.db.ExecContext(ctx, "DELETE FROM scheduled_checks WHERE is_ephemeral = 1")
 	return err
+}
+
+// PurgeOrphanedSystemScheduledChecks removes declarative system checks whose IDs are not in activeIDs,
+// along with their associated last reports. If activeIDs is empty, all system checks are purged.
+func (s *SQLiteStore) PurgeOrphanedSystemScheduledChecks(ctx context.Context, activeIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var rows *sql.Rows
+	var err error
+
+	if len(activeIDs) == 0 {
+		rows, err = s.db.QueryContext(ctx, "SELECT id, last_report_id FROM scheduled_checks WHERE is_system = 1")
+	} else {
+		placeholders := make([]string, len(activeIDs))
+		args := make([]any, len(activeIDs))
+		for i, id := range activeIDs {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+		query := fmt.Sprintf("SELECT id, last_report_id FROM scheduled_checks WHERE is_system = 1 AND id NOT IN (%s)", strings.Join(placeholders, ","))
+		rows, err = s.db.QueryContext(ctx, query, args...)
+	}
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var idsToDelete []string
+	var reportIDsToDelete []string
+	for rows.Next() {
+		var checkID string
+		var lastRepID sql.NullString
+		if err := rows.Scan(&checkID, &lastRepID); err == nil {
+			idsToDelete = append(idsToDelete, checkID)
+			if lastRepID.Valid && lastRepID.String != "" {
+				reportIDsToDelete = append(reportIDsToDelete, lastRepID.String)
+			}
+		}
+	}
+	_ = rows.Close()
+
+	for _, rID := range reportIDsToDelete {
+		_, _ = s.db.ExecContext(ctx, "DELETE FROM reports WHERE id = ?", rID)
+	}
+
+	for _, cID := range idsToDelete {
+		if _, err := s.db.ExecContext(ctx, "DELETE FROM scheduled_checks WHERE id = ?", cID); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // UpsertSystemScheduledCheck inserts or updates a declarative system check.

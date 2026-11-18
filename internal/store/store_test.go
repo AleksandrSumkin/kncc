@@ -802,3 +802,109 @@ func TestStore_MetricsHelpers(t *testing.T) {
 	}
 }
 
+func TestStore_PurgeOrphanedSystemScheduledChecks(t *testing.T) {
+	s, cleanup := setupTestStore(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 1. Create two system checks and an ephemeral check
+	sysCheck1 := &model.ScheduledCheck{
+		ID:                "sys-check-1",
+		Name:              "System Check 1",
+		IntervalStr:       "1m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "10.0.0.1", Port: 80}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+		IsSystem:          true,
+		IsEphemeral:       false,
+	}
+	sysCheck2 := &model.ScheduledCheck{
+		ID:                "sys-check-2",
+		Name:              "System Check 2",
+		IntervalStr:       "1m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "10.0.0.2", Port: 80}},
+		Enabled:           true,
+		CreatedByUserID:   "system",
+		CreatedByUsername: "system",
+		IsSystem:          true,
+		IsEphemeral:       false,
+	}
+	ephCheck := &model.ScheduledCheck{
+		ID:                "eph-check",
+		Name:              "User Ephemeral",
+		IntervalStr:       "5m",
+		Mode:              model.ModeHostNetwork,
+		Namespace:         "kncc",
+		Targets:           []model.TargetService{{Protocol: model.ProtocolHTTP, Host: "10.0.0.3", Port: 80}},
+		Enabled:           true,
+		CreatedByUserID:   "user-1",
+		CreatedByUsername: "user",
+		IsSystem:          false,
+		IsEphemeral:       true,
+	}
+
+	if err := s.CreateScheduledCheck(ctx, sysCheck1); err != nil {
+		t.Fatalf("Create sysCheck1 failed: %v", err)
+	}
+	if err := s.CreateScheduledCheck(ctx, sysCheck2); err != nil {
+		t.Fatalf("Create sysCheck2 failed: %v", err)
+	}
+	if err := s.CreateScheduledCheck(ctx, ephCheck); err != nil {
+		t.Fatalf("Create ephCheck failed: %v", err)
+	}
+
+	// 2. Attach a report to sysCheck2
+	rep := &model.Report{
+		ID:        "rep-sys-2",
+		UserID:    "system",
+		Username:  "system",
+		Mode:      model.ModeHostNetwork,
+		Namespace: "kncc",
+		Status:    model.StatusCompleted,
+		CreatedAt: time.Now().UTC(),
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	if err := s.CreateReport(ctx, rep); err != nil {
+		t.Fatalf("CreateReport failed: %v", err)
+	}
+	if err := s.UpdateScheduledCheckLastReport(ctx, "sys-check-2", rep.ID); err != nil {
+		t.Fatalf("UpdateScheduledCheckLastReport failed: %v", err)
+	}
+
+	// 3. Purge orphaned: activeIDs contains only sys-check-1
+	if err := s.PurgeOrphanedSystemScheduledChecks(ctx, []string{"sys-check-1"}); err != nil {
+		t.Fatalf("PurgeOrphanedSystemScheduledChecks failed: %v", err)
+	}
+
+	// sys-check-2 should be gone, its report should be gone, sys-check-1 and eph-check must remain
+	if _, err := s.GetScheduledCheck(ctx, "sys-check-2"); err != ErrNotFound {
+		t.Errorf("expected sys-check-2 to be deleted, got err: %v", err)
+	}
+	if _, err := s.GetReport(ctx, "rep-sys-2"); err != ErrNotFound {
+		t.Errorf("expected rep-sys-2 report to be deleted, got err: %v", err)
+	}
+	if _, err := s.GetScheduledCheck(ctx, "sys-check-1"); err != nil {
+		t.Errorf("expected sys-check-1 to remain, got err: %v", err)
+	}
+	if _, err := s.GetScheduledCheck(ctx, "eph-check"); err != nil {
+		t.Errorf("expected eph-check to remain, got err: %v", err)
+	}
+
+	// 4. Purge with empty activeIDs: all system checks should be purged, ephemeral remains
+	if err := s.PurgeOrphanedSystemScheduledChecks(ctx, []string{}); err != nil {
+		t.Fatalf("PurgeOrphanedSystemScheduledChecks with empty activeIDs failed: %v", err)
+	}
+	if _, err := s.GetScheduledCheck(ctx, "sys-check-1"); err != ErrNotFound {
+		t.Errorf("expected sys-check-1 to be deleted when activeIDs is empty, got err: %v", err)
+	}
+	if _, err := s.GetScheduledCheck(ctx, "eph-check"); err != nil {
+		t.Errorf("expected eph-check to still remain, got err: %v", err)
+	}
+}
+
