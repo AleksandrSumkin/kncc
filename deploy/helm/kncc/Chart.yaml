@@ -12,9 +12,6 @@ keywords:
   - netpolicy
   - calico
   - cilium
-home: https://github.com/kncc/kncc
+home: https://github.com/AleksandrSumkin/kncc
 sources:
-  - https://github.com/kncc/kncc
-maintainers:
-  - name: kncc-maintainers
-    email: maintainers@kncc.local
+  - https://github.com/AleksandrSumkin/kncc
