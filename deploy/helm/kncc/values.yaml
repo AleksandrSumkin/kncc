@@ -837,6 +837,8 @@ metrics:
   host: "0.0.0.0"
   port: 9090
   path: "/metrics"
+  # URL to Grafana dashboard. When set, an icon link appears in the UI top navigation bar.
+  grafanaDashboardURL: ""
   # Whether to export metrics for ad-hoc / ephemeral checks created in UI/API (default: false).
   # When false, only declarative system checks (scheduledChecks) are exported, preventing label explosion.
   exportEphemeralMetrics: false
@@ -865,6 +867,38 @@ metrics:
     annotations: {}
     metricRelabelings: []
     relabelings: []
+  # Grafana Operator Integration (grafana.integreatly.org/v1beta1)
+  grafana:
+    # Generate GrafanaDatasource custom resource for Grafana Operator
+    datasource:
+      enabled: false
+      name: "kncc-prometheus"
+      namespace: "" # defaults to release namespace
+      allowCrossNamespaceImport: true
+      labels: {}
+      annotations: {}
+      instanceSelector:
+        matchLabels:
+          dashboards: "grafana"
+      type: "prometheus"
+      access: "proxy"
+      url: "http://prometheus.monitoring.svc:9090"
+      isDefault: false
+      jsonData:
+        httpMethod: "POST"
+        timeInterval: "15s"
+    # Generate GrafanaDashboard custom resource for Grafana Operator
+    dashboard:
+      enabled: false
+      name: "kncc-overview"
+      namespace: "" # defaults to release namespace
+      allowCrossNamespaceImport: true
+      labels: {}
+      annotations: {}
+      instanceSelector:
+        matchLabels:
+          dashboards: "grafana"
+      folder: ""
 
 monitoring:
   # Minimum allowed interval for periodic checks (e.g. "30s", "1m")

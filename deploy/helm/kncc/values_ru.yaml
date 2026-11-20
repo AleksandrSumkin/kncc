@@ -830,6 +830,8 @@ metrics:
   host: "0.0.0.0"
   port: 9090
   path: "/metrics"
+  # Ссылка на Grafana дашборд. При заполнении в шапке UI появляется кликабельная иконка.
+  grafanaDashboardURL: ""
   # Экспортировать ли метрики для эфемерных/ручных проверок, созданных в UI/API (по умолчанию: false).
   # При false экспортируются только постоянные системные проверки, исключая кардинальный взрыв меток.
   exportEphemeralMetrics: false
@@ -858,6 +860,38 @@ metrics:
     annotations: {}
     metricRelabelings: []
     relabelings: []
+  # Интеграция с Grafana Operator (grafana.integreatly.org/v1beta1)
+  grafana:
+    # Генерация пользовательского ресурса GrafanaDatasource
+    datasource:
+      enabled: false
+      name: "kncc-prometheus"
+      namespace: "" # по умолчанию неймспейс релиза
+      allowCrossNamespaceImport: true
+      labels: {}
+      annotations: {}
+      instanceSelector:
+        matchLabels:
+          dashboards: "grafana"
+      type: "prometheus"
+      access: "proxy"
+      url: "http://prometheus.monitoring.svc:9090"
+      isDefault: false
+      jsonData:
+        httpMethod: "POST"
+        timeInterval: "15s"
+    # Генерация пользовательского ресурса GrafanaDashboard
+    dashboard:
+      enabled: false
+      name: "kncc-overview"
+      namespace: "" # по умолчанию неймспейс релиза
+      allowCrossNamespaceImport: true
+      labels: {}
+      annotations: {}
+      instanceSelector:
+        matchLabels:
+          dashboards: "grafana"
+      folder: ""
 
 monitoring:
   # Минимально допустимый интервал для периодических проверок (например, "30s", "1m")

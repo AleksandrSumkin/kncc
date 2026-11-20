@@ -1,0 +1,38 @@
+{{- if and .Values.metrics (hasKey .Values.metrics "grafana") (hasKey .Values.metrics.grafana "datasource") .Values.metrics.grafana.datasource.enabled }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: {{ default (printf "%s-datasource" (include "kncc.fullname" .)) .Values.metrics.grafana.datasource.name }}
+  namespace: {{ default .Release.Namespace .Values.metrics.grafana.datasource.namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    {{- if .Values.metrics.grafana.datasource.labels }}
+    {{- toYaml .Values.metrics.grafana.datasource.labels | nindent 4 }}
+    {{- end }}
+  {{- if .Values.metrics.grafana.datasource.annotations }}
+  annotations:
+    {{- toYaml .Values.metrics.grafana.datasource.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  allowCrossNamespaceImport: {{ default true .Values.metrics.grafana.datasource.allowCrossNamespaceImport }}
+  instanceSelector:
+    matchLabels:
+      {{- if and .Values.metrics.grafana.datasource.instanceSelector .Values.metrics.grafana.datasource.instanceSelector.matchLabels }}
+      {{- toYaml .Values.metrics.grafana.datasource.instanceSelector.matchLabels | nindent 6 }}
+      {{- else }}
+      dashboards: "grafana"
+      {{- end }}
+  datasource:
+    name: {{ default "kncc-prometheus" .Values.metrics.grafana.datasource.name }}
+    type: {{ default "prometheus" .Values.metrics.grafana.datasource.type }}
+    access: {{ default "proxy" .Values.metrics.grafana.datasource.access }}
+    url: {{ default "http://prometheus.monitoring.svc:9090" .Values.metrics.grafana.datasource.url }}
+    isDefault: {{ default false .Values.metrics.grafana.datasource.isDefault }}
+    jsonData:
+      {{- if .Values.metrics.grafana.datasource.jsonData }}
+      {{- toYaml .Values.metrics.grafana.datasource.jsonData | nindent 6 }}
+      {{- else }}
+      httpMethod: "POST"
+      timeInterval: "15s"
+      {{- end }}
+{{- end }}

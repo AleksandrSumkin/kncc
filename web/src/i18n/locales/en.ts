@@ -35,6 +35,7 @@ export const en: TranslationSchema = {
     adminBadge: 'ADMIN',
     appNameFallback: 'Kubernetes Network Connectivity Checker',
     switchLanguage: 'Switch Language',
+    grafanaDashboard: 'Grafana Dashboard',
   },
   login: {
     title: 'Sign In to kncc',

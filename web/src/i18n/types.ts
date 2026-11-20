@@ -33,6 +33,7 @@ export interface TranslationSchema {
     adminBadge: string;
     appNameFallback: string;
     switchLanguage: string;
+    grafanaDashboard: string;
   };
   login: {
     title: string;

@@ -35,6 +35,7 @@ export const ru: TranslationSchema = {
     adminBadge: 'АДМИН',
     appNameFallback: 'Проверка сетевой связности Kubernetes',
     switchLanguage: 'Переключить язык',
+    grafanaDashboard: 'Дашборд Grafana',
   },
   login: {
     title: 'Вход в kncc',

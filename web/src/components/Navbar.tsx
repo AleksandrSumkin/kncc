@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../context/LanguageContext';
 import { LanguageSwitcher } from './LanguageSwitcher';
-import { Activity, PlusCircle, History, Shield, LogOut, User as UserIcon, Sun, Moon } from 'lucide-react';
+import { Activity, PlusCircle, History, Shield, LogOut, User as UserIcon, Sun, Moon, LayoutDashboard } from 'lucide-react';
 
 interface NavbarProps {
   currentView: string;
@@ -109,6 +109,20 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Language switcher */}
             <LanguageSwitcher />
+
+            {/* Grafana Dashboard Link */}
+            {Boolean(config?.grafana_dashboard_url) && (
+              <a
+                href={config?.grafana_dashboard_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t('navbar.grafanaDashboard')}
+                aria-label={t('navbar.grafanaDashboard')}
+                className="p-2 text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors focus:outline-none flex items-center justify-center"
+              >
+                <LayoutDashboard className="w-5 h-5 text-orange-500 dark:text-orange-400" />
+              </a>
+            )}
 
             {/* Quick theme toggle on-the-fly */}
             <button

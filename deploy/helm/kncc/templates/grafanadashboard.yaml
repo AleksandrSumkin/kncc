@@ -1,0 +1,30 @@
+{{- if and .Values.metrics (hasKey .Values.metrics "grafana") (hasKey .Values.metrics.grafana "dashboard") .Values.metrics.grafana.dashboard.enabled }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ default (include "kncc.fullname" .) .Values.metrics.grafana.dashboard.name }}
+  namespace: {{ default .Release.Namespace .Values.metrics.grafana.dashboard.namespace }}
+  labels:
+    {{- include "kncc.labels" . | nindent 4 }}
+    {{- if .Values.metrics.grafana.dashboard.labels }}
+    {{- toYaml .Values.metrics.grafana.dashboard.labels | nindent 4 }}
+    {{- end }}
+  {{- if .Values.metrics.grafana.dashboard.annotations }}
+  annotations:
+    {{- toYaml .Values.metrics.grafana.dashboard.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  allowCrossNamespaceImport: {{ default true .Values.metrics.grafana.dashboard.allowCrossNamespaceImport }}
+  instanceSelector:
+    matchLabels:
+      {{- if and .Values.metrics.grafana.dashboard.instanceSelector .Values.metrics.grafana.dashboard.instanceSelector.matchLabels }}
+      {{- toYaml .Values.metrics.grafana.dashboard.instanceSelector.matchLabels | nindent 6 }}
+      {{- else }}
+      dashboards: "grafana"
+      {{- end }}
+  {{- if .Values.metrics.grafana.dashboard.folder }}
+  folder: {{ .Values.metrics.grafana.dashboard.folder | quote }}
+  {{- end }}
+  json: |
+{{ .Files.Get "dashboards/kncc-dashboard.json" | indent 4 }}
+{{- end }}

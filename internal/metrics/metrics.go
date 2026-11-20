@@ -54,6 +54,7 @@ func NewMetrics(s store.Store) *Metrics {
 			return float64(size)
 		})
 		reg.MustRegister(dbSizeGauge)
+		reg.MustRegister(newScheduledChecksCollector(s))
 	}
 
 	// 3. User manual check counter
@@ -250,5 +251,57 @@ func (m *Metrics) DeleteJobMetrics(jobID string) {
 	}
 	if m.jobLastDuration != nil {
 		m.jobLastDuration.DeleteLabelValues(jobID)
+	}
+}
+
+// scheduledChecksCollector dynamically counts scheduled checks by type (permanent/ephemeral) and status (enabled/disabled).
+type scheduledChecksCollector struct {
+	s    store.Store
+	desc *prometheus.Desc
+}
+
+func newScheduledChecksCollector(s store.Store) *scheduledChecksCollector {
+	return &scheduledChecksCollector{
+		s: s,
+		desc: prometheus.NewDesc(
+			"kncc_scheduled_checks",
+			"Current number of periodic connectivity checks configured in kncc.",
+			[]string{"type", "enabled"},
+			nil,
+		),
+	}
+}
+
+func (c *scheduledChecksCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c *scheduledChecksCollector) Collect(ch chan<- prometheus.Metric) {
+	if c.s == nil {
+		return
+	}
+	checks, err := c.s.ListScheduledChecks(context.Background())
+	if err != nil {
+		return
+	}
+	counts := map[[2]string]float64{
+		{"permanent", "true"}:  0,
+		{"permanent", "false"}: 0,
+		{"ephemeral", "true"}:  0,
+		{"ephemeral", "false"}: 0,
+	}
+	for _, chk := range checks {
+		typ := "permanent"
+		if chk.IsEphemeral {
+			typ = "ephemeral"
+		}
+		en := "false"
+		if chk.Enabled {
+			en = "true"
+		}
+		counts[[2]string{typ, en}]++
+	}
+	for k, v := range counts {
+		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, v, k[0], k[1])
 	}
 }

@@ -466,6 +466,7 @@ type MetricsConfig struct {
 	Path                   string            `yaml:"path"` // default /metrics
 	Auth                   MetricsAuthConfig `yaml:"auth"`
 	ExportEphemeralMetrics bool              `yaml:"export_ephemeral_metrics" json:"export_ephemeral_metrics"`
+	GrafanaDashboardURL    string            `yaml:"grafana_dashboard_url" json:"grafana_dashboard_url"`
 }
 
 type MonitoringConfig struct {
@@ -596,6 +597,7 @@ func DefaultConfig() *Config {
 				Token:    "",
 			},
 			ExportEphemeralMetrics: false,
+			GrafanaDashboardURL:    "",
 		},
 		Monitoring: MonitoringConfig{
 			MinInterval:      "30s",
@@ -1092,6 +1094,9 @@ func (c *Config) loadFromEnv() {
 	}
 	if v := os.Getenv("METRICS_EXPORT_EPHEMERAL_METRICS"); v != "" {
 		c.Metrics.ExportEphemeralMetrics = parseBool(v)
+	}
+	if v := os.Getenv("METRICS_GRAFANA_DASHBOARD_URL"); v != "" {
+		c.Metrics.GrafanaDashboardURL = strings.TrimSpace(v)
 	}
 
 	// Monitoring

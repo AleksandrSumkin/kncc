@@ -258,12 +258,12 @@ Before deploying release artifacts to production clusters, verify digital signat
 ```bash
 # 1. Download release public key, checksum manifest, and signature from Forgejo Release page
 # 2. Verify digital signature of checksum manifest
-openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.18.0-checksums.txt.sig kncc-1.18.0-checksums.txt
+openssl dgst -sha256 -verify kncc-release.pub -signature kncc-1.19.0-checksums.txt.sig kncc-1.19.0-checksums.txt
 # Expected output: Verified OK
 
-# 3. Verify artifact checksums (Helm chart kncc-1.18.0.tgz, manifests, SBOM)
-sha256sum -c kncc-1.18.0-checksums.txt
-# Expected output: kncc-1.18.0.tgz: OK
+# 3. Verify artifact checksums (Helm chart kncc-1.19.0.tgz, manifests, SBOM)
+sha256sum -c kncc-1.19.0-checksums.txt
+# Expected output: kncc-1.19.0.tgz: OK
 ```
 
 ### 6.2. Standard Installation
@@ -543,6 +543,22 @@ extraObjects:
 ```
 
 Supports lists of objects, named maps of resources, raw YAML strings, and Helm template evaluation (`tpl`) with access to chart context (`$`).
+
+### 6.18. Grafana Operator & Dashboard Integration
+
+`kncc` includes a production-grade Grafana dashboard and native Helm integration with the Grafana Operator (`grafana.integreatly.org/v1beta1`):
+1. **Prebuilt Dashboard (`deploy/grafana/kncc-dashboard.json`):**
+   - **Overview:** Uptime, SQLite database file size, scheduled check counts (total, permanent, ephemeral, active, paused), ad-hoc check counter, cluster node count, healthy node percentage, process CPU and memory utilization.
+   - **Target Availability Timeline:** State timeline visualizing reachability status (OK / FAIL) per node and target service over time (`kncc_probe_success`).
+   - **Performance & Latency Breakdown:** Real-time round-trip latency time-series, cluster node comparison bar charts to identify slower network paths, protocol latency breakdown, and job execution duration.
+   - **Protocol & Certificate Metrics:** HTTP response codes and SSL/TLS certificate expiry warnings (< 30 days yellow, < 7 days red).
+   - **Multi-dimensional Templating:** Interactive filters for `$job`, `$mode`, `$namespace`, `$protocol`, `$target`, and `$node`.
+2. **Grafana Operator Resources:**
+   - Automatically generate `GrafanaDatasource` and `GrafanaDashboard` custom resources in Kubernetes.
+   - Configure via `metrics.grafana.datasource.enabled` and `metrics.grafana.dashboard.enabled`.
+3. **UI Quick Link:**
+   - Configure `metrics.grafanaDashboardURL` (e.g. `http://grafana.example.com/d/kncc-overview`) in Helm values or via `METRICS_GRAFANA_DASHBOARD_URL`.
+   - When set, a dashboard shortcut icon (`LayoutDashboard`) automatically renders in the main top navigation bar.
 
 ---
 

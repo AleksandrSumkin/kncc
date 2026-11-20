@@ -200,6 +200,9 @@ data:
         {{- end }}
       {{- end }}
       export_ephemeral_metrics: {{ default false (coalesce .Values.metrics.exportEphemeralMetrics .Values.metrics.export_ephemeral_metrics) }}
+      {{- if or .Values.metrics.grafanaDashboardURL .Values.metrics.grafana_dashboard_url }}
+      grafana_dashboard_url: "{{ default .Values.metrics.grafana_dashboard_url .Values.metrics.grafanaDashboardURL }}"
+      {{- end }}
     {{- end }}
 
     {{- if .Values.monitoring }}

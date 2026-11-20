@@ -115,6 +115,7 @@ export interface SystemConfig {
   logo_url?: string;
   has_custom_favicon?: boolean;
   favicon_url?: string;
+  grafana_dashboard_url?: string;
   monitoring?: {
     min_interval: string;
     allowed_intervals: string[];

@@ -134,15 +134,17 @@ func (h *Handler) GetSystemConfig(w http.ResponseWriter, r *http.Request) {
 		"logo_url":                "/api/system/logo?v=" + trimmedEtag,
 		"has_custom_favicon":      isCustomFavicon,
 		"favicon_url":             "/api/system/favicon?v=" + trimmedFaviconEtag,
+		"grafana_dashboard_url":   h.cfg.Metrics.GrafanaDashboardURL,
 		"monitoring": map[string]any{
 			"min_interval":      h.cfg.Monitoring.MinInterval,
 			"allowed_intervals": h.cfg.Monitoring.AllowedIntervals,
 		},
 		"metrics": map[string]any{
-			"enabled":      h.cfg.Metrics.Enabled,
-			"port":         h.cfg.Metrics.Port,
-			"path":         h.cfg.Metrics.Path,
-			"auth_enabled": h.cfg.Metrics.Auth.Enabled,
+			"enabled":               h.cfg.Metrics.Enabled,
+			"port":                  h.cfg.Metrics.Port,
+			"path":                  h.cfg.Metrics.Path,
+			"auth_enabled":          h.cfg.Metrics.Auth.Enabled,
+			"grafana_dashboard_url": h.cfg.Metrics.GrafanaDashboardURL,
 		},
 	})
 }

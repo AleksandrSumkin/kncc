@@ -16,6 +16,7 @@ import (
 type mockStore struct {
 	dbSize int64
 	count  int64
+	checks []*model.ScheduledCheck
 }
 
 func (m *mockStore) GetDatabaseSizeBytes() (int64, error) {
@@ -71,7 +72,7 @@ func (m *mockStore) GetScheduledCheck(ctx context.Context, id string) (*model.Sc
 	return nil, nil
 }
 func (m *mockStore) ListScheduledChecks(ctx context.Context) ([]*model.ScheduledCheck, error) {
-	return nil, nil
+	return m.checks, nil
 }
 func (m *mockStore) UpdateScheduledCheck(ctx context.Context, check *model.ScheduledCheck) error {
 	return nil
@@ -153,6 +154,7 @@ func TestMetrics_RegistrationAndRecording(t *testing.T) {
 		"kncc_scheduled_job_healthy_nodes",
 		"kncc_scheduled_job_last_run_timestamp_seconds",
 		"kncc_scheduled_job_last_run_duration_seconds",
+		"kncc_scheduled_checks",
 		"go_goroutines",
 	}
 
@@ -367,5 +369,58 @@ func TestMetricsAuthMiddleware_BearerAuth(t *testing.T) {
 	handler.ServeHTTP(rec3, req3)
 	if rec3.Code != http.StatusOK {
 		t.Errorf("expected 200 OK for valid bearer token, got %d", rec3.Code)
+	}
+}
+
+func TestMetrics_ScheduledChecksCollector(t *testing.T) {
+	ms := &mockStore{
+		checks: []*model.ScheduledCheck{
+			{ID: "c1", IsEphemeral: false, Enabled: true},
+			{ID: "c2", IsEphemeral: false, Enabled: false},
+			{ID: "c3", IsEphemeral: true, Enabled: true},
+		},
+	}
+	m := NewMetrics(ms)
+	mfs, err := m.Registry.Gather()
+	if err != nil {
+		t.Fatalf("failed to gather metrics: %v", err)
+	}
+
+	var found *dto.MetricFamily
+	for _, mf := range mfs {
+		if mf.GetName() == "kncc_scheduled_checks" {
+			found = mf
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("kncc_scheduled_checks family not found")
+	}
+
+	values := make(map[string]float64)
+	for _, metric := range found.Metric {
+		var typ, enabled string
+		for _, lbl := range metric.Label {
+			if lbl.GetName() == "type" {
+				typ = lbl.GetValue()
+			}
+			if lbl.GetName() == "enabled" {
+				enabled = lbl.GetValue()
+			}
+		}
+		values[typ+":"+enabled] = metric.Gauge.GetValue()
+	}
+
+	if values["permanent:true"] != 1 {
+		t.Errorf("expected 1 permanent enabled check, got %v", values["permanent:true"])
+	}
+	if values["permanent:false"] != 1 {
+		t.Errorf("expected 1 permanent disabled check, got %v", values["permanent:false"])
+	}
+	if values["ephemeral:true"] != 1 {
+		t.Errorf("expected 1 ephemeral enabled check, got %v", values["ephemeral:true"])
+	}
+	if values["ephemeral:false"] != 0 {
+		t.Errorf("expected 0 ephemeral disabled checks, got %v", values["ephemeral:false"])
 	}
 }

@@ -1142,6 +1142,9 @@ func TestAPI_ScheduledChecks(t *testing.T) {
 	if sysCfg["monitoring"] == nil || sysCfg["metrics"] == nil {
 		t.Fatalf("expected monitoring and metrics in system config, got %+v", sysCfg)
 	}
+	if _, ok := sysCfg["grafana_dashboard_url"]; !ok {
+		t.Errorf("expected grafana_dashboard_url key in system config")
+	}
 
 	// 2. Create dynamic scheduled check
 	createPayload := model.CreateScheduledCheckRequest{

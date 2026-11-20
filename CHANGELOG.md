@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-20
+
+### Added
+- **Support Grafana operator & dashboard ([#158](https://github.com/AleksandrSumkin/kncc/issues/158)):**
+  - **Grafana Dashboard:** Created comprehensive production dashboard (`deploy/grafana/kncc-dashboard.json` and Helm `dashboards/kncc-dashboard.json`) for kncc metrics fully localized in English:
+    - Overview row: Uptime, SQLite database size, scheduled check counts (total, permanent, ephemeral, enabled, disabled), ad-hoc check count, cluster node count, healthy node ratio, CPU/RAM usage.
+    - Availability timeline row: Target connectivity state timeline by node and target (`kncc_probe_success`).
+    - Latency & node comparison row: Real-time latency time-series, node comparison bar chart to identify slow nodes, protocol duration breakdown, and scheduled job run duration.
+    - Protocol & TLS inspection row: HTTP response status codes and SSL/TLS certificate days until expiry.
+    - Template variables for multi-filtering: `$datasource`, `$job`, `$mode`, `$namespace`, `$protocol`, `$target`, `$node`.
+  - **Grafana Operator Integration:** Added Helm chart support for Grafana Operator (`grafana.integreatly.org/v1beta1`) via `deploy/helm/kncc/templates/grafanadatasource.yaml` and `deploy/helm/kncc/templates/grafanadashboard.yaml` with customizable instance selectors, namespaces, and `allowCrossNamespaceImport`.
+  - **Dashboard URL Configuration & UI Navigation Link:** Added `metrics.grafana_dashboard_url` to backend configuration, env var `METRICS_GRAFANA_DASHBOARD_URL`, API `/api/system/config`, and Helm values. When configured, an icon link (`LayoutDashboard`) automatically renders in the main top navigation bar (`Navbar.tsx`) with tooltip and localized labels.
+  - **Scheduled Checks Prometheus Metric:** Added `kncc_scheduled_checks` gauge vector in `internal/metrics/metrics.go` reporting real-time counts by check type (`permanent`/`ephemeral`) and status (`enabled`/`disabled`) directly from SQLite store.
+- **Full SSDLC Security Audit & Release Automation ([#160](https://github.com/AleksandrSumkin/kncc/issues/160)):**
+  - Completed comprehensive SSDLC security audit: Gitleaks secrets detection, Semgrep SAST, Trivy filesystem SCA, CycloneDX and SPDX SBOM generation, Trivy container image scanning, OWASP ZAP API DAST, and Nuclei vulnerability scanning with zero blocking vulnerabilities.
+  - Bumped chart and application version to 1.19.0 across `Chart.yaml`, OpenAPI specifications, and documentation.
+
 ## [1.18.0] - 2026-11-18
 
 ### Added

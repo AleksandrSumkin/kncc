@@ -1121,3 +1121,21 @@ scheduled_checks:
 		t.Errorf("unexpected ICMP scheduled check: %+v", scICMP)
 	}
 }
+
+func TestConfig_GrafanaDashboardURL(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Metrics.GrafanaDashboardURL != "" {
+		t.Errorf("expected default GrafanaDashboardURL to be empty, got %q", cfg.Metrics.GrafanaDashboardURL)
+	}
+
+	os.Setenv("METRICS_GRAFANA_DASHBOARD_URL", "http://grafana.test.example.com/d/kncc")
+	defer os.Unsetenv("METRICS_GRAFANA_DASHBOARD_URL")
+
+	loaded, err := Load("")
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if loaded.Metrics.GrafanaDashboardURL != "http://grafana.test.example.com/d/kncc" {
+		t.Errorf("expected GrafanaDashboardURL to be loaded from env, got %q", loaded.Metrics.GrafanaDashboardURL)
+	}
+}

@@ -209,6 +209,7 @@ metrics:
   port: 9090    # Dedicated port for Prometheus scraping
   path: "/metrics"
   export_ephemeral_metrics: false # Exclude ad-hoc/ephemeral checks from exporter to prevent label accumulation
+  grafana_dashboard_url: "" # Optional link to external Grafana dashboard (e.g. http://grafana.example.com/d/kncc-overview)
   auth:
     enabled: false # Require authentication for /metrics endpoint
     type: "basic"  # "basic" or "bearer"

@@ -1,4 +1,4 @@
-package api
+﻿package api
 
 import (
 	"kncc/internal/config"
@@ -38,6 +38,7 @@ type SystemConfigResponse struct {
 	LogoURL               string                  `json:"logo_url" example:"/api/system/logo?v=123"`
 	HasCustomFavicon      bool                    `json:"has_custom_favicon" example:"false"`
 	FaviconURL            string                  `json:"favicon_url" example:"/api/system/favicon?v=123"`
+	GrafanaDashboardURL   string                  `json:"grafana_dashboard_url,omitempty" example:"http://grafana.example.com/d/kncc-overview"`
 }
 
 // AuthProvidersResponse represents available authentication providers.
